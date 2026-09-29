@@ -1,0 +1,334 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2022 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+<!ENTITY HOME_URL "home directory (home://filename)">
+<!ENTITY HTTP_URL "remote HTTP server (http://hostip/filepath)">
+<!ENTITY FTP_URL "remote FTP server (ftp://userid:passwd@hostip/filepath)">
+<!ENTITY SCP_URL "remote SCP server (scp://userid:passwd@hostip/filepath)">
+<!ENTITY USB_URL "usb media directory (usb://filename)">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="cert_copy_url" dynamic="true">
+    <ACTION> echo -n "${copy_ftp_url}${copy_home_url}${copy_http_url}${copy_scp_url}${copy_usb_url}"
+</ACTION>
+  </VAR>
+  <VAR name="key_file_copy_url" dynamic="true">
+    <ACTION> echo -n "${key_copy_ftp_url}${key_copy_home_url}${key_copy_http_url}${key_copy_scp_url}${key_copy_usb_url}"
+</ACTION>
+  </VAR>
+  <VAR name="cert_filename" dynamic="true">
+    <ACTION> echo -n "${cert_name}"
+</ACTION>
+  </VAR>
+  <VAR name="prof_name" dynamic="true">
+    <ACTION> echo -n "${profile_name}"
+</ACTION>
+  </VAR>
+  <VAR name="truststore_name" dynamic="true">
+    <ACTION> echo -n "${store_name}"
+</ACTION>
+  </VAR>
+  <VAR name="is_fips_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj"> sonic_cli_fips fips_support </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="crypto" access="secadmin" help="Configure PKI"/>
+    <COMMAND name="crypto ssh-keygen" access="secadmin" help="Generate SSH keys">
+      <PARAM name="ssh_keygen_subcommands" help="SSH keygen subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="ecdsa" help="ECDSA key type" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="ecdsa_key_length" help="Key length" optional="true" ptype="ECDSA_KEY_LEN"/>
+        </PARAM>
+        <PARAM name="rsa" help="RSA key type" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="rsa_key_length" help="Key length" optional="true" ptype="RSA_KEY_LEN"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_sshkey_gen_op ${ssh_keygen_subcommands} ${ecdsa_key_length} ${rsa_key_length}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Generate SSH keys</DESCRIPTION>
+        <EXAMPLE>
+                 sonic# crypto ssh-keygen rsa 2048
+                 Processing SSH Key Gen request ...
+                 Generated 2048-bit rsa key!!!
+                 sonic#
+             </EXAMPLE>
+        <EXAMPLE>
+                 sonic# crypto ssh-keygen ecdsa 521
+                 Processing SSH Key Gen request ...
+                 Generated 521-bit ecdsa key!!!
+                 sonic#
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="crypto ca-cert" access="secadmin" help="Configure CA certificate">
+      <PARAM name="crypto_subcommands" help="PKI subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="install" help="Install CA certificate" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="copy_src_location" help="Loacation of file" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="copy_ftp_url" help="Install CA certificate from &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="copy_home_url" help="Install CA certificate from &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="copy_http_url" help="Install CA certificate from &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="copy_scp_url" help="Install CA certificate from &SCP_URL;" ptype="SCP_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="delete" help="Delete CA certificate" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="delete_subcommands" help="Delete all or specific file" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="all" help="Delete all CA certificates" mode="subcommand" ptype="SUBCOMMAND"/>
+            <PARAM name="cert_name" help="Filename of CA certificate (without file extension) to be deleted" ptype="STRING"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="verify" help="Verify CA certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ca-cert-name" help="Name of CA certificate to be verified (without file extension)" ptype="STRING">
+            <PARAM name="verify_options" help="Options for verification" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="expiry" help="Verify expiry of CA certificate" ptype="SUBCOMMAND" mode="subcommand"/>
+              <PARAM name="ca_name" help="Verify certificate with given CA certificate (without file extension)" ptype="STRING"/>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_ca_cert_op ${crypto_subcommands} ${copy_src_location} ${cert_copy_url} ${delete_subcommands} ${cert_filename} ${ca-cert-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="crypto cert" access="secadmin" help="Configure host certificate">
+      <PARAM name="host_subcommands" help="Host certificate subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="install" help="Install host certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="cert-file" help="Install given host certificate file" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="cert_location" help="Loacation of host certificate file" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="copy_ftp_url" help="Install host certificate file from &FTP_URL;" ptype="FTP_TYPE"/>
+              <PARAM name="copy_home_url" help="Install host certificate file from &HOME_URL;" ptype="HOME_TYPE"/>
+              <PARAM name="copy_http_url" help="Install host certificate file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+              <PARAM name="copy_scp_url" help="Install host certificate file from &SCP_URL;" ptype="SCP_TYPE"/>
+            </PARAM>
+            <PARAM name="key-file" help="Location of private key file" mode="subcommand" ptype="subcommand">
+              <PARAM name="key_file_location" help="Loacation of private key file" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="key_copy_ftp_url" help="Get key file from &FTP_URL;" ptype="FTP_TYPE"/>
+                <PARAM name="key_copy_home_url" help="Get key from &HOME_URL;" ptype="HOME_TYPE"/>
+                <PARAM name="key_copy_http_url" help="Get key file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+                <PARAM name="key_copy_scp_url" help="Get key file from &SCP_URL;" ptype="SCP_TYPE"/>
+              </PARAM>
+              <PARAM name="password" help="Optional password if the private key file is password protected" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="key-paswd" help="Optional password if the private key file is password protected" ptype="STRING"/>
+              </PARAM>
+              <PARAM name="fips" help="FIPS compliant certificate" mode="subcommand" optional="true" ptype="SUBCOMMAND" test="${is_fips_supported}"/>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="delete" help="Delete host certificate" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="delete_host_subcommands" help="Delete all or specific file" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="all" help="Delete all host certificates" mode="subcommand" ptype="SUBCOMMAND"/>
+            <PARAM name="cert_name" help="Filename of host certificate (without file extension) to be deleted" ptype="STRING">
+              <PARAM name="fips" help="FIPS compliant certificate" mode="subcommand" optional="true" ptype="SUBCOMMAND" test="${is_fips_supported}"/>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="verify" help="Verify host certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="host-cert-name" help="Host certificate name (without file extension)" ptype="STRING">
+            <PARAM name="verify_options" help="Options for verification" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="expiry" help="Verify expiry of host certificate" ptype="SUBCOMMAND" mode="subcommand"/>
+              <PARAM name="ca_name" help="Verify host certificate with given CA certificate (without file extension)" ptype="STRING"/>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_host_cert_op ${host_subcommands} ${cert_copy_url} ${key_file_copy_url} ${key-paswd} ${delete_host_subcommands} ${cert_filename} ${host-cert-name} ${verify_options} ${ca_name} ${fips}</ACTION>
+    </COMMAND>
+    <COMMAND name="crypto cert generate" help="Generate CSR" escape_chars="">
+      <PARAM name="request" help="Generate Certificate Signing Request (CSR)" mode="subcommand" ptype="SUBCOMMAND">
+        <PARAM name="cert-file" help="Name of certificate filename" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+          <PARAM name="cert_location" help="Loacation of certificate file" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="copy_ftp_url" help="Write to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="copy_home_url" help="Write to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="copy_http_url" help="Write to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="copy_scp_url" help="Write to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="copy_usb_url" help="Write to &USB_URL;" ptype="USB_TYPE"/>
+          </PARAM>
+          <PARAM name="key-file" help="Name of key file" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="key_file_location" help="Loacation of key file" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="key_copy_ftp_url" help="Write to &FTP_URL;" ptype="FTP_TYPE"/>
+              <PARAM name="key_copy_home_url" help="Write to &HOME_URL;" ptype="HOME_TYPE"/>
+              <PARAM name="key_copy_http_url" help="Write to &HTTP_URL;" ptype="HTTP_TYPE"/>
+              <PARAM name="key_copy_scp_url" help="Write to &SCP_URL;" ptype="SCP_TYPE"/>
+              <PARAM name="key_copy_usb_url" help="Write to &USB_URL;" ptype="USB_TYPE"/>
+            </PARAM>
+            <PARAM name="key-password" help="Password for key file" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="password" help="Password for key file" ptype="STRING"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="cname" help="Common Name" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="common_name" help="Common Name" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="altname" help="Subject Alternative Name" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="sa_name" help="Subject Alternative Name (e.g. IP:A.B.C.D or DNS:domain.name)(Comma Separated)" ptype="STRING_WITH_PIPE"/>
+          </PARAM>
+          <PARAM name="email" help="Email Address" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="email_add" help="Email Address" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="organization" help="Name of Organization" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="org_name" help="Name of Organization" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="orgunit" help="Name of Organizational Unit" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="orgunit_name" help="Organizational Unit Name" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="locality" help="Name of locality" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="locality_name" help="Name of Locality" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="state" help="Name of state" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="state_name" help="Name of state" ptype="STRING"/>
+          </PARAM>
+          <PARAM name="country" help="Name of country" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="country_name" help="Name of country (2 letter code)" ptype="CERT_COUNTRY"/>
+          </PARAM>
+          <PARAM name="key-length" help="Length of key" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="key_length" help="Length of key" ptype="KEY_LENGTH"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_cert_csr ${cert_copy_url} ${key_file_copy_url} password ${password} cname ${common_name} san ${#sa_name} email ${email_add} org ${#org_name} org_unit ${#orgunit_name} locality ${#locality_name} state ${#state_name} country ${#country_name} length ${key_length}</ACTION>
+    </COMMAND>
+    <COMMAND name="show crypto" help="Display PKI related information"/>
+    <COMMAND name="show crypto ca-cert" help="Display CA Certificate">
+      <PARAM name="ca-cert-options" help="CA cert options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Display all CA certificates" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="file" help="Display raw PEM format certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="cert_name" help="Name of CA certificate" ptype="STRING"/>
+        </PARAM>
+        <PARAM name="cert_name" help="Name of CA Certificate" ptype="STRING"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_sonic_get_ca_cert ${ca-cert-options} ${cert_filename}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show crypto cert" help="Display host certificate">
+      <PARAM name="host-cert-options" help="host cert options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Display all host certificates" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="file" help="Display raw PEM format certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="cert_name" help="Name of CA certificate" ptype="STRING"/>
+        </PARAM>
+        <PARAM name="cert_name" help="Display host certificate with given name" ptype="STRING"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_sonic_get_host_cert ${host-cert-options} ${cert_filename}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show crypto security-profile" help="Display security profile information">
+      <PARAM name="secprof_name" help="Name of security profile" ptype="STRING" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_sonic_get_security_profiles ${secprof_name}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show crypto ssh-key" access="secadmin" help="Display information related to SSH public keys">
+      <PARAM name="ssh_key_subcommands" help="SSH key subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="ecdsa" help="Show ECDSA public key" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="rsa" help="Show RSA public key" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_get_sshkey_op ${ssh_key_subcommands}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Display information related to SSH public keys</DESCRIPTION>
+        <EXAMPLE>
+                 sonic# show crypto ssh-key rsa
+                 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDmK8cBo4pe7DHlH2JXiIMWgzo5VT4w4ce2vxZ218hnrRCaeGYPEKHrvf13Fav/r84j5IZduj9VSlQsndnA/LcajXlbvWAJu3DH+Rv7krCNLTmwEzjnhyK6dUq0tHTbzm9jSrNG9Z6JPVeH1+XXbhW7QJhaijQE9gHKRblP39oItZ8Hxb2SilqxDw39vocNr2pL6XOhYWEv9l4W5dAvagSIBxwxpkkJj8YOLrWmRfXDGN3j1HUUiTZ0nD/3I7b2piVP4V26jQ1wywe+Y+WEYXT4lp1KWeQzX/EprWRdnTzb+3F/Sm8Nyi4jetAapw8PvTU8C6ijkmIDdBZHe7Z9vlV/ root@sonic
+                 sonic#
+             </EXAMPLE>
+        <EXAMPLE>
+                 sonic# show crypto ssh-key ecdsa
+                 ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1MjEAAAAIbmlzdHA1MjEAAACFBAF4lh/ubHv1UnNbqU6VjBmamGonvfTtRtSyU/6b58Qmw9r8wPK8G4Kbun0E7YRfOGMNNapGconOAXDCxNOY2PK73gFn9mx/gcSD7l/A+71pxqPCbIP05DI0emdgqIy45R9dwfzLlcSLGvimQyGC3yvKM+R2tVBan1JtNHLitmyISmYvoQ== root@sonic
+                 sonic#
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show crypto trust-store" help="Display trust store information">
+      <PARAM name="truststore_name" help="Name of trust store" ptype="STRING" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki rpc_sonic_get_trust_store ${truststore_name}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- PKI configuration commands -->
+    <COMMAND name="crypto" access="secadmin" help="Configure crypto"/>
+    <COMMAND name="crypto trust-store" access="secadmin" command_tables="sonic-pki:sonic-pki/TRUST_STORES/TRUST_STORES_LIST/name={name}" command_keys="name=*" render_command_cb="trust_store" help="Configure trust store">
+      <PARAM name="name" help="Name of trust store" ptype="STRING">
+        <PARAM name="ca-cert" help="Add CA certificate to trust store" mode="subcommand" ptype="SUBCOMMAND" optional="false">
+          <PARAM name="ca-cert-name" help="Name of CA certificates (Comma separated, without file extension)" ptype="STRING"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki sonic_config_trust_store ${name} ${ca-cert-name} </ACTION>
+    </COMMAND>
+    <COMMAND name="crypto security-profile" access="secadmin" escape_chars="" help="Configure security profile" command_tables="sonic-pki:sonic-pki/SECURITY_PROFILES/SECURITY_PROFILES_LIST/profile-name={profile_name}" command_keys="profile_name=*" render_command_cb="security_profile">
+      <PARAM name="sp-subcommands" help="security profile subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="certificate" help="Configure security profile server certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="cert_name" help="Name of existing host certificate without file extension, to associate with security profile" ptype="STRING"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="trust-store" help="Configure trust store for security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="store_name" help="Name of trust store" ptype="STRING"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="cdp-list" help="Configure CRL Distribution Point list for security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="url" help="URL of CDP identifiers &HTTP_URL; (Comma separated)" ptype="HTTP_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ocsp-list" help="Configure OCSP Responder list for security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="url" help="URL of OCSP responder identifiers &HTTP_URL; (Comma separated)" ptype="HTTP_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+          <PARAM name="key-usage-check" help="Configure key usage check value" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="key_usage" help="True/False for key check" ptype="BOOL"/>
+          </PARAM>
+          <PARAM name="peer-name-check" help="Configure peer name check value" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="peer_name" help="True/False for peername check" ptype="BOOL"/>
+          </PARAM>
+          <PARAM name="revocation-check" help="Configure revocation check value" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="revoc_check" help="True/False for revocation check" ptype="BOOL"/>
+          </PARAM>
+          <PARAM name="vrf" help="Configure VRF for outbound connections to OCSP responders and/or CDPs" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="mgmt" help="Management VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_pki sonic_config_security_profile ${sp-subcommands} profile_name:${prof_name} ${cert_filename} ${truststore_name} ${url} key_usage:${key_usage} peer_name:${peer_name} revoc_check:${revoc_check} vrf_name:${mgmt}</ACTION>
+    </COMMAND>
+    <COMMAND name="no crypto" access="secadmin" help="Unconfigure crypto"/>
+    <COMMAND name="no crypto security-profile" access="secadmin" escape_chars="" help="Unconfigure security profile">
+      <PARAM name="no-sp-subcmds" help="no security profile subcmds" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="certificate" help="Unconfigure Security Profile Server Certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING"/>
+        </PARAM>
+        <PARAM name="trust-store" help="Unconfigure Security Profile Trust-Store" mode="subcommand" ptype="subcommand">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING"/>
+        </PARAM>
+        <PARAM name="cdp-list" help="Unconfigure CRL Distribution Point list for security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="url" help="URL of CDP identifiers &HTTP_URL; (Comma separated)" ptype="HTTP_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ocsp-list" help="Unconfigure OCSP Responder list for security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+            <PARAM name="url" help="URL of OCSP responder identifiers &HTTP_URL; (Comma separated)" ptype="HTTP_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="profile_name" help="Name of security profile" ptype="STRING">
+          <PARAM name="optional_checks" help="Unconfigure additional params" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="key-usage-check" help="Unconfigure key usage check value" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            <PARAM name="peer-name-check" help="Unconfigure peer name check value" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            <PARAM name="revocation-check" help="Unconfigure revocation check value" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            <PARAM name="vrf" help="Unconfigure VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_pki sonic_delete_security_profile ${no-sp-subcmds} ${prof_name} ${cert_filename} ${truststore_name} ${url} ${optional_checks}</ACTION>
+    </COMMAND>
+    <COMMAND name="no crypto trust-store" access="secadmin" help="Unconfigure trust store">
+      <PARAM name="name" help="Name of trust store" ptype="STRING">
+        <PARAM name="ca-cert" help="Remove CA certificate to trust store" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+          <PARAM name="ca-cert-name" help="Name of CA certificate *.crt (Comma separated)" ptype="STRING"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_pki sonic_delete_trust_store ${name} ${ca-cert-name} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

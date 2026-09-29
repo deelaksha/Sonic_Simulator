@@ -1,0 +1,59 @@
+### show interfaces counters
+     IFACE    STATE    RX_OK    RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK    TX_BPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
+----------  -------  -------  --------  ---------  --------  --------  --------  -------  --------  ---------  --------  --------  --------
+ Ethernet0        U    59905  0.00 B/s      0.00%         0         4         0    69111  0.00 B/s      0.00%         0         0         0
+ Ethernet1        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet2        X        0  0.00 B/s      0.00%         0         2         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet3        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet4        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet5        X        0  0.00 B/s      0.00%         0        10         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet6        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet7        X        0  0.00 B/s      0.00%         0         8         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet8        X        0  0.00 B/s      0.00%         0         8         0        0  0.00 B/s      0.00%         0         0         0
+ Ethernet9        X        0  0.00 B/s      0.00%         0         8         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet10        X        0  0.00 B/s      0.00%         0         6         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet11        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet12        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet13        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet14        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet15        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet16        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet17        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet18        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet19        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet20        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet21        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet22        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet23        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet24        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet25        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet26        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet27        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet28        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet29        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet30        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet31        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet32        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet33        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet34        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet35        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet36        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet37        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet38        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet39        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet40        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet41        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet42        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet43        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet44        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet45        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet46        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet47        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet48        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet52        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet56        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet60        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet64        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet68        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet72        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0
+Ethernet76        X        0  0.00 B/s      0.00%         0         0         0        0  0.00 B/s      0.00%         0         0         0

@@ -1,0 +1,553 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show ip vrf" help="Show VRF information">
+      <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15" default="all" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf get_openconfig_network_instance_network_instances_network_instances show_vrf.j2 ${vrf-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Display configuration information for a specified VRF and its associated interfaces or
+                 all VRF and their associated interfaces.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show ip vrf
+             </USAGE>
+        <EXAMPLE summary="Display all VRF with their associated interfaces">
+                 sonic# show ip vrf
+                 VRF-NAME            INTERFACES
+                 ----------------------------------------------------------------
+                 mgmt                eth0
+                 Vrf_red             Ethernet16
+                                     Ethernet8
+             </EXAMPLE>
+        <EXAMPLE summary="Display a specified VRF with its associated interface">
+                 sonic# show ip vrf Vrf_red
+                 VRF-NAME            INTERFACES
+                 ----------------------------------------------------------------
+                 Vrf_red             Ethernet16
+                                     Ethernet8
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip vrf mgmt" help="Show management VRF information">
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf get_openconfig_network_instance_network_instances_network_instances show_vrf.j2 mgmt </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Display configuration information for management VRF.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show ip vrf mgmt
+             </USAGE>
+        <EXAMPLE summary="Display management VRF">
+                 sonic# show ip vrf mgmt
+                 VRF-NAME            INTERFACES
+                 ----------------------------------------------------------------
+                 mgmt                eth0
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration vrf" help="Show VRF configuration information">
+      <PARAM name="vrf-name" help="Name of VRF" ptype="ALL_VRF"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf showrun ${vrf-name} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- vrf configuration commands -->
+    <COMMAND name="ip vrf mgmt" access="netadmin" help="Management VRF configuration" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-mgmt-vrf:sonic-mgmt-vrf/MGMT_VRF_CONFIG/MGMT_VRF_CONFIG_LIST/vrf_global_name={name}" command_keys="name=vrf_global" dbpath="sonic-mgmt-vrf:sonic-mgmt-vrf/MGMT_VRF_CONFIG/MGMT_VRF_CONFIG_LIST/mgmtVrfEnabled=true" render_command_viewid="renderCfg_ipvrfmgmt">
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf set_openconfig_vrf "mgmt" </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Configure management VRF.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# ip vrf mgmt
+           </USAGE>
+        <EXAMPLE summary="Configure management VRF">
+               sonic# configure terminal
+               sonic(config)# ip vrf mgmt
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip vrf" access="netadmin" help="VRF instance configuration" viewid="vrf-name=${vrf-name}" command_keys="vrf_name=*,family=*" command_tables="sonic-vrf:sonic-vrf/VRF/VRF_LIST/vrf_name={vrf-name};sonic-nht:sonic-nht/NHT_VRF_AF/NHT_VRF_AF_LIST/vrf_name={vrf-name},family={family}" render_command_cb="ip_vrf" render_command_viewid="renderCfg_ipvrf">
+      <PARAM name="vrf-name" help="Name of VRF (Max: 15 characters, prefixed with Vrf)" ptype="STRING_15">
+        <PARAM name="nht" help="Configures nexthop resolution and tracking parameters" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="resolve-via-default" help="Enables default route based nexthop resolution" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf set_openconfig_vrf ${vrf-name} IPV4 ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Configure a data VRF.
+               Configure nexthop resolution via default route.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# ip vrf VRF
+               VRF: Name of VRF (Max: 15 characters, prefixed with Vrf)
+               sonic(config)# ip vrf VRF nht resolve-via-default
+               VRF: Name of VRF (Max: 15 characters, prefixed with Vrf)
+           </USAGE>
+        <EXAMPLE summary="Configure a data VRF">
+               sonic# configure terminal
+               sonic(config)# ip vrf Vrf_red
+               sonic(config)# ip vrf Vrf_red nht resolve-via-default
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no vrf commands -->
+    <COMMAND name="no ip vrf mgmt" access="netadmin" help="Delete management VRF" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_openconfig_vrf "mgmt" </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Delete management VRF.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# no ip vrf mgmt
+           </USAGE>
+        <EXAMPLE summary="Delete management VRF">
+               sonic# configure terminal
+               sonic(config)# no ip vrf mgmt
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Delete VRF instance" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15">
+        <PARAM name="nht" help="Configures nexthop resolution and tracking parameters" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="resolve-via-default" help="Enables default route based nexthop resolution" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_openconfig_vrf ${vrf-name} IPV4 ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Delete a data VRF.
+               Unconfigure nexthop resolution via default route.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# no ip vrf VRF
+               VRF: Name of VRF
+               sonic(config)# no ip vrf VRF nht esolve-via-default
+               VRF: Name of VRF
+           </USAGE>
+        <EXAMPLE summary="Delete a data VRF">
+               sonic# configure terminal
+               sonic(config)# no ip vrf Vrf_red nht resolve-via-default
+               sonic(config)# no ip vrf Vrf_red
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 vrf" access="netadmin" help="VRF instance configuration">
+      <PARAM name="vrf-name" help="Name of VRF (Max: 15 characters, prefixed with Vrf)" ptype="STRING_15">
+        <PARAM name="nht" help="Configures nexthop resolution and tracking parameters" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="resolve-via-default" help="Enables default route based nexthop resolution" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf set_openconfig_vrf ${vrf-name} IPV6 ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Configure IPv6 nexthop resolution via default route.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# ipv6 vrf VRF nht resolve-via-default
+               VRF: Name of VRF (Max: 15 characters, prefixed with Vrf)
+           </USAGE>
+        <EXAMPLE summary="Configure a data VRF">
+               sonic# configure terminal
+               sonic(config)# ipv6 vrf Vrf_red nht resolve-via-default
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 vrf" access="netadmin" help="VRF instance configuration">
+      <PARAM name="vrf-name" help="Name of VRF (Max: 15 characters, prefixed with Vrf)" ptype="STRING_15">
+        <PARAM name="nht" help="Unconfigures nexthop resolution and tracking parameters" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="resolve-via-default" help="Disables default route based nexthop resolution" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_openconfig_vrf ${vrf-name} IPV6 ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Unconfigure IPv6 nexthop resolution via default route.
+           </DESCRIPTION>
+        <USAGE>
+               sonic(config)# no ipv6 vrf VRF nht resolve-via-default
+               VRF: Name of VRF (Max: 15 characters, prefixed with Vrf)
+           </USAGE>
+        <EXAMPLE summary="Configure a data VRF">
+               sonic# configure terminal
+               sonic(config)# no ipv6 vrf Vrf_red nht resolve-via-default
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- Config Interface PHY-MODE -->
+  <!--=======================================================-->
+  <VIEW name="configure-if-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="if_vrf_binding" command_tables="sonic-interface:sonic-interface/INTERFACE/INTERFACE_LIST/portname={name}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${iface_uri} body={"openconfig-network-instance:interface": [ {"id":"${iface}","config" : {"id":"${iface}" } } ] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Assign an interface to a VRF. VRF is data/mgmt VRF and interface can be
+                      ethernet, loopback, portchannel or vlan interface.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Assign interface to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 100
+                      sonic(conf-if-Vlan8)# ip vrf forwarding mgmt
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${iface_uri} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove the assignment of an interface to VRF.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# no ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Remove interface assignment to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# no ip vrf forwarding Vrf_red
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-subif-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="if_vrf_binding" command_tables="sonic-interface:sonic-interface/VLAN_SUB_INTERFACE/VLAN_SUB_INTERFACE_LIST/id={name}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${iface_uri} body={"openconfig-network-instance:interface": [ {"id":"${iface}","config" : {"id":"${iface}" } } ] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Assign an interface to a VRF. VRF is data/mgmt VRF and interface can be
+                      ethernet, loopback, portchannel or vlan interface.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Assign interface to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 100
+                      sonic(conf-if-Vlan8)# ip vrf forwarding mgmt
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${iface_uri} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove the assignment of an interface to VRF.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# no ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Remove interface assignment to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# no ip vrf forwarding Vrf_red
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf config_if_range iflist=${iflist} patch_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_if_range iflist=${iflist} delete_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-lag-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="if_vrf_binding" command_tables="sonic-portchannel-interface:sonic-portchannel-interface/PORTCHANNEL_INTERFACE/PORTCHANNEL_INTERFACE_LIST/pch_name={name}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${po_name} body={"openconfig-network-instance:interface": [ {"id":"${po_name}","config" : {"id":"${po_name}" } } ] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Assign an interface to a VRF. VRF is data/mgmt VRF and interface can be
+                      ethernet, loopback, portchannel or vlan interface.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Assign interface to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 100
+                      sonic(conf-if-Vlan8)# ip vrf forwarding mgmt
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${po_name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove the assignment of an interface to VRF.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# no ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Remove interface assignment to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# no ip vrf forwarding Vrf_red
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-po-range-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf config_if_range iflist=${iflist} patch_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_if_range iflist=${iflist} delete_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="if_vrf_binding" command_tables="sonic-vlan-interface:sonic-vlan-interface/VLAN_INTERFACE/VLAN_INTERFACE_LIST/vlanName={name}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${vlan_name} body={"openconfig-network-instance:interface": [ {"id":"${vlan_name}","config" : {"id":"${vlan_name}" } } ] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Assign an interface to a VRF. VRF is data/mgmt VRF and interface can be
+                      ethernet, loopback, portchannel or vlan interface.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Assign interface to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 100
+                      sonic(conf-if-Vlan8)# ip vrf forwarding mgmt
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${vlan_name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove the assignment of an interface to VRF.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# no ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Remove interface assignment to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# no ip vrf forwarding Vrf_red
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-range-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf config_if_range iflist=${iflist} patch_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vrf delete_if_range iflist=${iflist} delete_network_instance_interface ${mgmt}${vrf-name}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-lo-view">
+    <COMMAND name="ip vrf" access="netadmin" help="Bind interface to specified VRF domain"/>
+    <COMMAND name="ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="if_vrf_binding" command_tables="sonic-loopback-interface:sonic-loopback-interface/LOOPBACK_INTERFACE/LOOPBACK_INTERFACE_LIST/loIfName={name}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${lo_name} body={"openconfig-network-instance:interface": [ {"id":"${lo_name}","config" : {"id":"${lo_name}" } } ] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Assign an interface to a VRF. VRF is data/mgmt VRF and interface can be
+                      ethernet, loopback, portchannel or vlan interface.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Assign interface to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 100
+                      sonic(conf-if-Vlan8)# ip vrf forwarding mgmt
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip vrf" access="netadmin" help="Unbind interface from specified VRF domain"/>
+    <COMMAND name="no ip vrf forwarding" access="netadmin" help="Configure forwarding table" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="STRING_15"/>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-network-instance:network-instances/network-instance=${mgmt}${vrf-name}/interfaces/interface=${lo_name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove the assignment of an interface to VRF.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(conf-if-INTF)# no ip vrf forwarding VRF
+                      VRF:  Name of VRF
+                      INTF: View identifier of Ethernet, Loopback, PortChannel or Vlan interface
+                  </USAGE>
+        <EXAMPLE summary="Remove interface assignment to VRF">
+                      sonic(config)# interface Ethernet 8
+                      sonic(conf-if-Ethernet8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Loopback 8
+                      sonic(conf-if-lo8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface PortChannel 8
+                      sonic(conf-if-po8)# no ip vrf forwarding Vrf_red
+                      sonic(config)# interface Vlan 8
+                      sonic(conf-if-Vlan8)# no ip vrf forwarding Vrf_red
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,391 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2023 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!-- =============== -->
+  <!-- Ethernet Config -->
+  <!-- =============== -->
+  <VIEW name="configure-if-view">
+    <COMMAND name="ip attached-host" access="netadmin" help="Add Attached Host IPv4 configurations on interface"> </COMMAND>
+    <COMMAND name="no ip attached-host" access="netadmin" help="Remove Attached Host IPv4 configurations from interface"> </COMMAND>
+    <COMMAND name="ip attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv4" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} advertise:${admin-distance} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ip attached-host advertise
+                          ip attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip attached-host advertise" access="netadmin" help="Remove attached host advertise">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ip attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ip attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 attached-host" access="netadmin" help="Add Attached Host IPv6 configurations on interface"> </COMMAND>
+    <COMMAND name="no ipv6 attached-host" access="netadmin" help="Remove Attached Host IPv6 configurations from interface"> </COMMAND>
+    <COMMAND name="ipv6 attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv6" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} advertise:${admin-distance} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ipv6 attached-host advertise
+                          ipv6 attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 attached-host advertise" access="netadmin" help="Set the Hello interval to default">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ipv6 attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ipv6 attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- ================== -->
+  <!-- PortChannel Config -->
+  <!-- ================== -->
+  <VIEW name="configure-lag-view">
+    <COMMAND name="ip attached-host" access="netadmin" help="Add Attached Host IPv4 configurations on interface"> </COMMAND>
+    <COMMAND name="no ip attached-host" access="netadmin" help="Remove Attached Host IPv4 configurations from interface"> </COMMAND>
+    <COMMAND name="ip attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv4" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${po_name} intf_uri:${po_name} advertise:${admin-distance} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ip attached-host advertise
+                          ip attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip attached-host advertise" access="netadmin" help="Remove attached host advertise">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${po_name} intf_uri:${po_name} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ip attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ip attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 attached-host" access="netadmin" help="Add Attached Host IPv6 configurations on interface"> </COMMAND>
+    <COMMAND name="no ipv6 attached-host" access="netadmin" help="Remove Attached Host IPv6 configurations from interface"> </COMMAND>
+    <COMMAND name="ipv6 attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv6" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${po_name} intf_uri:${po_name} advertise:${admin-distance} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ipv6 attached-host advertise
+                          ipv6 attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 attached-host advertise" access="netadmin" help="Set the Hello interval to default">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${po_name} intf_uri:${po_name} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ipv6 attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ipv6 attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- =========== -->
+  <!-- VLAN Config -->
+  <!-- =========== -->
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="ip attached-host" access="netadmin" help="Add Attached Host IPv4 configurations on interface"> </COMMAND>
+    <COMMAND name="no ip attached-host" access="netadmin" help="Remove Attached Host IPv4 configurations from interface"> </COMMAND>
+    <COMMAND name="ip attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv4" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${vlan_name} intf_uri:${vlan_name} advertise:${admin-distance} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ip attached-host advertise
+                          ip attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip attached-host advertise" access="netadmin" help="Remove attached host advertise">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${vlan_name} intf_uri:${vlan_name} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ip attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ip attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 attached-host" access="netadmin" help="Add Attached Host IPv6 configurations on interface"> </COMMAND>
+    <COMMAND name="no ipv6 attached-host" access="netadmin" help="Remove Attached Host IPv6 configurations from interface"> </COMMAND>
+    <COMMAND name="ipv6 attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv6" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${vlan_name} intf_uri:${vlan_name} advertise:${admin-distance} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ipv6 attached-host advertise
+                          ipv6 attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 attached-host advertise" access="netadmin" help="Set the Hello interval to default">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${vlan_name} intf_uri:${vlan_name} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ipv6 attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ipv6 attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- =================== -->
+  <!-- Subinterface Config -->
+  <!-- =================== -->
+  <VIEW name="configure-subif-view">
+    <COMMAND name="ip attached-host" access="netadmin" help="Add Attached Host IPv4 configurations on interface"> </COMMAND>
+    <COMMAND name="no ip attached-host" access="netadmin" help="Remove Attached Host IPv4 configurations from interface"> </COMMAND>
+    <COMMAND name="ip attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv4" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} advertise:${admin-distance} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ip attached-host advertise
+                          ip attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ip attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip attached-host advertise" access="netadmin" help="Remove attached host advertise">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} address_family:ipv4 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ip attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ip attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 attached-host" access="netadmin" help="Add Attached Host IPv6 configurations on interface"> </COMMAND>
+    <COMMAND name="no ipv6 attached-host" access="netadmin" help="Remove Attached Host IPv6 configurations from interface"> </COMMAND>
+    <COMMAND name="ipv6 attached-host advertise" access="netadmin" command_tables="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/vrf-name={vrf_name},address-family={address_family},interface={name}" command_keys="vrf_name=*,address_family=ipv6" help="Enable attached host advertise">
+      <PARAM help="Admin distance. range (0-250) default 250" name="admin-distance" dbpath="sonic-attached-host:sonic-attached-host/ATTACHED_HOST_INTERFACE/ATTACHED_HOST_INTERFACE_LIST/admin-distance" ptype="RANGE_0_250" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host patch_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} advertise:${admin-distance} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Enables attached-host advertise functionality on the interface and set the admin-distance
+                      </DESCRIPTION>
+        <USAGE>
+                          ipv6 attached-host advertise
+                          ipv6 attached-host advertise &lt;value&gt;
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+        <EXAMPLE summary="Enable advertise-host and set admin-distance">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise
+                            &lt;0..250&gt;  Range 0 to 250. Default is 250.
+                          sonic(conf-if-Ethernet0)# ipv6 attached-host advertise 30
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 attached-host advertise" access="netadmin" help="Set the Hello interval to default">
+      <ACTION builtin="clish_pyobj"> sonic_cli_attached_host del_attached_host_interface_config_admin_distance intf:${iface} intf_uri:${iface_uri} address_family:ipv6 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Disables attached-host advertise functionality on the interface
+                      </DESCRIPTION>
+        <USAGE>
+                          no ipv6 attached-host advertise
+                      </USAGE>
+        <EXAMPLE summary="Enable advertise">
+                          sonic# configure terminal
+                          sonic(conf-if-Ethernet0)# no ipv6 attached-host advertise
+                          sonic(conf-if-Ethernet0)#
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

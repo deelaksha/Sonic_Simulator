@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <PTYPE name="TS_EXPORT_INTERVAL" method="integer" pattern="30..1440" help="minutes"/>
+  <PTYPE name="TS_PROTOCOL" method="select" pattern="scp sftp" help="scp|sftp"/>
+  <VIEW name="enable-view">
+    <COMMAND name="show techsupport-export" help="Display Techsupport Export Config">
+      <ACTION builtin="clish_pyobj">sonic_cli_techsupport_export get_techsupport_export show_techsupport_export.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="techsupport-export" access="admin" test="-z ${__in_session}" help="Configure techsupport export"> </COMMAND>
+    <COMMAND name="techsupport-export interval" access="admin" help="the periodic export interval in minutes">
+      <PARAM name="interval" help="range: 30-1440 minutes" ptype="TS_EXPORT_INTERVAL"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_techsupport_export set_export_interval ${interval}</ACTION>
+    </COMMAND>
+    <COMMAND name="techsupport-export enable" test="-z ${__in_session}" access="admin" help="export enable/disable">
+      <PARAM name="ts_mode" help="enable/disable" ptype="ON_OFF"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_techsupport_export set_export_config ${ts_mode}</ACTION>
+    </COMMAND>
+    <COMMAND name="techsupport-export remote-server" access="admin" help="export remote server" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="servername" help="Host address (IPv4 or IPv6)" ptype="IPV4_OR_IPV6_ADDR"> </PARAM>
+      <PARAM name="destdir" help="remote directory" ptype="SUBCOMMAND" mode="subcommand" optional="false">
+        <PARAM name="ts_destdir" help="remote directory" ptype="STRING"> </PARAM>
+        <PARAM name="username" help="String for username" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="ts_username" help="for username" ptype="STRING"> </PARAM>
+        </PARAM>
+        <PARAM name="password" help="String for password" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="ts_password" help="for password" ptype="STRING"> </PARAM>
+        </PARAM>
+        <PARAM name="protocol" help="scp or sftp" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="ts_protocol" help="protocol" ptype="TS_PROTOCOL"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_techsupport_export set_export_remote_server ${servername} ${ts_destdir} ${ts_username} ${ts_password} ${ts_protocol}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="ERR_DISABLE_RECOVERY_CAUSE" method="select" pattern="udld bpduguard link-flap" help="Cause for error disable"/>
+  <PTYPE name="ERR_DISABLE_INTERVAL" method="integer" pattern="30..65535" help=""/>
+  <VIEW name="enable-view">
+    <COMMAND name="show errdisable" help="Display error disable recovery information"> </COMMAND>
+    <!-- show errdisable recovery -->
+    <COMMAND name="show errdisable recovery" help="Display error disable recovery information">
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable show_errdisable_recovery show_errdisable.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Shows error disable recovery information
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to check status of error disable recovery for all supported feature
+                 </USAGE>
+        <EXAMPLE summary="Shows status of error disable recovery for all supported feature">
+                     show errdisable recovery
+                     Errdisable Cause    Status
+                     ------------------  --------
+                     udld                enabled
+                     coa                 enabled
+                     bpduguard           disabled
+                     Timeout for Auto-recovery:  300 seconds
+ 
+                     Note :- Err disable auto recovery for COA supports only on Campus builds.
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show errdisable link-flap -->
+    <COMMAND name="show errdisable link-flap" help="Display error disable information incase of exessive link flaps.">
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable show_errdisable_link_flap show_errdisable_link_flap.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Shows error disable recovery information incase of exessive link flaps.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to check status of error disable recovery for exessive link flaps.
+                 </USAGE>
+        <EXAMPLE summary="Shows status of error disable recovery for exessive link flaps.">
+                     sonic#show errdisable link-flap
+                     Interface  Flap-threshold  Sampling-time   Recovery-timeout Status
+                     ---------------------------------------------------------------------------
+                     Ethernet0  10              3               30              Err-disabled
+                     Ethernet4  10              3               60              On
+ 
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="errdisable" access="netadmin:secadmin" help="Error disable configuration"/>
+    <COMMAND name="no errdisable" access="netadmin:secadmin" help="Error disable configuration"/>
+    <COMMAND name="errdisable recovery" access="netadmin:secadmin" help="Error disable recovery configuration"/>
+    <COMMAND name="no errdisable recovery" access="netadmin:secadmin" help="Error disable recovery configuration"/>
+    <COMMAND name="errdisable recovery cause" access="netadmin:secadmin" help="Error disable recovery cause configuration" command_tables="sonic-errdisable:sonic-errdisable/ERRDISABLE/ERRDISABLE_LIST/id={id}" command_keys="id=RECOVERY" render_command_cb="errdisable_cause">
+      <PARAM name="mode-subcmds" help="Error disable cause" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="udld" help="Enable error disable for UDLD" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="bpduguard" help="Enable error disable for STP bpduguard" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="link-flap" help="Enables error disable for link-flaps" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="coa" help="Enables error disable for COA" ptype="SUBCOMMAND" mode="subcommand" optional="true" test="${macsec_supported}"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable patch_openconfig_errdisable_cause ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Enables error disable recovery for the given cause.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to enable error disable recovery for the given cause.
+                 </USAGE>
+        <EXAMPLE summary="Enable error disable recovery for udld.">
+                     sonic-cli(config)# errdisable recovery cause udld
+                 </EXAMPLE>
+        <EXAMPLE summary="Enable error disable recovery for coa.">
+                     sonic-cli(config)# errdisable recovery cause coa
+ 
+                     Note :- Err disable auto recovery for COA supports only on Campus builds.
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no errdisable recovery cause" access="netadmin:secadmin" help="Error disable recovery cause">
+      <PARAM name="mode-subcmds" help="Error disable cause" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="udld" help="Disable error disable for UDLD" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="bpduguard" help="Disable error disable for STP bpduguard" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="link-flap" help="Disables error disable for link-flaps" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="coa" help="Disables error disable for COA" ptype="SUBCOMMAND" mode="subcommand" optional="true" test="${macsec_supported}"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable delete_openconfig_errdisable_cause ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Disables error disable recovery for the given cause.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to disable error disable recovery for the given cause.
+                 </USAGE>
+        <EXAMPLE summary="Disable error disable recovery for udld.">
+                     sonic-cli(config)# no errdisable recovery cause udld
+                 </EXAMPLE>
+        <EXAMPLE summary="Disables error disable recovery for coa.">
+                     sonic-cli(config)# no errdisable recovery cause coa
+ 
+                     Note :- Err disable auto recovery for COA supports only on Campus builds.
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="errdisable recovery interval" access="netadmin:secadmin" help="Configure error disable recovery interval" command_tables="sonic-errdisable:sonic-errdisable/ERRDISABLE/ERRDISABLE_LIST/id">
+      <PARAM name="interval" help="Error disable recovery interval (sec)" ptype="ERR_DISABLE_INTERVAL" dbpath="sonic-errdisable:sonic-errdisable/ERRDISABLE/ERRDISABLE_LIST/interval"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable patch_openconfig_errdisable_interval ${interval}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Configures error disable recovery interval. 
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to set errdisable recovery interval. Default value is 300.
+                 </USAGE>
+        <EXAMPLE summary="Configure error disable recovery interval.">
+                     sonic-cli(config)# errdisable recovery interval 200
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no errdisable recovery interval" access="netadmin:secadmin" help="Reset error disable recovery interval to default value">
+      <ACTION builtin="clish_pyobj">sonic_cli_errdisable delete_openconfig_errdisable_interval 300</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Resets error disable recovery interval. 
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to reset error disable recovery interval. Default value is 300.
+                 </USAGE>
+        <EXAMPLE summary="Reset error disable recovery interval.">
+                     sonic-cli(config)# errdisable recovery interval 200 
+                     sonic-cli(config)# no errdisable recovery interval 
+                 </EXAMPLE>
+        <FEATURE> ERRDISABLE </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

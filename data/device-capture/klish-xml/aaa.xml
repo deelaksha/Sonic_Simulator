@@ -1,0 +1,376 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="AAA_AUTH_LDAP" method="select" pattern="ldap(ldap)" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="AAA_AUTH_TACPLUS" method="select" pattern="tacacs+(tacacs+)" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="AAA_AUTH_RADIUS" method="select" pattern="radius(radius)" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="AAA_AUTH_LOCAL" method="select" pattern="local(local)" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="AAA_NSS_LOGIN" method="select" pattern="login(login)" help=""/>
+  <!--=========================================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show aaa" help="Display AAA info">
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa get_openconfig_system_system_aaa show_aaa.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- aaa -->
+    <COMMAND name="aaa" access="secadmin" data_and_render_cb="aaa_config" help="AAA configuration"/>
+    <!-- config sub view for aaa authentication -->
+    <COMMAND name="aaa authentication" access="secadmin" help="Configure AAA authentication"/>
+    <COMMAND name="aaa authentication failthrough" access="secadmin" help="Configure AAA authentication failthrough status" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="enable" help="failthrough status" ptype="ENA_DISA"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_system_ext_system_aaa_authentication_config_failthrough ${enable}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA authentication failthrough</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa authentication failthrough enable
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa authentication login-method" access="secadmin" help="AAA authentication login method preference" mode="subcommand" hidden="true" ptype="SUBCOMMAND">
+      <PARAM name="login" help="Login methods" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="local" help="Local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="tacacs+" test="&quot;${radius}&quot;!=&quot;radius&quot;" help="TACACS+ authentication" optional="true" ptype="AAA_AUTH_TACPLUS"> </PARAM>
+          <PARAM name="radius" test="&quot;${tacacs+}&quot;!=&quot;tacacs+&quot;" help="RADIUS authentication" optional="true" ptype="AAA_AUTH_RADIUS"> </PARAM>
+        </PARAM>
+        <PARAM name="tacacs+" help="TACACS+ authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="local" help="Local authentication" optional="true" ptype="AAA_AUTH_LOCAL"> </PARAM>
+        </PARAM>
+        <PARAM name="radius" help="RADIUS authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="local" help="Local authentication" optional="true" ptype="AAA_AUTH_LOCAL"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_system_system_aaa_authentication_config_authentication_method ${login} ${local} ${tacacs+} ${radius} </ACTION>
+    </COMMAND>
+    <COMMAND name="aaa cac-piv" access="secadmin" help="Configure CAC-PIV attributes" command_tables="sonic-mfa:sonic-mfa/CAC_PIV/global" render_command_cb="cac_piv_config" test="${mfa_supported}"/>
+    <COMMAND name="aaa cac-piv cert-user" access="secadmin" help="Configure certificate field that represents username for matching with SSH login username" ptype="SUBCOMMAND" mode="subcommand" test="${mfa_supported}">
+      <PARAM name="user-name" help="Certificate username field options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="common-name" help="Common Name field in X.509 certificate" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="common-name-or-user-principal-name" help="Common Name or User Principal Name from X.509 certificate" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="user-principal-name" help="User Principal Name from X.509 certificate" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_aaa_cac_piv_user_cert ${user-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures SSH user certificate field for matching with SSH login username</DESCRIPTION>
+        <EXAMPLE>
+               sonic(config)# aaa cac-piv cert-user common-name
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa cac-piv cert-user-match" access="secadmin" help="Configure match option to parse the username from respective certificate field" ptype="SUBCOMMAND" mode="subcommand" test="${mfa_supported}">
+      <PARAM name="regex-type" help="Certificate match pattern options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="10digit-username" help="Matches the first 10 digits of the username with SSH login name" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="first-name" help="Matches the first part of the username delimited by _, @ or . with SSH login name" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="username-as-is" help="Matches the exact username with SSH login name (default)" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="username-without-domain" help="Matches the username without @domain with SSH login name" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_aaa_cac_piv_user_cert_match ${regex-type}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures SSH user certificate field for matching with SSH login username</DESCRIPTION>
+        <EXAMPLE>
+               sonic(config)# aaa cac-piv cert-user-match 10digit-username
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa cac-piv security-profile" access="secadmin" escape_chars="" help="Configures security profile for SSH access with CAC-PIV" mode="switch" ptype="SUBCOMMAND" test="${mfa_supported}">
+      <PARAM name="cacpiv-profile-name" help="Name of the security profile" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_cacpiv_security_profile ${cacpiv-profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures security profile for SSH access with CAC-PIV</DESCRIPTION>
+        <EXAMPLE>
+               sonic(config)# aaa cac-piv security-profile profile-name
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa cac-piv" access="secadmin" help="Unconfigure CAC-PIV attributes" test="${mfa_supported}"/>
+    <COMMAND name="no aaa cac-piv cert-user" access="secadmin" help="Unconfigure CAC-PIV SSH user certificate field for matching with SSH login username" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_aaa_cac_piv_user_cert</ACTION>
+    </COMMAND>
+    <COMMAND name="no aaa cac-piv cert-user-match" access="secadmin" help="Unconfigure CAC-PIV SSH user certificate field for matching with SSH login username" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_aaa_cac_piv_user_cert_match</ACTION>
+    </COMMAND>
+    <COMMAND name="no aaa cac-piv security-profile" access="secadmin" help="Unconfigures security profile for SSH access with CAC-PIV" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_cacpiv_security_profile</ACTION>
+    </COMMAND>
+    <COMMAND name="no aaa" access="secadmin" help="Unconfigure AAA"/>
+    <COMMAND name="no aaa authentication" access="secadmin" help="Unconfigure AAA authentication"/>
+    <COMMAND name="no aaa authentication login-method" access="secadmin" help="Unconfigure AAA authentication login method" hidden="true">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/authentication/config/authentication-method </ACTION>
+    </COMMAND>
+    <COMMAND name="no aaa authentication login console" access="secadmin" help="Unconfigure AAA login authenticatin console local">
+      <PARAM name="local" help="Select local authentication" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_system_ext_system_aaa_authentication_config_console_authentication_local False </ACTION>
+    </COMMAND>
+    <COMMAND name="aaa authentication login" access="secadmin" help="Configure AAA login authentication"/>
+    <COMMAND name="aaa authentication login mfa" access="secadmin" help="Configure AAA login Multi-factor authentication" mode="switch" ptype="SUBCOMMAND" test="${mfa_supported}">
+      <PARAM name="mfamode" help="Selects the method of authentication in mfa" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="rsa-securid" help="Configures RSA SecurID multi-factor authentication" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <PARAM name="console-enable" help="Enables RSA SecurID multi-factor authentication for console access" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_aaa_mfa_config_login ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enables Multi Factor Authentication</DESCRIPTION>
+        <EXAMPLE>
+ 		      sonic(config)# aaa authentication login mfa rsa-securid
+ 		      sonic(config)# aaa authentication login mfa rsa-securid console-enable
+               </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa authentication login mfa" access="secadmin" help="Unconfigure AAA login Multi-factor authentication" mode="switch" ptype="SUBCOMMAND" test="${mfa_supported}">
+      <PARAM name="mfamode" help="Selects the method of authentication in mfa" optional="true" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="rsa-securid" help="Unconfigures RSA SecurID multi-factor authentication method" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="console-enable" help="Disables RSA SecurID multi-factor authentication for console access" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa delete_aaa_mfa_config_login ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enables Multi Factor Authentication on console</DESCRIPTION>
+        <EXAMPLE>sonic(config)# aaa authentication login mfa rsa-securid console-enable</EXAMPLE>
+        <DESCRIPTION>Disables Multi Factor Authentication on console</DESCRIPTION>
+        <EXAMPLE>sonic(config)# no aaa authentication login mfa rsa-securid console-enable</EXAMPLE>
+        <DESCRIPTION>Disables Multi Factor Authentication globally</DESCRIPTION>
+        <EXAMPLE>sonic(config)# no aaa authentication login mfa</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa authentication login console" access="secadmin" help="Configure AAA login authentication for console">
+      <PARAM name="local" help="Select local authentication" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_system_ext_system_aaa_authentication_config_console_authentication_local True </ACTION>
+    </COMMAND>
+    <COMMAND name="aaa authentication login default" access="secadmin" help="Configure AAA login authentication default list" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="login" help="Select authentication method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="remote" help="Select remote method group" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="ldap" test="&quot;${tacacs+}&quot;!=&quot;tacacs+&quot; -a &quot;${radius}&quot;!=&quot;radius&quot;" help="Select group of all LDAP servers" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            </PARAM>
+            <PARAM name="radius" help="Select group of all RADIUS servers" test="&quot;${tacacs+}&quot;!=&quot;tacacs+&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            </PARAM>
+            <PARAM name="tacacs+" test="&quot;${radius}&quot;!=&quot;radius&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" help="Select group of all TACACS+ servers" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            </PARAM>
+            <PARAM name="cac-piv" test="&quot;${mfa_supported}&quot; -a &quot;${radius}&quot;!=&quot;radius&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot; -a &quot;${tacacs+}&quot;!=&quot;tacacs+&quot;" help="Select CAC-PIV authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="group" help="Select group" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="remote" help="Select remote method group" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="ldap" test="&quot;${tacacs+}&quot;!=&quot;tacacs+&quot; -a &quot;${radius}&quot;!=&quot;radius&quot;" help="Select group of all LDAP servers" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+              <PARAM name="radius" test="&quot;${tacacs+}&quot;!=&quot;tacacs+&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" help="Select group of all RADIUS servers" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+              <PARAM name="tacacs+" test="&quot;${radius}&quot;!=&quot;radius&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" help="Selects group of all TACACS+ servers" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_system_system_aaa_authentication_config_login ${__params} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA login authentication default list to authentication first with tacacs+, and, if none respond, (or failthrough is configured) with local next</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa authentication login default group tacacs+ local
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa authorization" access="secadmin" help="Configure AAA authorization"/>
+    <COMMAND name="aaa authorization login" access="secadmin" help="Configure AAA login authorization"/>
+    <COMMAND name="aaa authorization login default" access="secadmin" help="Configure AAA login authorization default list" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="login" help="Select authorization method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local authorization" test="&quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/authorization/openconfig-aaa-ext:login/config/authorization-method body={"openconfig-aaa-ext:authorization-method": ["${local}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA login authorization default list to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa authorization login default group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa name-service" access="secadmin" help="Configure AAA name service"/>
+    <COMMAND name="aaa name-service group" access="secadmin" help="Configure AAA group name-service" mode="switch" ptype="SUBCOMMAND">
+      <PARAM name="method" help="Selects name-service method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local name-service" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="login" help="Select login name-service" test="&quot;${local}&quot;!=&quot;local&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/group-method body={"openconfig-aaa-ext:group-method": ["${local}${login}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA group name-service to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa name-service group group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa name-service passwd" access="secadmin" help="Configure AAA passwd name-service" mode="switch" ptype="SUBCOMMAND">
+      <PARAM name="method" help="Select name-service method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local name-service" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="login" help="Select login name-service" test="&quot;${local}&quot;!=&quot;local&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/passwd-method body={"openconfig-aaa-ext:passwd-method": ["${local}${login}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA passwd name-service to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa name-service passwd group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa name-service netgroup" access="secadmin" help="Configure AAA netgroup name-service" mode="switch" ptype="SUBCOMMAND">
+      <PARAM name="method" help="Select name-service method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local name-service" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/netgroup-method body={"openconfig-aaa-ext:netgroup-method": ["${local}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA netgroup name-service to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa name-service netgroup group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa name-service shadow" access="secadmin" help="Configure AAA shadow name-service" mode="switch" ptype="SUBCOMMAND">
+      <PARAM name="method" help="Select name-service method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local name-service" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="login" help="Select login name-service" test="&quot;${local}&quot;!=&quot;local&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/shadow-method body={"openconfig-aaa-ext:shadow-method": ["${local}${login}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA shadow name-service to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa name-service shadow group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa name-service sudoers" access="secadmin" help="Configure AAA sudoers name-service" mode="switch" ptype="SUBCOMMAND">
+      <PARAM name="method" help="Select name-service method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${local}&quot;!=&quot;local&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ldap" help="Select group of all LDAP servers" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local name-service" test="&quot;${login}&quot;!=&quot;login&quot; -a &quot;${ldap}&quot;!=&quot;ldap&quot;" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/sudoers-method body={"openconfig-aaa-ext:sudoers-method": ["${local}${ldap}"] } </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA sudoers name-service to use ldap</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa name-service sudoers group ldap
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa authorization commands" access="secadmin" help="Configure AAA commands authorization"/>
+    <COMMAND name="aaa authorization commands default" access="secadmin" help="Configure AAA commands authorization default list" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="commands" help="Select authorization method" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="group" help="Select group" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="tacacs+" help="Select group of all tacacs+ servers" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="local" help="Select local authentication" optional="true" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="local" help="Select local authorization" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_aaa patch_openconfig_aaa_tacacsplus_ext_system_aaa_authorization_commands_config_authorization_method ${__params} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures AAA commands authorization default list to use tacacs+</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# aaa authorization commands default group tacacs+ local
+           sonic(config)# aaa authorization commands default group tacacs+
+           sonic(config)# aaa authorization commands default local
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa authentication login" access="secadmin" help="Unconfigure AAA login authentication"/>
+    <COMMAND name="no aaa authentication login default" access="secadmin" help="Unconfigure AAA login authentication default list">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/authentication/config/authentication-method </ACTION>
+    </COMMAND>
+    <COMMAND name="no aaa authorization" access="secadmin" help="Unconfigure AAA authorization"/>
+    <COMMAND name="no aaa authorization login" access="secadmin" help="Unconfigure AAA login authorization"/>
+    <COMMAND name="no aaa authorization login default" access="secadmin" help="Unconfigure AAA login authorization default list">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/authorization/openconfig-aaa-ext:login/config/authorization-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA login authorization default list</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa authorization login default
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa name-service" access="secadmin" help="Unconfigure AAA name-service"/>
+    <COMMAND name="no aaa name-service group" access="secadmin" help="Unconfigure AAA group name-service">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/group-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA group name-service</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa name-service group
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa name-service passwd" access="secadmin" help="Unconfigure AAA passwd name-service">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/passwd-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA passwd name-service</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa name-service passwd
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa name-service netgroup" access="secadmin" help="Unconfigure AAA netgroup name-service">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/netgroup-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA netgroup name-service</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa name-service netgroup
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa name-service shadow" access="secadmin" help="Unconfigure AAA shadow name-service">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/shadow-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA shadow name-service</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa name-service shadow
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa name-service sudoers" access="secadmin" help="Unconfigure AAA sudoers name-service">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/openconfig-aaa-ext:name-service/config/sudoers-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA sudoers name-service</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa name-service sudoers
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa authorization commands" access="secadmin" help="Unconfigure AAA comands authorization"/>
+    <COMMAND name="no aaa authorization commands default" access="secadmin" help="Unconfigure AAA commands authorization default list">
+      <ACTION builtin="clish_restcl">oper=DELETE url=/restconf/data/openconfig-system:system/aaa/authorization/openconfig-aaa-tacacsplus-ext:commands/config/authorization-method </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigures AAA commands authorization default list</DESCRIPTION>
+        <EXAMPLE>
+           sonic(config)# no aaa authorization commands default
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,475 @@
+[
+  {
+    "feature": "aaa",
+    "files": [
+      "aaa.txt"
+    ],
+    "total": 91,
+    "show": 4,
+    "config": 87,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 22,
+    "verified": 45
+  },
+  {
+    "feature": "acl",
+    "files": [
+      "acl.txt"
+    ],
+    "total": 187,
+    "show": 20,
+    "config": 167,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 1,
+    "negative": 21,
+    "verified": 46
+  },
+  {
+    "feature": "arpnd",
+    "files": [
+      "arpnd.txt",
+      "arpnd_DUT2.txt"
+    ],
+    "total": 102,
+    "show": 22,
+    "config": 72,
+    "clear": 2,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 0,
+    "verified": 25
+  },
+  {
+    "feature": "bfd",
+    "files": [
+      "bfd.txt",
+      "bfd_DUT2.txt"
+    ],
+    "total": 170,
+    "show": 31,
+    "config": 137,
+    "clear": 2,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 0,
+    "verified": 79
+  },
+  {
+    "feature": "bgp",
+    "files": [
+      "bgp.txt",
+      "bgp_DUT2.txt"
+    ],
+    "total": 511,
+    "show": 36,
+    "config": 465,
+    "clear": 4,
+    "debug": 0,
+    "db": 2,
+    "envExcluded": 0,
+    "negative": 3,
+    "verified": 66
+  },
+  {
+    "feature": "copp",
+    "files": [
+      "copp.txt"
+    ],
+    "total": 98,
+    "show": 15,
+    "config": 83,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 9,
+    "verified": 37
+  },
+  {
+    "feature": "dhcp",
+    "files": [
+      "dhcp_udaykum.txt"
+    ],
+    "total": 102,
+    "show": 6,
+    "config": 95,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 1,
+    "verified": 3
+  },
+  {
+    "feature": "dns",
+    "files": [
+      "dns_udaykum.txt"
+    ],
+    "total": 109,
+    "show": 5,
+    "config": 104,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 1,
+    "verified": 2
+  },
+  {
+    "feature": "fbs",
+    "files": [
+      "fbs.txt"
+    ],
+    "total": 722,
+    "show": 120,
+    "config": 587,
+    "clear": 15,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 22,
+    "verified": 148
+  },
+  {
+    "feature": "interface",
+    "files": [
+      "interface.txt"
+    ],
+    "total": 268,
+    "show": 57,
+    "config": 208,
+    "clear": 2,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 27,
+    "verified": 86
+  },
+  {
+    "feature": "ipvx",
+    "files": [
+      "ipvX.txt"
+    ],
+    "total": 273,
+    "show": 28,
+    "config": 245,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 2,
+    "negative": 35,
+    "verified": 102
+  },
+  {
+    "feature": "lacp",
+    "files": [
+      "lacp.txt",
+      "lacp_DUT2.txt"
+    ],
+    "total": 220,
+    "show": 5,
+    "config": 215,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 13,
+    "verified": 35
+  },
+  {
+    "feature": "lldp",
+    "files": [
+      "lldp.txt",
+      "lldp_DUT2.txt"
+    ],
+    "total": 99,
+    "show": 8,
+    "config": 91,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 6,
+    "verified": 18
+  },
+  {
+    "feature": "ntp",
+    "files": [
+      "ntp.txt"
+    ],
+    "total": 105,
+    "show": 8,
+    "config": 97,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 14,
+    "verified": 71
+  },
+  {
+    "feature": "ospf",
+    "files": [
+      "ospf.txt"
+    ],
+    "total": 711,
+    "show": 69,
+    "config": 629,
+    "clear": 7,
+    "debug": 0,
+    "db": 6,
+    "envExcluded": 0,
+    "negative": 16,
+    "verified": 67
+  },
+  {
+    "feature": "ospf-advanced",
+    "files": [
+      "ospfadvanced.txt",
+      "ospfadvanced_DUT2.txt"
+    ],
+    "total": 53,
+    "show": 15,
+    "config": 36,
+    "clear": 0,
+    "debug": 0,
+    "db": 2,
+    "envExcluded": 0,
+    "negative": 0,
+    "verified": 17
+  },
+  {
+    "feature": "pbo",
+    "files": [
+      "pbo.txt"
+    ],
+    "total": 76,
+    "show": 13,
+    "config": 63,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 0,
+    "verified": 5
+  },
+  {
+    "feature": "platform",
+    "files": [
+      "platform.txt"
+    ],
+    "total": 61,
+    "show": 17,
+    "config": 43,
+    "clear": 1,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 1,
+    "verified": 2
+  },
+  {
+    "feature": "prefixlist",
+    "files": [
+      "prefixlist.txt"
+    ],
+    "total": 85,
+    "show": 11,
+    "config": 74,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 14,
+    "verified": 39
+  },
+  {
+    "feature": "qos",
+    "files": [
+      "qos.txt",
+      "qos_click_cli.txt"
+    ],
+    "total": 376,
+    "show": 86,
+    "config": 271,
+    "clear": 19,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 29,
+    "verified": 119
+  },
+  {
+    "feature": "qos-counterpoll",
+    "files": [
+      "qos_counterpoll.txt"
+    ],
+    "total": 75,
+    "show": 7,
+    "config": 68,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 21,
+    "verified": 30
+  },
+  {
+    "feature": "qos-pfc-pfcwd",
+    "files": [
+      "qos_pfc_pfcwd.txt"
+    ],
+    "total": 125,
+    "show": 25,
+    "config": 100,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 10,
+    "verified": 54
+  },
+  {
+    "feature": "radius",
+    "files": [
+      "radius.txt"
+    ],
+    "total": 74,
+    "show": 2,
+    "config": 70,
+    "clear": 2,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 14,
+    "verified": 41
+  },
+  {
+    "feature": "routemap",
+    "files": [
+      "routemap.txt"
+    ],
+    "total": 183,
+    "show": 15,
+    "config": 166,
+    "clear": 0,
+    "debug": 0,
+    "db": 2,
+    "envExcluded": 0,
+    "negative": 18,
+    "verified": 47
+  },
+  {
+    "feature": "sflow",
+    "files": [
+      "sflow.txt"
+    ],
+    "total": 71,
+    "show": 7,
+    "config": 61,
+    "clear": 0,
+    "debug": 0,
+    "db": 3,
+    "envExcluded": 0,
+    "negative": 8,
+    "verified": 43
+  },
+  {
+    "feature": "snmp",
+    "files": [
+      "snmp.txt"
+    ],
+    "total": 178,
+    "show": 13,
+    "config": 165,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 12,
+    "verified": 71
+  },
+  {
+    "feature": "staticroute",
+    "files": [
+      "staticroute.txt"
+    ],
+    "total": 285,
+    "show": 37,
+    "config": 248,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 23,
+    "verified": 77
+  },
+  {
+    "feature": "tacacs",
+    "files": [
+      "tacacs.txt"
+    ],
+    "total": 52,
+    "show": 3,
+    "config": 49,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 10,
+    "verified": 21
+  },
+  {
+    "feature": "vlan",
+    "files": [
+      "vlan.txt"
+    ],
+    "total": 184,
+    "show": 27,
+    "config": 157,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 10,
+    "verified": 44
+  },
+  {
+    "feature": "vrf",
+    "files": [
+      "vrf.txt",
+      "vrf_DUT2.txt"
+    ],
+    "total": 121,
+    "show": 16,
+    "config": 103,
+    "clear": 0,
+    "debug": 0,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 7,
+    "verified": 29
+  },
+  {
+    "feature": "vrrp",
+    "files": [
+      "vrrp.txt"
+    ],
+    "total": 114,
+    "show": 0,
+    "config": 113,
+    "clear": 0,
+    "debug": 1,
+    "db": 0,
+    "envExcluded": 0,
+    "negative": 0,
+    "verified": 1
+  }
+]

@@ -1,0 +1,214 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="https://raw.githubusercontent.com/project-arlo/sonic-mgmt-framework/master/src/CLI/clitree/scripts/sonic-clish.xsd">
+  <!--============================== CONFIG MODE COMMANDS ======================-->
+  <VIEW name="configure-view">
+    <!-- Global binding options -->
+    <COMMAND name="hardware" access="netadmin" help="Configure ASIC parameters" view="configure-hardware-view" data_and_render_cb="show_runn_hardware_cb"/>
+  </VIEW>
+  <VIEW name="configure-hardware-view" prompt="${SYSTEM_NAME}(${__config_mode}-hardware)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <COMMAND name="access-list" access="netadmin" help="Configure ACL parameters" view="configure-hardware-acl-view" data_and_render_cb="show_runn_hardware_acl_cb"/>
+    <COMMAND name="tcam" access="netadmin" help="Configure TCAM Key-profile parameters" view="configure-hardware-tcam-view" data_and_render_cb="show_runn_hardware_tcam_cb"/>
+  </VIEW>
+  <VIEW name="configure-hardware-acl-view" prompt="${SYSTEM_NAME}(${__config_mode}-hardware-acl)# " depth="3">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <COMMAND name="counters" access="netadmin" help="Set ACL counters mode" data_and_render_cb="show_runn_hardware_acl_counter_cb">
+      <PARAM name="counter-modes" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="per-entry" help="ACL counters are reported per ACL entry, aggregated across all interfaces" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="per-interface-entry" help="ACL counters are reported per interface and ACL entry" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl set_counter_mode ${counter-modes}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-hardware-tcam-view" prompt="${SYSTEM_NAME}(${__config_mode}-hardware-tcam)# " depth="3">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- <COMMAND name="mac-acl" help="Key-profile for MAC access control" data_and_render_cb="show_runn_hardware_tcam_mac_acl_cb"> <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false"> <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/> <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch"> <PARAM name="pac" help="key-profile for PAC related acls" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile L2_ACL ${stage-switch} ${key-profile-switch}</ACTION> </COMMAND>  <COMMAND name="no mac-acl" help="Delete Key-profile for MAC access control" > <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false"> <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/> <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile L2_ACL ${stage-switch} ${key-profile}</ACTION> </COMMAND> -->
+    <COMMAND name="ip-acl" access="netadmin" help="Key-profile for IP access control" data_and_render_cb="show_runn_hardware_tcam_ip_acl_cb" test="${pac_key_profile_supported}">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="pac" help="key-profile for PAC related acls" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile L3_ACL ${stage-switch} ${key-profile-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip-acl" access="netadmin" help="Delete Key-profile for IP access control" test="${pac_key_profile_supported}">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile L3_ACL ${stage-switch} ${key-profile}</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6-acl" access="netadmin" help="Key-profile for IPv6 access control" data_and_render_cb="show_runn_hardware_tcam_ipv6_acl_cb" test="${pac_key_profile_supported}">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="pac" help="key-profile for PAC related acls" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile L3V6_ACL ${stage-switch} ${key-profile-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6-acl" access="netadmin" help="Delete Key-profile for IPv6 access control" test="${pac_key_profile_supported}">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile L3V6_ACL ${stage-switch} ${key-profile}</ACTION>
+    </COMMAND>
+    <COMMAND name="qos-fbs" access="netadmin" help="Key-profile for QoS flow-based-services" data_and_render_cb="show_runn_hardware_tcam_qos_fbs_cb">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="l2" help="L2 key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv4" help="IPv4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv6" help="IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv4" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv6" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+        <PARAM name="ipv4-ipv6" help="IPv4 and IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile QOS_FBS ${stage-switch} ${key-profile-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-fbs" access="netadmin" help="Delete Key-profile for QoS flow-based-services">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile QOS_FBS ${stage-switch} ${key-profile}</ACTION>
+    </COMMAND>
+    <COMMAND name="monitoring-fbs" access="netadmin" help="Key-profile for Monitoring flow-based-services" data_and_render_cb="show_runn_hardware_tcam_monitoring_fbs_cb">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="l2" help="L2 key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv4" help="IPv4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv6" help="IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv4" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv6" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+        <PARAM name="ipv4-ipv6" help="IPv4 and IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile MONITORING_FBS ${stage-switch} ${key-profile-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="no monitoring-fbs" access="netadmin" help="Delete Key-profile for Monitoring flow-based-services">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile MONITORING_FBS ${stage-switch} ${key-profile}</ACTION>
+    </COMMAND>
+    <COMMAND name="forwarding-fbs" access="netadmin" help="Key-profile for Forwarding flow-based-services" data_and_render_cb="show_runn_hardware_tcam_forwarding_fbs_cb">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="l2" help="L2 key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv4" help="IPv4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv6" help="IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv4" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="l2-ipv6" help="L2 and IPV4 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+        <PARAM name="ipv4-ipv6" help="IPv4 and IPv6 Key-profile" ptype="SUBCOMMAND" mode="subcommand" test="&quot;${stage-switch}&quot;=&quot;ingress&quot;"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware create_tcam_key_profile FORWARDING_FBS ${stage-switch} ${key-profile-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="no forwarding-fbs" access="netadmin" help="Delete Key-profile for Forwarding flow-based-services">
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="false">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile" help="Sets the TCAM key-profile" ptype="SUBCOMMAND" mode="subcommand" value="key-profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware delete_tcam_key_profile FORWARDING_FBS ${stage-switch} ${key-profile}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <!--============================== EXEC MODE COMMANDS =======================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show running-configuration hardware" help="Display current hardware configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-hardware</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration hardware access-list" help="Display current hardware ACL configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-hardware-acl</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration hardware tcam" help="Display current hardware TCAM configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-hardware-tcam</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- <COMMAND name="hardware" help="ASIC parameters related commands" /> <COMMAND name="hardware tcam" help="ASIC TCAM parameters related commands" />  <COMMAND name="hardware tcam enforce" help="Enforce configured ASIC TCAM parameters"> <PARAM name="key-profile" help="TCAM key-profile to be enforced" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${stage-switch}&quot;=&quot;&quot;" optional="true"> <PARAM name="mac-acl" help="MAC ACL feature" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="ip-acl" help="IP ACL feature" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="ipv6-acl" help="IPv6 ACL feature" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="forwarding-fbs" help="Forwarding FBS feature" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="qos-fbs" help="QoS FBS feature" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="monitoring-fbs" help="Monitoring FBS feature" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> </PARAM> <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_hardware enforce_tcam_key_profile ${key-profile-switch} ${stage-switch}</ACTION> </COMMAND> -->
+    <COMMAND name="show hardware" help="Show ASIC parameters"/>
+    <COMMAND name="show hardware tcam" help="Show ASIC TCAM parameters"/>
+    <COMMAND name="show hardware tcam allocation" help="Shows the TCAM allocation">
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${stage-switch}&quot;=&quot;&quot;" optional="true">
+        <PARAM name="mac-acl" help="MAC ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ip-acl" help="IP ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv6-acl" help="IPv6 ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="forwarding-fbs" help="Forwarding FBS feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="qos-fbs" help="QoS FBS feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="monitoring-fbs" help="Monitoring FBS feature" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="stage-switch" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="ingress" help="ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="egress" help="egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware show_tcam_allocation ${key-profile-switch} ${stage-switch}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show hardware tcam key-profile" help="Shows the TCAM key-profile">
+      <PARAM name="key-profile-switch" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${key-profile-name}&quot;=&quot;&quot;" optional="true">
+        <PARAM name="mac-acl" help="MAC ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ip-acl" help="IP ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ipv6-acl" help="IPv6 ACL feature" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="fbs" help="FBS feature" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="key-profile-name" help="Name of the Key-profile (Max size 63)" ptype="STRING_63" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_hardware show_tcam_key_profile ${key-profile-switch} ${key-profile-name}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

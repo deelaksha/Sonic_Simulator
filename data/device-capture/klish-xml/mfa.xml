@@ -1,0 +1,153 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2024 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <PTYPE name="RSA_PORT" method="integer" pattern="1025..49151" help="port"/>
+  <PTYPE name="RSA_CONNECTION_TIMEOUT" method="integer" pattern="1..30" help="seconds"/>
+  <PTYPE name="RSA_READ_TIMEOUT" method="integer" pattern="1..150" help="seconds"/>
+  <VAR name="mfa_supported" dynamic="false">
+    <ACTION builtin="clish_pyobj"> sonic_cli_mfa is_mfa_supported </ACTION>
+  </VAR>
+  <!-- Enable mode -->
+  <VIEW name="enable-view">
+    <COMMAND name="debug mfa" help="Configure log verbosity for MFA service" access="secadmin" test="${mfa_supported}">
+      <PARAM name="mode" help="Enable/Disable debug level logging in MFA service" ptype="ENA_DISA"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_mfa_log_level ${mode} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enable/Disable debug level logging in MFA service</DESCRIPTION>
+        <EXAMPLE>
+                 sonic# debug mfa enable
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="show mfa" help="Display MFA information" access="netadmin:secadmin" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa show_mfa_status show_mfa.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mfa rsa-servers" help="Display RSA server information" access="netadmin:secadmin" ptype="SUBCOMMAND" mode="subcommand" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa show_rsa_servers show_rsa_server.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration mfa" help="Display multifactor authentication configuration" access="netadmin:secadmin" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa show_running_config_mfa views=configure-view </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!-- Config mode -->
+  <VIEW name="configure-view">
+    <COMMAND name="mfa" help="Configure multi-factor authentication parameters" access="secadmin" test="${mfa_supported}"> </COMMAND>
+    <COMMAND name="mfa key-seed" help="Configure seed for generating the secret used to secure MFA data" access="secadmin" escape_chars="" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-mfa:sonic-mfa/MFA/global" render_command_cb="mfa_key_seed_config" test="${mfa_supported}">
+      <PARAM name="mfa-seed" help="Key seed string" ptype="STRING">
+        <PARAM name="encrypted" help="Key seed is in encrypted form" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_mfa_seed ${mfa-seed} ${encrypted}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure seed for generating the secret used to secure MFA data</DESCRIPTION>
+        <EXAMPLE>
+               sonic(config)# mfa key-seed force10
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mfa security-profile" help="Configure security profile for MFA service" access="secadmin" escape_chars="" command_tables="sonic-mfa:sonic-mfa/MFA/global" render_command_cb="mfa_security_profile_config" test="${mfa_supported}">
+      <PARAM name="mfa-profile-name" help="Name of the security profile" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_mfa_security_profile ${mfa-profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures security profile which contains the certificate for MFA service.</DESCRIPTION>
+        <EXAMPLE>
+               sonic# crypto cert install cert-file home://ciamcert.pem key-file home://ciamkey.pem
+               sonic# configure terminal
+               sonic(config)# crypto security-profile mfa_security_profile
+               sonic(config)# crypto security-profile certificate mfa_security_profile ciamcert
+               sonic(config)# mfa security-profile mfa_security_profile
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mfa client-secret" help="Configure secret for authorization header in MFA service REST API" access="secadmin" escape_chars="" command_tables="sonic-mfa:sonic-mfa/MFA/global" render_command_cb="mfa_client_secret_config" test="${mfa_supported}">
+      <PARAM name="client-secret" help="Minimum 32 characters with atleast one symbol, digit, uppercase, and lowercase" ptype="PASSWORD_STR">
+        <PARAM name="encrypted" help="Password is in encrypted format" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_mfa_client_secret ${client-secret} ${encrypted}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Secret that can be used as authorization header for invoking REST API of MFA service.</DESCRIPTION>
+        <EXAMPLE>
+               sonic(config)# mfa client-secret DellForce10!DellForce10!DellForce10
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mfa" help="Unconfigure multi-factor authentication parameters" access="secadmin" test="${mfa_supported}"> </COMMAND>
+    <COMMAND name="no mfa key-seed" access="secadmin" help="Unconfigure seed for generating the secret used to secure MFA data" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_mfa_seed</ACTION>
+    </COMMAND>
+    <COMMAND name="no mfa security-profile" access="secadmin" help="Unconfigure security profile for mfa service" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_mfa_security_profile</ACTION>
+    </COMMAND>
+    <COMMAND name="no mfa client-secret" help="Unconfigure secret for authorization header in MFA service REST API" access="secadmin" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_mfa_client_secret</ACTION>
+    </COMMAND>
+    <COMMAND name="mfa rsa-server" help="Configure a server for RSA" access="secadmin" test="${mfa_supported}"> </COMMAND>
+    <COMMAND name="mfa rsa-server host" help="Configure a server for RSA" ptype="SUBCOMMAND" mode="subcommand" access="secadmin" escape_chars="" command_tables="sonic-mfa:sonic-mfa/RSA_SERVER/RSA_SERVER_LIST/hostname={host}" command_keys="host=*" render_command_cb="rsa_server_config" test="${mfa_supported}">
+      <PARAM name="hostname" help="Hostname or IP address of RSA server" ptype="RSA_SERVER_HOSTNAME"> </PARAM>
+      <PARAM name="port" help="Configure RSA Server's port" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="rsa-port" help="Port number of the RSA SecurID server (default: 5555)" ptype="RSA_PORT"> </PARAM>
+      </PARAM>
+      <PARAM name="client-id" help="Configure client ID assigned by RSA SecurID service" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="rsa-client-id" help="Unique identifier of the system as a client, assigned by SecurID service." ptype="STRING">
+          <PARAM name="client-key" help="Configure client key assigned by RSA SecurID service" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="rsa-client-key" help="Key associated with the client-id, assigned by SecurID service" ptype="STRING">
+              <PARAM name="encrypted" help="Key is in encrypted form" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <PARAM name="connection-timeout" help="Configure RSA server's connection timeout" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="rsa-connection-timeout" help="connection timeout (default: 20)" ptype="RSA_CONNECTION_TIMEOUT"> </PARAM>
+      </PARAM>
+      <PARAM name="read-timeout" help="Configure RSA server's read timeout" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="rsa-read-timeout" help="read timeout (default: 120)" ptype="RSA_READ_TIMEOUT"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_mfa patch_rsa_server ${hostname} port:${rsa-port} id:${rsa-client-id} key:${rsa-client-key} encrypted:${encrypted} connection-timeout:${rsa-connection-timeout} read-timeout:${rsa-read-timeout} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configures a server for RSA.</DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# mfa rsa-server host rsa.securid.dell.com client-id sonicswitch.dell.com client-key rlcd09kq11f1gp5peh6s4d0c6214a4myktb31ai2bkei50924sq3l4mu6nd1s0i2
+             sonic(config)# mfa rsa-server host rsa.securid.dell.com port 5554 read-timeout 100
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mfa rsa-server security-profile" help="Configure security profile that contains CA cert to validate RSA server" ptype="SUBCOMMAND" mode="subcommand" access="secadmin" escape_chars="" command_tables="sonic-mfa:sonic-mfa/RSA/global" render_command_cb="rsa_security_profile_config" test="${mfa_supported}">
+      <PARAM name="rsa-profile-name" help="Name of the security profile" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa patch_rsa_security_profile ${rsa-profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure security profile that contains CA cert to validate RSA server.</DESCRIPTION>
+        <EXAMPLE>
+               sonic# crypto ca-cert install home://rsa.ca.cert.pem
+               sonic# configure terminal
+               sonic(config)# crypto trust-store trust_store ca-cert rsa.ca.cert
+               sonic(config)# crypto security-profile rsa_security_profile
+               sonic(config)# crypto security-profile trust-store rsa_security_profile trust_store
+               sonic(config)# mfa rsa-server security-profile rsa_security_profile
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mfa rsa-server" help="Unconfigure a server for RSA" access="secadmin" test="${mfa_supported}"> </COMMAND>
+    <COMMAND name="no mfa rsa-server host" help="Unconfigure a server for RSA" ptype="SUBCOMMAND" mode="subcommand" access="secadmin" test="${mfa_supported}">
+      <PARAM name="hostname" help="Hostname or IP address of RSA server" ptype="DOMAIN_NAME_OR_IPADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_rsa_server ${hostname} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigure a server for RSA.</DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# no mfa rsa-server host rsa.securid.dell.com
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mfa rsa-server security-profile" help="Unconfigure security profile that contains CA cert to validate RSA server" ptype="SUBCOMMAND" mode="subcommand" access="secadmin" test="${mfa_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mfa delete_rsa_security_profile</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

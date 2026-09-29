@@ -1,0 +1,558 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="vxlan_multisite_dci_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported FEATURE_MULTI_SITE_DCI</ACTION>
+  </VAR>
+  <VAR name="vtep-name" dynamic="true"> </VAR>
+  <!--MODE : show commands view -->
+  <VIEW name="enable-view">
+    <!--show vxlan interface -->
+    <COMMAND name="show vxlan" help="Display vxlan commands"> </COMMAND>
+    <COMMAND name="show running-configuration interface vxlan" help="Display VXLAN configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-vxlan view_keys="name=${iface}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan interface" help="Display VXLAN global params">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_interface show_vxlan_interface.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display the VXLAN global parameters.  
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan interface
+                 </USAGE>
+        <EXAMPLE summary="show vxlan interface">_
+                     sonic# show vxlan interface
+                     
+                     VTEP Name        :  vtep1
+                     VTEP Source IP   :  1.1.1.1
+                     QoS Mode         :  pipe (dscp:0)
+                     Source Interface :  Loopback0
+ 
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show vxlan vlanvnimap -->
+    <COMMAND name="show vxlan vlanvnimap" help="show VLAN VNI mapping information">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_vlanvnimap show_vxlan_vlanvnimap.j2 show</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display all the VLAN VNI mappings
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan vlanvnimap
+                 </USAGE>
+        <EXAMPLE summary="show vxlan vlanvnimap">
+                     sonic# show vxlan vlanvnimap
+ 
+                     +---------+-------+
+                     | VLAN    |   VNI |
+                     +=========+=======+
+                     | Vlan100 |   100 |
+                     +---------+-------+
+                     | Vlan101 |   101 |
+                     +---------+-------+
+                     Total count : 2
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan vlanvnimap count" help="shows number of VLAN VNI mappings ">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_vlanvnimap show_vxlan_vlanvnimap.j2 count</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show vxlan vrfvnimap -->
+    <COMMAND name="show vxlan vrfvnimap" help="show VRF VNI mapping information">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_vrfvnimap show_vxlan_vrfvnimap.j2 show </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display all the VRF VNI mappings
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan vrfvnimap
+                 </USAGE>
+        <EXAMPLE summary="show vxlan vrfvnimap">
+                     sonic# show vxlan vrfvnimap
+ 
+                     +-------+-------+
+                     | VRF   |   VNI |
+                     +=======+=======+
+                     | Vrf1  |   600 |
+                     +-------+-------+
+                     Total count : 1
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan vrfvnimap count" help="shows number of VRF VNI mappings ">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_vrfvnimap show_vxlan_vrfvnimap.j2 count </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show vxlan tunnel -->
+    <COMMAND name="show vxlan tunnel" help="Display VXLAN tunnel information per remote VTEP">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_tunnel show_vxlan_tunnel.j2 show</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display all the discovered tunnels. 
+                     SIP, DIP, creation source, operstatus are the columns.
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan tunnel
+                 </USAGE>
+        <EXAMPLE summary="show vxlan tunnel">
+                     sonic# show vxlan tunnel
+ 
+                     +---------+---------+-------------------+--------------+
+                     | SIP     | DIP     | creation source   | operstatus   |
+                     +=========+=========+===================+==============+
+                     | 2.2.2.2 | 4.4.4.4 | EVPN              | oper_up      |
+                     +---------+---------+-------------------+--------------+
+                     | 2.2.2.2 | 3.3.3.3 | EVPN              | oper_up      |
+                     +---------+---------+-------------------+--------------+
+                     Total count : 2
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan tunnel count" help="Display number of remote VTEPs">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_tunnel show_vxlan_tunnel.j2 count</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show vxlan evpn remote vni-->
+    <COMMAND name="show vxlan remote" help="Display VXLAN remote commands"> </COMMAND>
+    <COMMAND name="show vxlan remote vni" help="Display the VNI of the VLANs extended to remote VTEPs.">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="IPV4_ADDR_ABC" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_remote_vni show_vxlan_remote_vni.j2 show ${remote_ip_addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show command to display all the VLANs learnt from the specified remote IP or all the remotes.
+                     VLAN, RemoteVTEP, VNI are the columns
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan remote vni
+                 </USAGE>
+        <EXAMPLE summary="show vxlan remote vni information">
+                     sonic# show vxlan remote vni
+ 
+                     +---------+--------------+-------+
+                     | VLAN    | RemoteVTEP   |   VNI |
+                     +=========+==============+=======+
+                     | Vlan101 | 3.3.3.3      |  1001 |
+                     +---------+--------------+-------+
+                     | Vlan101 | 4.4.4.4      |  1001 |
+                     +---------+--------------+-------+
+                     Total count : 2
+                                                   
+                     sonic# show vxlan remote vni 3.3.3.3
+ 
+                     +---------+--------------+-------+
+                     | VLAN    | RemoteVTEP   |   VNI |
+                     +=========+==============+=======+
+                     | Vlan101 | 3.3.3.3      |  1001 |
+                     +---------+--------------+-------+
+                     Total count : 1
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan remote vni count" help="Display the number of VLANs extended to remote VTEPs.">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="IPV4_ADDR_ABC" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_remote_vni show_vxlan_remote_vni.j2 count ${remote_ip_addr}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan remote mac" help="Display the MACs learnt from remote VTEPs.">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="INT32_OR_IP_ADDR_OR_PO" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_remote_mac show_vxlan_remote_mac.j2 show ${remote_ip_addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show command to display all the MACs learnt from the specified remote IP or all the remotes for the specified/all VLANs.
+                     VLAN, MAC, RemoteVTEP, VNI, Type are the columns.
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan remote mac
+                 </USAGE>
+        <EXAMPLE summary="show vxlan remote mac information">
+                     sonic# show vxlan remote mac 
+                     +---------+-------------------+--------------+-------+--------+
+                     | VLAN    | MAC               | RemoteVTEP   |   VNI | Type   |
+                     +=========+===================+==============+=======+========+
+                     | Vlan101 | 00:00:00:00:00:01 | 4.4.4.4      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:03 | 4.4.4.4      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:04 | 4.4.4.4      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:05 | 4.4.4.4      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     Total count : 6
+ 
+                     sonic# show vxlan remote mac 3.3.3.3
+                     +---------+-------------------+--------------+-------+--------+
+                     | VLAN    | MAC               | RemoteVTEP   |   VNI | Type   |
+                     +=========+===================+==============+=======+========+
+                     | Vlan101 | 00:00:00:00:00:02 | 3.3.3.3      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     | Vlan101 | 00:00:00:00:00:99 | 3.3.3.3      |  1001 | static |
+                     +---------+-------------------+--------------+-------+--------+
+                     Total count : 2
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan remote mac count" help="Display number of remote MACs">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="INT32_OR_IP_ADDR_OR_PO" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_remote_mac show_vxlan_remote_mac.j2 count ${remote_ip_addr}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show vxlan remote nexthop-group" help="Display all the discovered remote NHG">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_remote_nhg show_vxlan_remote_nhg.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show vxlan counters -->
+    <COMMAND name="show vxlan counters" help="Display VXLAN tunnel counters per remote VTEP or all remotes">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="IPV4_ADDR_ABC" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan show_vxlan_counters show_vxlan_counters.j2 ${remote_ip_addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display VXLAN tunnel counters per remote VTEP or all remotes. 
+                     SIP, DIP, creation source, operstatus are the columns.
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show vxlan counters
+                 </USAGE>
+        <EXAMPLE summary="show vxlan counters">
+ sonic-cli# show vxlan counters
+ 
+ Polling Rate         : 8 seconds
+ -------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Interface             RX_OK              RX_BPS             RX_PPS            RX_ERR           TX_OK              TX_BPS             TX_PPS            TX_ERR
+ -------------------------------------------------------------------------------------------------------------------------------------------------------------
+ EVPN_4.4.4.4          0                  0                  0                  N/A              0                  0                  0                  N/A
+ EVPN_4.4.4.5          0                  0                  0                  N/A              0                  0                  0                  N/A
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--clear vxlan counters -->
+    <COMMAND name="clear counters vxlan" access="netadmin" help="Clear VXLAN tunnel counters per remote VTEP or all remotes">
+      <PARAM name="remote_ip_addr" help="Remote VTEP IP" ptype="IPV4_ADDR_ABC" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan clear_vxlan_counters ${remote_ip_addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     clear command to clear VXLAN tunnel counters per remote VTEP or all remotes. 
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# clear counters vxlan 
+                 </USAGE>
+        <EXAMPLE summary="clear counters vxlan ">
+                     sonic# clear counters vxlan
+                     sonic# clear counters vxlan 1.2.34.2
+ 
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="no interface vxlan" access="netadmin" help="Delete VXLAN Interface">
+      <PARAM name="vxlan-if-name" help="VTEP Name" ptype="VTEP_NAME"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan delete_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list ${vxlan-if-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to delete the VTEP. The VTEP deletion will succeed provided no vlan/vrf vni mapping exists on this VTEP.
+                 </DESCRIPTION>
+        <USAGE>
+                     (config)# no interface vxlan VTEPNAME
+                     VTEPNAME - string prefixed with 'vtep'
+                 </USAGE>
+        <EXAMPLE summary="Unconfigure vxlan VTEP">
+                     sonic(config)# no interface vxlan vtep1
+                     sonic(config-if-vtep1)#
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="interface vxlan" access="netadmin" help="VXLAN Configuration Mode" view="configure-vxlan-view" viewid="iface=vxlan-${vxlan-if-name}" view_tables="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/name={vxlan-if-name}">
+      <PARAM name="vxlan-if-name" help="Name of VTEP (Max 10 chars, prefixed by 'vtep')" ptype="VTEP_NAME" dbpath="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/name"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list ${vxlan-if-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to enter VXLAN configuration mode.
+                 </DESCRIPTION>
+        <USAGE>
+                     (config)# interface vxlan VTEPNAME
+                     VTEPNAME - string prefixed with 'vtep' with max size of 10 chars.
+                 </USAGE>
+        <EXAMPLE summary="configuration mode for vxlan">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(config-if-vtep1)#
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vxlan-view" prompt="${SYSTEM_NAME}(${__config_mode}-if-${iface})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Show VXLAN configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-vxlan view_keys="name=${iface}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"> </COMMAND>
+    <COMMAND name="no source-ip" access="netadmin" help="Unset the source IPv4 address">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan delete_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_src_ip ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to unset the source IPv4 address or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (config-if-vtep)# no source-ip 
+                 </USAGE>
+        <EXAMPLE summary="unset the source IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# no source-ip
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no primary-ip" access="netadmin" help="Unset the primary IPv4 address">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan delete_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_primary_ip ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to unset the Primary IPv4 address or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (config-if-vtep)# no primary-ip 
+                 </USAGE>
+        <EXAMPLE summary="unset the primary IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# no primary-ip
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no external-ip" access="netadmin" help="Unset the primary IPv4 address" test="${vxlan_multisite_dci_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan delete_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_external_ip ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to unset the External IPv4 address or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (config-if-vtep)# no external-ip 
+                 </USAGE>
+        <EXAMPLE summary="unset the external IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# no external-ip
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no vni-downstream" access="netadmin" help="Unset the vni downstream configuration address" test="${vxlan_multisite_dci_supported}">
+      <PARAM name="remoteip" help="VNI downstream configuration" ptype="EXTERNAL_OR_IP_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan delete_sonic_vxlan_downstream_vni_external ${iface} ${remoteip} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to unset the Downstream VNI configuration
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# no vni-downstream REMOTEIP
+                     REMOTEIP - "external" for all external tunnels and remote IPv4 address for internal tunnels
+                 </USAGE>
+        <EXAMPLE summary="configure the downstream VNI address">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# no vni-downstream 1.1.1.2
+                     sonic(conf-if-vxlan-vtep1)# no vni-downstream external
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no map" access="netadmin" help="Delete VNI Mapping">
+      <PARAM name="vni" help="VNId of the mapping to be deleted" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vnid" help="VNID" ptype="RANGE_1_16777215">
+          <PARAM name="mapoptions" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="vid" help="VLAN ID of the mapping to be deleted" ptype="VLAN_INTERFACE" mode="subcommand">
+              <PARAM name="count" help="Number of mappings to be deleted" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="numvid" help="Number" ptype="VLAN_ID" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="vrf" help="VRF Name of the mapping to be deleted" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="vrf-name" help="VRF Name" ptype="STRING_63"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan delete_sonic_vxlan_sonic_vxlan_vxlan_tunnel_map_vxlan_tunnel_map_list ${mapoptions} ${iface} ${vnid} ${vid} ${numvid} ${vrf-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to unconfigure VNI-VLAN mappings and VNI-VRF mappings
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# no map vni VNID vlan VLANID count COUNT
+                     (conf-if-vxlan-vtep)# no map vni VNID vrf VRFNAME
+                     VNID - VNI value between 1 to 16777215
+                     VLANID - VLAN value between 1 to 4094
+                     COUNT - number of mappings (optional parameter)
+                     VRFNAME - string
+                 </USAGE>
+        <EXAMPLE summary="unconfigure vni-vlan mapping and vni-vrf mapping">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# no map vni 100 vlan 100
+                     sonic(conf-if-vxlan-vtep1)# no map vni 100 vrf vrf1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="source-ip" access="netadmin" help="Set the source IPv4 address or Loopback Interface" command_tables="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/{vxlan-if-name},ipadd=*" render_command_cb="vxlansourceip">
+      <PARAM name="SIP" help="Source IPv4 address or Loopback Interface" ptype="VXLAN_INT_OR_IP_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_src_ip ${iface} ${SIP} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to set the source IPv4 address or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# source-ip SOURCEIP
+                     SOURCEIP - source IPv4 address or Loopback Interface
+                 </USAGE>
+        <EXAMPLE summary="configure the source IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# source-ip 1.1.1.1
+                     sonic(conf-if-vxlan-vtep1)# source-ip Loopback1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="primary-ip" access="netadmin" help="Set the Primary IPv4 address or Loopback Interface" command_tables="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/{vxlan-if-name},ipadd=*" render_command_cb="vxlanprimaryip">
+      <PARAM name="PIP" help="Primary IPv4 address or Loopback Interface" ptype="VXLAN_INT_OR_IP_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_primary_ip ${iface} ${PIP} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to set the primary IPv4 address or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# primary-ip SOURCEIP
+                     SOURCEIP - primary IPv4 address or Loopback Interface
+                 </USAGE>
+        <EXAMPLE summary="configure the primary IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# primary-ip 1.1.1.2
+                     sonic(conf-if-vxlan-vtep1)# primary-ip Loopback1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="external-ip" access="netadmin" help="Set the external IPv4 address or Loopback Interface" test="${vxlan_multisite_dci_supported}" command_tables="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/{vxlan-if-name},ipadd=*" render_command_cb="vxlanexternalip">
+      <PARAM name="ExtIP" help="external IPv4 address or Loopback Interface" ptype="VXLAN_INT_OR_IP_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_external_ip ${iface} ${ExtIP} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to set the external IPv4 addresx or Loopback Interface
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# external-ip SOURCEIP
+                     SOURCEIP - external IPv4 address or Loopback Interface
+                 </USAGE>
+        <EXAMPLE summary="configure the external IPv4 address or Loopback Interface">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# external-ip 1.1.1.2
+                     sonic(conf-if-vxlan-vtep1)# external-ip Loopback1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="vni-downstream" access="netadmin" help="Set the vni downstream configuration address" test="${vxlan_multisite_dci_supported}" command_tables="sonic-vxlan:sonic-vxlan/VXLAN_DOWNSTREAM_VNI/VXLAN_DOWNSTREAM_VNI_LIST/name={vxlan-if-name},ipadd=*" render_command_cb="vnidownstream">
+      <PARAM name="remoteip" help="VNI downstream configuration" ptype="EXTERNAL_OR_IP_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan patch_sonic_vxlan_downstream_vni_external ${iface} ${remoteip} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to set the Downstream VNI configuration
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# vni-downstream REMOTEIP
+                     REMOTEIP - "external" for all external tunnels and remote IPv4 address for internal tunnels
+                 </USAGE>
+        <EXAMPLE summary="configure the downstream VNI address">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# vni-downstream 1.1.1.2
+                     sonic(conf-if-vxlan-vtep1)# vni-downstream external
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="qos-mode" access="netadmin" help="Configure QoS Mode">
+      <PARAM name="qos-mode" help="QoS mode" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="uniform" help="Uniform Mode" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/qos-mode=uniform"> </PARAM>
+        <PARAM name="pipe" help="Pipe Mode" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/qos-mode=pipe">
+          <PARAM name="dscp" help="Encap DSCP for Pipe Mode" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="dscp-value" help="dscp value" ptype="RANGE_0_63" dbpath="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL/VXLAN_TUNNEL_LIST/dscp"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"><!--sonic_cli_vxlan patch_openconfig_vxlan_interfaces_interface_vxlan_if_config_vxlan_qos_mode ${iface} ${qos-mode} ${dscp-value}--> sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_vxlan_tunnel_list_qos_mode ${iface} ${qos-mode} ${dscp-value} </ACTION>
+    </COMMAND>
+    <COMMAND name="map" access="netadmin" help="Configure VNI to VLAN/VRF Mapping" command_tables="sonic-vxlan:sonic-vxlan/VXLAN_TUNNEL_MAP/VXLAN_TUNNEL_MAP_LIST/name={vxlan-if-name},mapname=*;sonic-vrf:sonic-vrf/VRF/VRF_LIST/vrf_name=*" render_command_cb="vlanvrfvnimap">
+      <PARAM name="vni" help="Configure VNI mapping" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vnid" help="VNID" ptype="RANGE_1_16777215">
+          <PARAM name="mapoptions" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="vid" help="Configure VLAN VNI mapping" ptype="VLAN_INTERFACE" mode="subcommand">
+              <PARAM name="count" help="Number of mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="numvid" help="Number" ptype="VLAN_ID" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="vrf" help="Configure VRF VNI mapping" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="vrf-name" help="VRF Name" ptype="STRING_63"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vxlan patch_sonic_vxlan_sonic_vxlan_vxlan_tunnel_map_vxlan_tunnel_map_list ${mapoptions} ${iface} ${vnid} ${vid} ${numvid} ${vrf-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to configure VNI-VLAN mappings and VNI-VRF mappings
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)# map vni VNID vlan VLANID count COUNT
+                     (conf-if-vxlan-vtep)# map vni VNID vrf VRFNAME
+                     VNID - VNI value between 1 to 16777215
+                     VLANID - VLAN value between 1 to 4094
+                     COUNT - number of mappings (optional parameter)
+                     VRFNAME - string
+                 </USAGE>
+        <EXAMPLE summary="configure vni-vlan and vni-vrf mappings">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# map vni 100 vlan 100 count 2
+                     sonic(conf-if-vxlan-vtep1)# map vni 100 vrf vrf1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="counter" access="netadmin" help="Configure VXLAN counter parameters" command_tables="sonic-counters:sonic-counters/FLEX_COUNTER_TABLE/FLEX_COUNTER_TABLE_LIST=TUNNEL" render_command_cb="vxlancounters">
+      <PARAM name="cntroptions" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="polling-interval" help="Polling interval in sec" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="poll-timer-value" help="Polling interval time in seconds (default - 5) " ptype="RANGE_3_30"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vxlan set_vxlan_counter_polling_interval ${poll-timer-value} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Command to configure VXLAN counter polling interval.
+                 </DESCRIPTION>
+        <USAGE>
+                     (conf-if-vxlan-vtep)#counter polling-interval POLL_INTERVAL
+                     POLL_INTERVAL - A value between 3 and 30 seconds
+                 </USAGE>
+        <EXAMPLE summary="configure vxlan counter polling interval">
+                     sonic(config)# interface vxlan vtep1
+                     sonic(conf-if-vxlan-vtep1)# counter polling-interval 3
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

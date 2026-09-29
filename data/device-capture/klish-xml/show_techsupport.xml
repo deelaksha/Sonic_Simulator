@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show tech-support" help="Collect technical support information">
+      <PARAM name="showtchsupp_opt" help="Show tech-support options" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="since" help="Collect logs and core files since a specified date/time" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="date" help="Options: &#10; yesterday&#10;&#10; or&#10;&#10; date/time in the format:&#10;&#10; &quot;YYYY-MM-DDTHH:MM:SS[.ddd...][Z]&quot; or&#10; &quot;YYYY-MM-DDTHH:MM:SS[.ddd...][+hh:mm]&quot; or&#10; &quot;YYYY-MM-DDTHH:MM:SS[.ddd...][-hh:mm]&quot; Where:&#10;&#10; YYYY = year, MM = month, DD = day,&#10; T (required before time),&#10; HH = hours, MM = minutes, SS = seconds,&#10; (optional) .ddd... = decimal fraction of a second (e.g. &quot;.323&quot;)&#10; (optional) Z indicates zero time-zone offset from UTC&#10; (optional) +/- hh:mm indicates hour:minute time-zone offset from UTC&#10; (unspecified time-zone indicates local time-zone)" ptype="STRING"> </PARAM>
+        </PARAM>
+        <PARAM name="status" help="Show tech-support collection status" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="cancel" help="Cancel tech-support collection" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-show-techsupport.py rpc_sonic_show_techsupport_sonic_show_techsupport_info ${showtchsupp_opt} ${date} </ACTION>
+    </COMMAND>
+    <COMMAND name="show tech-support terminal" help="Show commands output as text to terminal">
+      <ACTION builtin="clish_showtech">show_techsupp_text_cmds.txt</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

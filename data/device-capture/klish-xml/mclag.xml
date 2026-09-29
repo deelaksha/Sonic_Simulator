@@ -1,0 +1,447 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--MODE : config terminal -->
+  <VIEW name="configure-view">
+    <COMMAND name="mclag" access="netadmin" help="Configure MCLAG"> </COMMAND>
+    <COMMAND name="mclag domain" access="netadmin" help="Enter MCLAG domain configuration mode" test="${mclag_supported}" view="configure-mclag-view" viewid="id=${mclag-domain-id}" view_keys="name=${id}" view_tables="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/domain_id={id}">
+      <PARAM name="mclag-domain-id" help="Domain ID" ptype="RANGE_1_4095" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/domain_id"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_list_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list ${mclag-domain-id} </ACTION>
+    </COMMAND>
+    <COMMAND name="no mclag" access="netadmin" help="domain"> </COMMAND>
+    <COMMAND name="no mclag domain" access="netadmin" help="Remove MCLAG domain" test="${mclag_supported}">
+      <PARAM name="mclag-domain-id" help="Domain ID" ptype="RANGE_1_4095"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list ${mclag-domain-id} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Adds Gateway Mac for MCLAG.
+         </DESCRIPTION>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mclag gateway-mac" access="netadmin" help="Configure gateway MAC for router ports over MCLAG" test="${mclag_supported}" command_tables="sonic-mclag:sonic-mclag/MCLAG_GW_MAC/MCLAG_GW_MAC_LIST/gw_mac=${gw_mac}">
+      <PARAM name="gw_mac" help="MCLAG Gateway MAC address" ptype="MAC_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_GW_MAC/MCLAG_GW_MAC_LIST/gw_mac"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_gw_mac_list ${gw_mac} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Delete Gateway Mac for MCLAG.
+         </DESCRIPTION>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mclag gateway-mac" access="netadmin" help="Remove gateway mac for router ports over MCLAG">
+      <PARAM name="gw_mac" help="MCLAG Gateway MAC address" ptype="MAC_ADDR"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_gw_mac_list ${gw_mac} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : mclag domain view -->
+  <VIEW name="configure-mclag-view" prompt="${SYSTEM_NAME}(${__config_mode}-mclag-domain-${id})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Show configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-mclag view_keys="name=${id}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="source-ip" access="netadmin" help="Configure MCLAG session source IP address">
+      <PARAM name="SIP" help="Source IPv4 address" ptype="IP_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/source_ip"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_source_ip ${id} ${SIP} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG session's source ip address 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to configure/change MCLAG session's source ip address  
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG session source ip address for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#source-ip 10.1.1.1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no source-ip" access="netadmin" help="Remove MCLAG session source IP address">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_source_ip ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="peer-ip" access="netadmin" help="Configure MCLAG session peer IP address">
+      <PARAM name="PIP" help="MCLAG Peer IPv4 address" ptype="IP_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/peer_ip"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_peer_ip ${id} ${PIP} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG session's peer IP address 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to configure/change MCLAG session's peer ip address 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG peer ip address for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#peer-ip 10.1.1.2
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no peer-ip" access="netadmin" help="Remove MCLAG session peer IP Address">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_peer_ip ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="session-vrf" access="netadmin" help="Configure MCLAG session VRF">
+      <PARAM name="SVRF" help="Name of VRF" ptype="VRF_OR_MGMT" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/session_vrf"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_session_vrf ${id} ${SVRF} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures VRF for MCLAG session
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to configure the VRF for MCLAG session
+         </USAGE>
+        <EXAMPLE summary="Configures VRF for MCLAG session of MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#session-vrf mgmt
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no session-vrf" access="netadmin" help="Revert back to default VRF for MCLAG session">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_session_vrf ${id} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+          Reverts back to default VRF for MCLAG session
+        </DESCRIPTION>
+        <USAGE>
+          Use this command to change the VRF to default VRF for MCLAG session
+        </USAGE>
+        <EXAMPLE summary="Reverts back to the default VRF for MCLAG session of MCLAG domain 100">
+          sonic-cli(config-mclag-domain-100)#no session-vrf
+        </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="peer-link" access="netadmin" help="Configure MCLAG peer interface">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="eth-if" help="Physical Interface" ptype="PHY_INTERFACE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/peer_link"> </PARAM>
+        <PARAM name="po-if" help="PortChannel interface" ptype="PO_INTERFACE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/peer_link"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_peer_link ${id} ${eth-if} ${po-if} ${if-subcommands} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG peer interface 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to configure/change MCLAG session's peer link 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG peer link for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#peer-link Eth 1/12/1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no peer-link" access="netadmin" help="Remove MCLAG peer interface">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_peer_link ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="mclag-system-mac" access="netadmin" help="Configure MCLAG system MAC address">
+      <PARAM name="MSM" help="MCLAG system MAC address" ptype="MAC_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/mclag_system_mac"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_mclag_system_mac ${id} ${MSM} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG system MAC address  
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to set MCLAG system mac which will be used for MCLAG interface mac 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG system mac address for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#mclag-system-mac 00:bb:bb:bb:cc:cc
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mclag-system-mac" access="netadmin" help="Revert back to default MCLAG system MAC address">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_mclag_system_mac ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="keepalive-interval" access="netadmin" help="Configure MCLAG Session Keepalive interval in secs">
+      <PARAM name="KA" help="MCLAG Session Keepalive Interval" ptype="MCLAG_KA_INTERVAL_RANGE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/keepalive_interval"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_keepalive_interval ${id} ${KA} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG keepalive interval in seconds 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to change the default MCLAG keepalive interval 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG session interval to 10 for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#keepalive-interval 10
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no keepalive-interval" access="netadmin" help="Revert back to default MCLAG keepalive interval">
+      <ACTION builtin="clish_nop"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_keepalive_interval ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="session-timeout" access="netadmin" help="Configure MCLAG Session Timeout in secs">
+      <PARAM name="ST" help="MCLAG Session Timeout value in secs" ptype="MCLAG_SESSION_TIMEOUT_RANGE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/session_timeout"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_session_timeout ${id} ${ST} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG session timeout value in seconds 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to change the default MCLAG session timeout 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG session timeout value to 100 seconds for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#session-timeout 100
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no session-timeout" access="netadmin" help="Revert back to default MCLAG session timeout">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_session_timeout ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="delay-restore" access="netadmin" help="Configure MCLAG delay restore time">
+      <PARAM name="DL" help="Delay restore time in seconds" ptype="MCLAG_DELAY_RESTORE_TIME_RANGE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/delay_restore"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_delay_restore ${id} ${DL} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures MCLAG delay restore time in seconds
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to change the default MCLAG delay restore time 
+         </USAGE>
+        <EXAMPLE summary="Configures MCLAG delay restore time to 180 seconds for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#delay-restore 180
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no delay-restore" access="netadmin" help="Revert back to default MCLAG delay restore time">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_delay_restore ${id} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Delete MCLAG delay restore configuration
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to delete MCLAG delay restore time previously configured 
+         </USAGE>
+        <EXAMPLE summary="Deletes MCLAG delay restore configuration">
+           sonic-cli(config)# no mclag delay-restore 180
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="fast-convergence" access="netadmin" help="Enable fast convergence" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/fast_convergence=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_fast_convergence ${id} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Enable fast convergence 
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to enable fast convergence for MCLAG 
+         </USAGE>
+        <EXAMPLE summary="Configures fast convergence for MCLAG domain 100">
+           sonic-cli(config-mclag-domain-100)#fast-convergence
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no fast-convergence" access="netadmin" help="Disable fast convergence">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_fast_convergence ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="backup-keepalive" access="netadmin" help="Configure backup keepalive session"> </COMMAND>
+    <COMMAND name="backup-keepalive source-ip" help="Configure source IPv4 address">
+      <PARAM name="PIP" help="Source IPv4 address" ptype="IP_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/backup_keepalive_source_ip"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_source_ip ${id} ${PIP} </ACTION>
+    </COMMAND>
+    <COMMAND name="backup-keepalive peer-ip" help="Configure peer IPv4 address">
+      <PARAM name="PIP" help="Peer IPv4 address" ptype="IP_ADDR" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/backup_keepalive_peer_ip"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_peer_ip ${id} ${PIP} </ACTION>
+    </COMMAND>
+    <COMMAND name="backup-keepalive interval" help="Configure keepalive interval">
+      <PARAM name="BKI" help="Keepalive Interval" ptype="MCLAG_KA_INTERVAL_RANGE" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/backup_keepalive_interval"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_interval ${id} ${BKI} </ACTION>
+    </COMMAND>
+    <COMMAND name="backup-keepalive session-vrf" help="Configure VRF">
+      <PARAM name="BKVRF" help="Backup keepalive session VRF" ptype="VRF_OR_MGMT" dbpath="sonic-mclag:sonic-mclag/MCLAG_DOMAIN/MCLAG_DOMAIN_LIST/backup_keepalive_session_vrf"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag patch_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_session_vrf ${id} ${BKVRF} </ACTION>
+    </COMMAND>
+    <COMMAND name="no backup-keepalive" help="Unconfigure backup keepalive session"> </COMMAND>
+    <COMMAND name="no backup-keepalive source-ip" help="Unconfigure source IPv4 address">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_source_ip ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="no backup-keepalive peer-ip" help="Unconfigure peer IPv4 address">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_peer_ip ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="no backup-keepalive interval" help="Revert to default keepalive interval">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_interval ${id} </ACTION>
+    </COMMAND>
+    <COMMAND name="no backup-keepalive session-vrf" help="Revert to default vrf">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag delete_sonic_mclag_sonic_mclag_mclag_domain_mclag_domain_list_backup_keepalive_session_vrf ${id} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : show commands view -->
+  <VIEW name="enable-view">
+    <!--show mclag brief -->
+    <COMMAND name="show mclag" help="Display MCLAG domain" test="${mclag_supported}"> </COMMAND>
+    <COMMAND name="show mclag brief" help="Display MCLAG domain/interface information" test="${mclag_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_brief show_mclag_brief.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display MCLAG domain summary
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag brief 
+           </USAGE>
+        <EXAMPLE summary="show mclag brief">
+            sonic-cli# show mclag brief
+ 
+            Domain ID            : 10
+            Role                 :
+            Session Status       :
+            Peer Link Status     :
+            Source Address       : 1.1.1.1
+            Peer Address         :
+            Peer Link            : Eth1/12/1
+            Keepalive Interval   : 1 secs
+            Session Timeout      : 30 secs
+            Delay Restore        : 300 secs
+            System Mac           :
+            Mclag System Mac     : 00:bb:bb:bb:cc:cc
+ 
+            Number of MLAG Interfaces:1
+            -----------------------------------------------------------
+            MLAG Interface       Local/Remote Status
+            -----------------------------------------------------------
+            PortChannel10            down/down
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show mclag interface -->
+    <COMMAND name="show mclag interface" help="Display MCLAG interface information" test="${mclag_supported}">
+      <PARAM name="ifid" help="Interface Portchannel ID without prefix" ptype="LAG_ID">
+        <PARAM name="domain_id" help="Enter domain ID" ptype="RANGE_1_4095"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_interface show_mclag_iface.j2 PortChannel${ifid} ${domain_id} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display MCLAG interface inforamation
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag interface PortchannelId DomainId 
+           </USAGE>
+        <EXAMPLE summary="show mclag 10 100">
+               sonic-cli# show mclag 10 100
+               Local/Remote Status  : down/down
+               TrafficDisable       : No
+               IsolateWithPeerLink  : No
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show mclag separate-ip interfaces -->
+    <COMMAND name="show mclag separate-ip-interfaces" help="Display MCLAG separate IP interface information" test="${mclag_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_separate_ip show_mclag_separate_ip.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display Vlan interfaces on which MCLAG separate IP is configured.
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag separate-ip-interfaces
+           </USAGE>
+        <EXAMPLE summary="show mclag separate-ip-interfaces">
+               sonic-cli# show mclag separate-ip-interfaces
+ 
+               Interface Name
+               ===================
+               Vlan10
+               ===================
+               Total count : 1
+               ===================
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show mclag peer gateway interfaces -->
+    <COMMAND name="show mclag peer-gateway-interfaces" help="Shows MCLAG Peer Gateway interface information" test="${mclag_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_peer_gateway show_mclag_peer_gateway.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display Vlan interfaces on which MCLAG Peer Gateway is configured.
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag peer-gateway-interfaces
+           </USAGE>
+        <EXAMPLE summary="show mclag peer-gateway-interfaces">
+               sonic-cli# show mclag peer-gateway-interfaces
+ 
+               Interface Name
+               ===================
+               Vlan10
+               ===================
+               Total count : 1
+               ===================
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show running-config-configuration mclag -->
+    <COMMAND name="show running-configuration mclag" help="Display current MCLAG configuration" test="${mclag_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-mclag </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            Shows running configuration of mclag domain
+        </DESCRIPTION>
+        <EXAMPLE summary="show running-configuration mclag">
+                sonic# show running-configuration mclag
+                mclag domain 89
+                  source-ip 1.1.1.1
+                  peer-ip 1.1.1.2
+                  peer-link PortChannel2
+                  keepalive-interval 1
+                  session-timeout 30
+        </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show mclag mac remote -->
+    <COMMAND name="show mclag mac" help="Displays MCLAG remote mac information" test="${mclag_supported}"> </COMMAND>
+    <COMMAND name="show mclag mac remote" help="Displays MCLAG remote mac information" test="${mclag_supported}">
+      <PARAM name="show-mclag-remote-mac-params" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="vlan-if-id" help="Displays MCLAG remote mac specific to this vlan" ptype="VLAN_INTERFACE"/>
+        <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+        <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_remote_mac show_mclag_remote_mac.j2 show ${__params} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display MCLAG remote mac count 
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag mac remote
+           </USAGE>
+        <EXAMPLE summary="show mclag mac remote">
+               sonic-cli# show mclag mac remote
+               ======================================================================== 
+               Vlan           Mac                Port         Type  
+               ======================================================================== 
+               Vlan300   00:0a:0a:0a:0a:0a    PortChannel10    static 
+               Vlan400   00:0a:0a:0a:0b:0b      Ethernet12    dynamic 
+               Vlan400   00:0a:0a:0a:0a:0a    PortChannel101  dynamic 
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show mclag mac remote -->
+    <COMMAND name="show mclag mac remote count" help="Displays MCLAG remote mac count" test="${mclag_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_mclag show_mclag_remote_mac show_mclag_remote_mac.j2 count </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Show command to display MCLAG remote mac count
+           </DESCRIPTION>
+        <USAGE>
+               sonic-cli# show mclag remote mac count
+           </USAGE>
+        <EXAMPLE summary="show mclag remote mac count">
+            sonic-cli# show mclag remote mac count
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

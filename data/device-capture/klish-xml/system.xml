@@ -1,0 +1,214 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2020 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="txrx_ppm_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj"> sonic-cli-sys txrx_ppm_supported </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show system" help="Display system information">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_state system_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system memory" help="Display system memory information">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_memory system_memory_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system cpu" help="Display system cpu information">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_cpus system_cpu_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system processes" help="Display system processes">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_processes system_processes_show.j2 default ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system processes cpu" help="Display system processes sorted by CPU usage">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_processes system_processes_show.j2 cpu ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system processes mem-util" help="Display system processes sorted by memory utilization">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_processes system_processes_show.j2 mem-util ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system processes mem-usage" help="Display system processes sorted by memory usage">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_processes system_processes_show.j2 mem-usage ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system processes pid" help="Display system process information of a particular PID">
+      <PARAM name="pid-no" help="PID number" ptype="PID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_system_processes system_process_pid_show.j2 pid ${pid-no} ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system config-update-time" help="Display last configuration update time">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_config_update_time infra_show.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system status" help="Display the system ready status">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_status system_status_show.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system status brief" help="Display the brief system ready status">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_status_brief system_status_show.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system status detail" help="Display the detailed system ready status">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_status_detail system_status_show.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system status core" hidden="true" help="Display the core system ready status">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_openconfig_system_status_core system_status_show.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show switching-mode" help="Display switching-mode configuration">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_switching_mode_config show_switching_mode.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show system txrx-clock-freq-correction" help="Display system TX/RX clock frequency configuration" test="${txrx_ppm_supported}">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys get_adjust_txrx_clock_freq show_txrx_clock_freq.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- clear user session -->
+    <COMMAND name="clear user" access="admin" help="Clear user sessions"/>
+    <COMMAND name="clear user session" help="Clear all active sessions of the user">
+      <PARAM name="user-name" help="User name string" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sys_rpc rpc_clear_user_sessions ${user-name} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="username" access="admin" help="Add new user" ptype="SUBCOMMAND" mode="subcommand" test="-z ${__in_session}">
+      <PARAM name="user-name" help="User name string" ptype="STRING">
+        <PARAM name="pw-and-role" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="password" help="Clear text password/Encrypted password" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="passwd" help="Password format &lt;clear text password&gt;(Hashed to SHA-512)&#10;&#9;&#9; $&lt;id&gt;$&lt;salt&gt;$&lt;password hash&gt;" ptype="PASSWORD_STR" default=""> </PARAM>
+            <PARAM name="role" help="User role" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="rl" help="User role(s) (admin/operator/netadmin/secadmin comma separated)" ptype="STRING" default="null"> </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="role" help="User role" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="rl" help="User role(s) (admin/operator/netadmin/secadmin comma separated)" ptype="STRING" default="null"> </PARAM>
+            <PARAM name="password" help="Clear text password/Encrypted password" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="passwd" help="Password format &lt;clear text password&gt;(Hashed to SHA-512)&#10;&#9;&#9; $&lt;id&gt;$&lt;salt&gt;$&lt;password hash&gt;" ptype="PASSWORD_STR" default=""> </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="sshkey" help="User SSH key" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="key" help="User SSH key" ptype="STRING" default="null"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys patch_openconfig_system_system_aaa_authentication_users_user ${user-name} ${passwd} ${rl} ${#key}</ACTION>
+    </COMMAND>
+    <COMMAND name="no username" access="admin" help="Delete a user" test="-z ${__in_session}">
+      <PARAM name="user-name" help="user name" ptype="STRING">
+        <PARAM name="sshkey" help="user sshkey" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys delete_openconfig_system_system_aaa_authentication_users_user ${__params}</ACTION>
+    </COMMAND>
+    <!-- suppress-fib-pending -->
+    <COMMAND name="suppress-fib-pending" access="netadmin" help="Suppresses newly learned BGP routes advertisement until programmed in hardware" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST/name={name}" command_keys="name=localhost" dbpath="sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST/suppress-fib-pending=ENABLED">
+      <ACTION builtin="clish_pyobj"> sonic_cli_infra enable_suppress_fib_pending </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Enables Suppresses newly learned BGP routes advertisement until programmed in hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to enable Suppressing newly learned BGP routes advertisement until programmed in hardware inside bgp docker.
+ 			</USAGE>
+        <EXAMPLE summary="Enable Suppressing newly learned BGP routes advertisement until programmed in hardware">
+ 				sonic-cli(config)# suppress-fib-pending
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no suppress-fib-pending -->
+    <COMMAND name="no suppress-fib-pending" access="netadmin" help="Disable Suppresses newly learned BGP routes advertisement until programmed in hardware" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj"> sonic_cli_infra disable_suppress_fib_pending </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Disables Suppresses newly learned BGP routes advertisement until programmed in hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to disable Suppressing newly learned BGP routes advertisement until programmed in hardware.
+ 			</USAGE>
+        <EXAMPLE summary="Disable Suppresses newly learned BGP routes advertisement until programmed in hardware">
+ 				sonic-cli(config)# no suppress-fib-pending
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="switching-mode" access="netadmin" help="Configure switching-mode" ptype="SUBCOMMAND" mode="subcommand" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}" dbpath="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switching_mode=CUT_THROUGH">
+      <PARAM name="cut-through" access="netadmin" help="Configure cut-through switching-mode" mode="subcommand" ptype="SUBCOMMAND"/>
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys config_switching_mode </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                                Configure cut-through switching-mode.
+                        </DESCRIPTION>
+        <USAGE>
+                                Use this command to configure cut-through switching-mode.
+                        </USAGE>
+        <EXAMPLE summary="Configure cut-through switching-mode in hardware">
+                                sonic-cli(config)# switching-mode cut-through
+                        </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no switching-mode" access="netadmin" help="Unconfigure switching-mode" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="cut-through" access="netadmin" help="Unconfigure cut-through switching-mode and set it to default mode(Store-and-Forward)" ptype="SUBCOMMAND" mode="subcommand"/>
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys del_switching_mode_config </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                                 Unconfigure cut-through switching-mode in hardware.
+                         </DESCRIPTION>
+        <USAGE>
+                                 Use this command to unconfigure cut-through switching-mode.
+                         </USAGE>
+        <EXAMPLE summary="unconfigure cut-through switching-mode in hardware">
+                                 sonic-cli(config)# no switching-mode cut-through
+                         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- resource-stats-polling-interval -->
+    <COMMAND name="system resource-stats-polling-interval" access="netadmin" help="Polling interval to retrieve system resource utilization metrics like CPU, Memory etc.," command_keys="name=localhost" command_tables="sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST/name={name}">
+      <PARAM name="interval" help="Polling interval in seconds (default=120)" ptype="SYSTEM_STATS_POLL_INTERVAL" dbpath="sonic-device-metadata:sonic-device-metadata/DEVICE_METADATA/DEVICE_METADATA_LIST/resource_stats_polling_interval"/>
+      <ACTION builtin="clish_restcl"> oper=PATCH url=/restconf/data/openconfig-system:system/config/openconfig-system-deviation:resource-stats-polling-interval body={"openconfig-system-deviation:resource-stats-polling-interval": ${interval}} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Polling interval to retrieve system resource utilization metrics like CPU, Memory etc.,
+         </DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# system resource-stats-polling-interval 300
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no system resource-stats-polling-interval" access="netadmin" help="Revert polling-interval to default(120s), that's been used to retrieve system resource utilization metrics like CPU, Memory etc.,">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-system:system/config/openconfig-system-deviation:resource-stats-polling-interval </ACTION>
+    </COMMAND>
+    <COMMAND name="system adjust-txrx-clock-freq" help="Adjust the Transmitter/Receiver clock frequency to platform specific predefined value" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}" dbpath="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/adjust_txrx_clock_freq=true" test="${txrx_ppm_supported}">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys config_txrx_clock_freq </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Adjust the Transmit/Receiver clock frequency to platform specific predefined value
+         </DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# system adjust-txrx-clock-freq
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no system adjust-txrx-clock-freq" help="Rollback the TX/RX frequency to default clock frequency" test="${txrx_ppm_supported}">
+      <ACTION builtin="clish_pyobj"> sonic-cli-sys unconfig_txrx_clock_freq </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                                 Rollback the TX/RX frequency to default clock frequency 
+                         </DESCRIPTION>
+        <USAGE>
+                                 Use this command to unconfigure or rollback to default clock frequency
+                         </USAGE>
+        <EXAMPLE summary="unconfigure the TX/RX frequency to default clock frequency">
+                                 sonic-cli(config)# no system adjust-txrx-clock-freq
+                         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

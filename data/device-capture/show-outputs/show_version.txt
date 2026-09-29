@@ -1,0 +1,73 @@
+### show version
+
+SONiC Software Version: SONiC-OS-4.5.0-Enterprise_Base
+Product: Generic
+Distribution: Debian 11.11
+Kernel: 5.10.0-21-amd64
+Config DB Version: version_4_5_2
+Build commit: 0a714509a1
+Build date: Thu May 15 14:40:27 UTC 2025
+Built by: sonicbld@bld-lvn-csg-12
+
+Platform: x86_64-kvm_x86_64-r0
+HwSKU: DellEMC-S5248f-P-25G-DPB
+ASIC: vs
+ASIC Count: 1
+
+Platform: x86_64-kvm_x86_64-r0
+Serial Number: 000000
+Uptime: 10:26:34 up 3 days,  3:09,  0 users,  load average: 2.36, 2.47, 2.09
+
+Docker images:
+REPOSITORY                    TAG                     IMAGE ID       SIZE
+docker-sonic-mgmt-framework   4.5.0-Enterprise_Base   4ce1cf05eb67   687MB
+docker-sonic-mgmt-framework   latest                  4ce1cf05eb67   687MB
+docker-gbsyncd-vs             4.5.0-Enterprise_Base   8712043169b5   409MB
+docker-gbsyncd-vs             latest                  8712043169b5   409MB
+docker-vrrp                   4.5.0-Enterprise_Base   7ceafb59d98c   458MB
+docker-vrrp                   latest                  7ceafb59d98c   458MB
+docker-udld                   4.5.0-Enterprise_Base   5653d497300d   455MB
+docker-udld                   latest                  5653d497300d   455MB
+docker-stp                    4.5.0-Enterprise_Base   bcf0e851e07f   453MB
+docker-stp                    latest                  bcf0e851e07f   453MB
+docker-teamd                  4.5.0-Enterprise_Base   f0f81cf3183f   449MB
+docker-teamd                  latest                  f0f81cf3183f   449MB
+docker-lldp                   4.5.0-Enterprise_Base   a7318e53924d   492MB
+docker-lldp                   latest                  a7318e53924d   492MB
+docker-sflow                  4.5.0-Enterprise_Base   5f3b058bc6e0   451MB
+docker-sflow                  latest                  5f3b058bc6e0   451MB
+docker-nat                    4.5.0-Enterprise_Base   5176b787b69a   451MB
+docker-nat                    latest                  5176b787b69a   451MB
+docker-l2mcd                  4.5.0-Enterprise_Base   95dcfa8da8dc   451MB
+docker-l2mcd                  latest                  95dcfa8da8dc   451MB
+docker-iccpd                  4.5.0-Enterprise_Base   1fa0c9b9bfc1   452MB
+docker-iccpd                  latest                  1fa0c9b9bfc1   452MB
+docker-fpm-frr                4.5.0-Enterprise_Base   61d662d96bc5   487MB
+docker-fpm-frr                latest                  61d662d96bc5   487MB
+docker-dhcp-relay             4.5.0-Enterprise_Base   9a8f2c0f619f   452MB
+docker-dhcp-relay             latest                  9a8f2c0f619f   452MB
+docker-syncd-vs               4.5.0-Enterprise_Base   c9bc22c2317c   409MB
+docker-syncd-vs               latest                  c9bc22c2317c   409MB
+docker-snmp                   4.5.0-Enterprise_Base   0f7b4b7150f2   429MB
+docker-snmp                   latest                  0f7b4b7150f2   429MB
+docker-sonic-telemetry        4.5.0-Enterprise_Base   e03d42c986f7   544MB
+docker-sonic-telemetry        latest                  e03d42c986f7   544MB
+docker-timesync               4.5.0-Enterprise_Base   9efc65d350d8   444MB
+docker-timesync               latest                  9efc65d350d8   444MB
+docker-tam                    4.5.0-Enterprise_Base   9e0e4e92bc16   442MB
+docker-tam                    latest                  9e0e4e92bc16   442MB
+docker-router-advertiser      4.5.0-Enterprise_Base   2b6bbe9d0a06   401MB
+docker-router-advertiser      latest                  2b6bbe9d0a06   401MB
+docker-platform-monitor       4.5.0-Enterprise_Base   78a69b0e8669   579MB
+docker-platform-monitor       latest                  78a69b0e8669   579MB
+docker-orchagent              4.5.0-Enterprise_Base   5735ecd02932   447MB
+docker-orchagent              latest                  5735ecd02932   447MB
+docker-macsec                 4.5.0-Enterprise_Base   315d981d0011   423MB
+docker-macsec                 latest                  315d981d0011   423MB
+docker-eventd                 4.5.0-Enterprise_Base   ea6abc853d89   402MB
+docker-eventd                 latest                  ea6abc853d89   402MB
+docker-mfa                    4.5.0-Enterprise_Base   7dcb4bbb11f1   410MB
+docker-mfa                    latest                  7dcb4bbb11f1   410MB
+docker-database               4.5.0-Enterprise_Base   45272e8e632d   401MB
+docker-database               latest                  45272e8e632d   401MB
+

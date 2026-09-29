@@ -1,0 +1,155 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--MODE : show commands view -->
+  <VIEW name="enable-view">
+    <!--show dropcounters capabilities -->
+    <COMMAND name="show dropcounters" help="Display dropcounters commands"> </COMMAND>
+    <COMMAND name="show running-configuration dropcounters" help="Display dropcounters configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-dropcounters </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show dropcounters capabilities" help="Display dropcounters capabilities">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter show_dropcounters_capabilities show_dropcounters_cap.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display dropcounters capabilities
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show dropcounters capabilities
+                 </USAGE>
+        <EXAMPLE summary="show dropcounters capabilities">_
+                     sonic# show dropcounters capabilities
+                     Counter Type          Total
+                     ------------------  -------
+                     PORT_INGRESS_DROPS        3
+ 
+                     PORT_INGRESS_DROPS
+                       IP_HEADER_ERROR
+                       FDB_AND_BLACKHOLE_DISCARDS
+ 
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show dropcounters configuration" help="Display dropcounters configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter show_dropcounters_configuration show_dropcounters_config.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     show command to display dropcounters configuration
+                 </DESCRIPTION>
+        <USAGE>
+                     sonic# show dropcounters configuration
+                 </USAGE>
+        <EXAMPLE summary="show dropcounters capabilities">
+                   sonic# show dropcounters configuration
+                   Counter   Alias     Group  Type                Mirror          Reasons
+                   --------  --------  -----  ------------------  -------         -------------------
+                   DEBUG_0   RX_LEGIT  LEGIT  PORT_INGRESS_DROPS  Session1        SMAC_EQUALS_DMAC
+                                                                                  INGRESS_VLAN_FILTER
+                   DEBUG_1   TX_LEGIT  None   SWITCH_EGRESS_DROPS NA              EGRESS_VLAN_FILTER
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show dropcounters configuration detail" help="Display detailed dropcounters configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter show_dropcounters_configuration_detail show_dropcounters_config_detail.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="dropcounters" access="netadmin" help="Configure dropcounters" mode="subcommand" ptype="SUBCOMMAND" view="configure-dropcounters-view" viewid="counter_name=${counter-name}" view_keys="name=*" view_tables="sonic-debugcounter:sonic-debugcounter/DEBUG_COUNTER/DEBUG_COUNTER_LIST/name={name}">
+      <PARAM name="counter-name" help="Dropcounter name" ptype="STRING_32" dbpath="sonic-debugcounter:sonic-debugcounter/DEBUG_COUNTER/DEBUG_COUNTER_LIST/name"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter create_dropcounter ${counter-name}</ACTION>
+    </COMMAND>
+    <!-- no dropcounters commands -->
+    <COMMAND name="no dropcounters" access="netadmin" help="Delete dropcounters configuration">
+      <PARAM name="counter-name" help="Dropcounter name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter delete_dropcounter ${counter-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Delete dropcounter
+         </DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# no dropcounters DEBUG1
+             Success
+             sonic(config)#
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-dropcounters-view" prompt="${SYSTEM_NAME}(${__config_mode}-dropcounters-${counter_name})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <!-- -->
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-dropcounters" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" help="Add dropcounter description" render_command_cb="dropcounters">
+      <PARAM name="desc" help="Description of dropcounter" ptype="STRING_240" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_desc_config ${counter_name} ${desc}</ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove dropcounter description">
+      <PARAM name="desc" help="Description of dropcounter" ptype="STRING_240" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_desc_config ${counter_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="alias" access="netadmin" help="Add dropcounter alias">
+      <PARAM name="alias-str" help="Alias of dropcounter" ptype="STRING_24" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_alias_config ${counter_name} ${alias-str}</ACTION>
+    </COMMAND>
+    <COMMAND name="no alias" access="netadmin" help="Remove dropcounter alias">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_alias_config ${counter_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="group" access="netadmin" help="Add dropcounter group">
+      <PARAM name="group-str" help="Group of dropcounter" ptype="STRING_32" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_group_config ${counter_name} ${group-str}</ACTION>
+    </COMMAND>
+    <COMMAND name="no group" access="netadmin" help="Remove dropcounter description">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_group_config ${counter_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="enable" access="netadmin" help="Enable dropcounter">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter enable_dropcounter ${counter_name} "enable" </ACTION>
+    </COMMAND>
+    <COMMAND name="no enable" access="netadmin" help="Disable dropcounter">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter disable_dropcounter ${counter_name} "disable" </ACTION>
+    </COMMAND>
+    <COMMAND name="type" access="netadmin" help="Add dropcounter type">
+      <PARAM name="type-str" help="Group of dropcounter" ptype="DEBUG_COUNTER_TYPE" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_type_config ${counter_name} ${type-str}</ACTION>
+    </COMMAND>
+    <COMMAND name="no type" access="netadmin" help="Remove dropcounter type">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_type_config ${counter_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="add-reason" access="netadmin" help="Add dropcounter reason">
+      <PARAM name="reason" help="Drop reason list, Supported reasons: ANY,MPLS_MISS,IP_HEADER_ERROR,FDB_AND_BLACKHOLE_DISCARDS,SMAC_EQUALS_DMAC,ACL_ANY,SIP_LINK_LOCAL,DIP_LINK_LOCAL,L3_EGRESS_LINK_DOWN,EXCEEDS_L3_MTU" ptype="DEBUG_REASON_LIST" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_reason_config ${counter_name} ${reason}</ACTION>
+    </COMMAND>
+    <COMMAND name="delete-reason" access="netadmin" help="Remove dropcounter type">
+      <PARAM name="reason" help="Drop reason list, Supported reasons: ANY,MPLS_MISS,IP_HEADER_ERROR,FDB_AND_BLACKHOLE_DISCARDS,SMAC_EQUALS_DMAC,ACL_ANY,SIP_LINK_LOCAL,DIP_LINK_LOCAL,L3_EGRESS_LINK_DOWN,EXCEEDS_L3_MTU" ptype="DEBUG_REASON_LIST" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_reason_config ${counter_name} ${reason} </ACTION>
+    </COMMAND>
+    <COMMAND name="mirror" access="netadmin" help="Add mirror to dropcounter">
+      <PARAM name="mirror-str" help="Dropframes to mirror session" ptype="STRING" optional="false"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter add_mirror_config ${counter_name} ${mirror-str}</ACTION>
+    </COMMAND>
+    <COMMAND name="no mirror" access="netadmin" help="Remove mirror config dropcounter">
+      <ACTION builtin="clish_pyobj">sonic_cli_dropcounter remove_mirror_config ${counter_name}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

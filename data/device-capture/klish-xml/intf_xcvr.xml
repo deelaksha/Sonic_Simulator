@@ -1,0 +1,85 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2023 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <!-- show interface transceiver cmis -->
+    <COMMAND name="show interface transceiver cmis" help="Display interface transceiver cmis information">
+      <PARAM name="if-xcvr-cmis-subcommands" help="Interface transceiver cmis subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="status" help="Display transceiver cmis status" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="phy-if-name" help="Interface" ptype="ETHER_INTERFACE_RANGE" optional="true"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show operational transceiver cmis status on an interface.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to show operational transceiver cmis status on an interface.
+                 </USAGE>
+        <EXAMPLE summary="Show operational transceiver cmis status on the interfaces in the given range">
+                     sonic# show interface transceiver cmis status Ethernet 168-240 | no-more
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show interface transceiver laser -->
+    <COMMAND name="show interface transceiver laser" help="Display interface transceiver laser status">
+      <PARAM name="if-xcvr-laser-subcommands" help="" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="status" help="Display transceiver laser status" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="phy-if-name" help="Interface" ptype="ETHER_INTERFACE_RANGE" optional="true"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show operational transceiver laser status on an interface.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to show operational transceiver laser status on an interface.
+                 </USAGE>
+        <EXAMPLE summary="Show operational transceiver laser status of the transceiver on an interface">
+                     sonic# show interface transceiver laser status Ethernet 192 | no-more
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="no interface allow-high-wattage-optics" access="admin" help="Disable high wattage optics support in the port">
+      <PARAM name="port" help="port where high wattage optics support should be disabled" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="slotport" help="Front-panel port" ptype="FRONT_PANEL_PORT"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_high_wattage_optics delete_openconfig_platform_port_components_component_port_config_high_wattage_optics ${slotport}</ACTION>
+    </COMMAND>
+    <COMMAND name="interface allow-high-wattage-optics" access="admin" help="Enable high wattage optics support in the port" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="if_high_wattage_optics">
+      <PARAM name="port" help="port where high wattage optics support should be enabled" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="slotport" help="Front-panel port" ptype="FRONT_PANEL_PORT" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/port"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_high_wattage_optics patch_openconfig_platform_port_components_component_port_config_high_wattage_optics ${slotport}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Enable/Disable high wattage optics on a physical port. By default, it is disabled on all ports
+           </DESCRIPTION>
+        <USAGE>
+               Use this command to enable or disable high wattage optics on a physical port
+           </USAGE>
+        <EXAMPLE>
+               sonic# configure terminal
+               sonic(config)# interface allow-high-wattage-optics port 1/1
+               Overriding high power threshold on Port 1/1 could result in transceiver/equipment damage. Please consult with vendor and documentation before proceeding. [Proceed y/N]:
+               sonic(config)# no interface allow-high-wattage-optics port 1/1 
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!-- =================== CONFIG =================== -->
+  <VIEW name="configure-view">
+    <COMMAND name="redirect" access="secadmin" help="Configure parameters for redirect" command_tables="sonic-redirect:sonic-redirect/REDIRECT_SERVER/REDIRECT_SERVER_LIST/id=default">
+      <PARAM name="redirect_options" help="Options for Redirect functionality" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="security-profile" help="Configure security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="security_profile" help="Name of security profile" ptype="STRING_32" dbpath="sonic-redirect:sonic-redirect/REDIRECT_SERVER/REDIRECT_SERVER_LIST/security_profile"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_redirect set_sonic_redirect_security_profile ${security_profile} </ACTION>
+    </COMMAND>
+    <COMMAND name="no redirect" access="secadmin" help="Unconfigure parameters for redirect">
+      <PARAM name="redirect_options" help="Options for Redirect functionality" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="security-profile" help="Configure security profile" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_redirect delete_sonic_redirect_security_profile ${security_profile} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

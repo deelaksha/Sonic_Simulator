@@ -1,0 +1,32 @@
+[
+  {
+    "command": "show ip access-lists AGENT_BIND4 interface Ethernet 16 | no-more",
+    "features": [
+      "acl"
+    ],
+    "reason": "per-interface ACL counter mode. Broadcom .169 -> '%Error: Per interface counter mode not set' (per-interface counter mode not enabled on that box); ours .148 renders the per-interface counters. Same env class as the global ACL counter-mode item (Category B); enable per-interface counter mode on the Broadcom box to compare. Not a code defect.",
+    "sources": [
+      "acl.txt"
+    ]
+  },
+  {
+    "command": "ip nht resolve-via-default",
+    "features": [
+      "ipvx"
+    ],
+    "reason": "requires frrcfgd (frr_mgmt_framework_config); identical error on Broadcom and ours — not a code diff",
+    "sources": [
+      "ipvX.txt"
+    ]
+  },
+  {
+    "command": "ipv6 nht resolve-via-default",
+    "features": [
+      "ipvx"
+    ],
+    "reason": "requires frrcfgd (frr_mgmt_framework_config); identical error on Broadcom and ours — not a code diff",
+    "sources": [
+      "ipvX.txt"
+    ]
+  }
+]

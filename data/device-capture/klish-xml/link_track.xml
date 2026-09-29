@@ -1,0 +1,519 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="https://raw.githubusercontent.com/project-arlo/sonic-mgmt-framework/master/src/CLI/clitree/scripts/sonic-clish.xsd">
+  <PTYPE name="LST_TIMEOUT" method="integer" pattern="1..1800" help=""/>
+  <PTYPE name="LST_GROUP_NAME" pattern="(^([a-zA-Z0-9]{1}([-a-zA-Z0-9_]{0,62})))$" help="name"/>
+  <VIEW name="configure-view">
+    <COMMAND name="link" access="netadmin" help="Create link state tracking group"/>
+    <COMMAND name="link state" access="netadmin" help="Create link state tracking group"/>
+    <COMMAND name="link state track" access="netadmin" help="Create link state tracking group" mode="subcommand" ptype="SUBCOMMAND" view="configure-link-state-track-view" viewid="group=${grp-name}" data_and_render_cb="show_running_lst_group">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking create_link_state_tracking_group ${grp-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create a link state tracking group.
+                 </DESCRIPTION>
+        <USAGE>
+                     Link state tracking group name can be of maximum 63 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                 </USAGE>
+        <EXAMPLE summary="Create a link state tracking group with name as 'FooBar'">
+                     sonic(config)# link state track FooBar
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack add &lt;name&gt;
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no link" access="netadmin" help="Delete link state tracking group"/>
+    <COMMAND name="no link state" access="netadmin" help="Delete link state tracking group"/>
+    <COMMAND name="no link state track" access="netadmin" help="Delete link state tracking group">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group ${grp-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete a link state tracking group.
+                 </DESCRIPTION>
+        <USAGE>
+                     Link state tracking group name can be of maximum 63 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                 </USAGE>
+        <EXAMPLE summary="Delete a link state tracking group with name as 'FooBar'">
+                     sonic(config)# no link state track FooBar
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack del &lt;name&gt;
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-link-state-track-view" prompt="${SYSTEM_NAME}(${__config_mode}-link-track)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current link state tracking configuration ">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-link-state-track view_keys="group=${grp-name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Sh
+               </DESCRIPTION>
+        <USAGE>
+                  Use this command to display running configurations within current link state track group
+               </USAGE>
+        <EXAMPLE summary="show configuration">
+ 				  sonic(config-link-track)# show configuration
+ 				  link state track track1
+ 				  description mlag
+ 				  downstream all-mclag
+ 				  threshold type percentage up 10
+               </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="description" access="netadmin" help="Description of the group (Max size 255)">
+      <PARAM name="grp-descr" help="Description" ptype="STRING"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_description ${group} ${grp-descr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Set description to a link state tracking group.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Set description">
+                     sonic(config-link-track)# description "Example description"
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --description &lt;description&gt;
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Clear the description">
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_description ${group}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete description set to a link state tracking group.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Delete description">
+                     sonic(config-link-track)# no description
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="timeout" access="netadmin" help="Timeout value (1-1800) Default (60 seconds)">
+      <PARAM name="grp-tmout" help="Timeout (Default 60 seconds) " ptype="LST_TIMEOUT"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_timeout ${group} ${grp-tmout}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Set timeout to bring up downstream interfaces when atleast one upstream interface comes online.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Set timeout configuration">
+                     sonic(config-link-track)# timeout 120
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --timeout &lt;value&gt;
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no timeout" access="netadmin" help="Rest timeout value">
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_timeout ${group}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Reset timeout to bring up downstream interfaces to default value (60 seconds).
+                 </DESCRIPTION>
+        <EXAMPLE summary="Delete timeout configuration">
+                     sonic(config-link-track)# no timeout
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --no-timeout &lt;value&gt;
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="downstream" access="netadmin" help="Set downstream ports">
+      <PARAM name="grp-downstream" help="Downstream ports" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all-mclag" help="All MCLAGs" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="all-evpn-es" help="All EVPN ES" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_all_downstream ${group} ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Configure all mclags as downstream interfaces.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Configure all-mclags as downstream interfaces">
+                     sonic(config-link-track)# downstream all-mclag
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --downstream all-mclag
+                 </ALTCMD>
+      </DOCGEN>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Configure all EVPN ES as downstream interfaces.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Configure all-evpn-es as downstream interfaces">
+                     sonic(config-link-track)# downstream all-evpn-es
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --downstream all-evpn-es
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no downstream" access="netadmin" help="Remove downstream ports">
+      <PARAM name="grp-downstream" help="Downstream ports" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all-mclag" help="All MCLAGs" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="all-evpn-es" help="All EVPN ES" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_all_downstream ${group} ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Deletes all mclags as downstream interfaces.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Delete all mclags as downstream interfaces">
+                     sonic(config-link-track)# no downstream all-mclag
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --no-downstream all-mclag
+                 </ALTCMD>
+      </DOCGEN>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Deletes all EVPN ES as downstream interfaces.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Delete all evpn-es as downstream interfaces">
+                     sonic(config-link-track)# no downstream all-evpn-es
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ sudo config linktrack update &lt;name&gt; --no-downstream all-evpn-es
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="threshold" access="netadmin" help="Configure threshold parameters">
+      <PARAM name="threshold-options" help="" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="type" help="Threshold type" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="percentage" help="Threshold is percentage of upstream ports which are online" ptype="SUBCOMMAND" mode="subcommand"/>
+          <PARAM name="up" help="Threshold value above which the downstream interfaces will be brought up" mode="subcommand" ptype="SUBCOMMAND" optional="true" order="true">
+            <PARAM name="threshold-up" help="Threshold up value" ptype="RANGE_0_100"/>
+          </PARAM>
+          <PARAM name="down" help="Threshold value below which the downstream interfaces will be shut down" mode="subcommand" ptype="SUBCOMMAND" optional="true" order="true">
+            <PARAM name="threshold-down" help="Threshold down value" ptype="RANGE_0_100"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="up" help="Threshold value above which the downstream interfaces will be brought up" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="threshold-up" help="Threshold up value" ptype="RANGE_0_100"/>
+          <PARAM name="down" help="Threshold value below which the downstream interfaces will be shut down" mode="subcommand" ptype="SUBCOMMAND" optional="true" order="true">
+            <PARAM name="threshold-down" help="Threshold down value" ptype="RANGE_0_100"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="down" help="Threshold value below which the downstream interfaces will be shut down" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="threshold-down" help="Threshold down value" ptype="RANGE_0_100"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_threshold ${group} ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Configure the threshold parameters which can be used to startup or shutdown downstream interfaces.
+                 </DESCRIPTION>
+        <USAGE>
+                     The threshold up value must be higher than threshold down value. If threshold up is not configured then its assumed as all upstream interface must be online to bringup downstream interfaces. If threshold down is not configured then its assumed as all upstream interfaces must be offline to shutdown downstream interfaces.
+                 </USAGE>
+        <EXAMPLE summary="Configure threshold parameters">
+                     sonic(config-link-track)# threshold type percentage up 70 down 40
+                     sonic(config-link-track)# threshold up 80
+                     sonic(config-link-track)# threshold down 20
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no threshold" access="netadmin" help="Configure threshold parameters">
+      <PARAM name="threshold-type-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true">
+        <PARAM name="up" help="Threshold value above which the downstream interfaces will be brought up" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="down" help="Threshold value below which the downstream interfaces will be shut down" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_threshold ${group} ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete the threshold parameters which can be used to startup or shutdown downstream interfaces.
+                 </DESCRIPTION>
+        <USAGE>
+                     Deleting threshold type will delete both up and down values. If threshold up is deleted then its value is assumed as all upstream interface must be online to bringup downstream interfaces. If threshold down is deleted then its assumed as all upstream interfaces must be offline to shutdown downstream interfaces.
+                 </USAGE>
+        <EXAMPLE summary="Delete threshold parameters">
+                     sonic(config-link-track)# no threshold up
+                     sonic(config-link-track)# no threshold down
+                     sonic(config-link-track)# no threshold
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-view">
+    <COMMAND name="link" access="netadmin" help="Interface link"/>
+    <COMMAND name="link state" access="netadmin" help="Link state"/>
+    <COMMAND name="link state track" access="netadmin" help="Link state tracking" data_and_render_cb="show_running_lst_interface">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <PARAM name="group-direction" help="Upstream interface" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_${group-direction} ${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Configure upstream or downstream interfaces.
+                  </DESCRIPTION>
+        <EXAMPLE summary="Configure upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# link state track FooBar upstream
+                      sonic(conf-if-Ethernet4)# link state track FooBar downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no link" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state track" access="netadmin" help="Link state tracking group">
+      <PARAM name="grp-name-or-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <PARAM name="group-direction" help="" ptype="SUBCOMMAND" mode="switch" test="( ${grp-name} != &quot;upstream&quot; ) -a ( ${grp-name} != &quot;downstream&quot; )">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_binding grp_dir=${group-direction} name=${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove upstream or downstream interfaces from the link state tracking group.
+                  </DESCRIPTION>
+        <USAGE>
+                      The link state tracking group name is optional. If the group name is not specified then the interface will be removed as upstream/downstream of any group the interface is part of.
+                  </USAGE>
+        <EXAMPLE summary="Remove upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# no link state track FooBar upstream
+                      sonic(conf-if-Vlan100)# no link state track upstream
+                      sonic(conf-if-Ethernet4)# no link state track FooBar downstream
+                      sonic(conf-if-Ethernet8)# no link state track downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-lag-view">
+    <COMMAND name="link" access="netadmin" help="Interface link"/>
+    <COMMAND name="link state" access="netadmin" help="Link state"/>
+    <COMMAND name="link state track" access="netadmin" help="Link state tracking" data_and_render_cb="show_running_lst_interface">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <PARAM name="group-direction" help="Upstream interface" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_${group-direction} ${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Configure upstream or downstream interfaces.
+                  </DESCRIPTION>
+        <EXAMPLE summary="Configure upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# link state track FooBar upstream
+                      sonic(conf-if-Ethernet4)# link state track FooBar downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no link" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state track" access="netadmin" help="Link state tracking group">
+      <PARAM name="grp-name-or-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <PARAM name="group-direction" help="" ptype="SUBCOMMAND" mode="switch" test="( ${grp-name} != &quot;upstream&quot; ) -a ( ${grp-name} != &quot;downstream&quot; )">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_binding grp_dir=${group-direction} name=${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove upstream or downstream interfaces from the link state tracking group.
+                  </DESCRIPTION>
+        <USAGE>
+                      The link state tracking group name is optional. If the group name is not specified then the interface will be removed as upstream/downstream of any group the interface is part of.
+                  </USAGE>
+        <EXAMPLE summary="Remove upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# no link state track FooBar upstream
+                      sonic(conf-if-Vlan100)# no link state track upstream
+                      sonic(conf-if-Ethernet4)# no link state track FooBar downstream
+                      sonic(conf-if-Ethernet8)# no link state track downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="link" access="netadmin" help="Interface link"/>
+    <COMMAND name="link state" access="netadmin" help="Link state"/>
+    <COMMAND name="link state track" access="netadmin" help="Link state tracking" data_and_render_cb="show_running_lst_interface">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <PARAM name="group-direction" help="Upstream interface" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="1 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="1 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_${group-direction} ${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Configure upstream or downstream interfaces.
+                  </DESCRIPTION>
+        <EXAMPLE summary="Configure upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# link state track FooBar upstream
+                      sonic(conf-if-Ethernet4)# link state track FooBar downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no link" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state track" access="netadmin" help="Link state tracking group">
+      <PARAM name="grp-name-or-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <PARAM name="group-direction" help="" ptype="SUBCOMMAND" mode="switch" test="( ${grp-name} != &quot;upstream&quot; ) -a ( ${grp-name} != &quot;downstream&quot; )">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_binding grp_dir=${group-direction} name=${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove upstream or downstream interfaces from the link state tracking group.
+                  </DESCRIPTION>
+        <USAGE>
+                      The link state tracking group name is optional. If the group name is not specified then the interface will be removed as upstream/downstream of any group the interface is part of.
+                  </USAGE>
+        <EXAMPLE summary="Remove upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# no link state track FooBar upstream
+                      sonic(conf-if-Vlan100)# no link state track upstream
+                      sonic(conf-if-Ethernet4)# no link state track FooBar downstream
+                      sonic(conf-if-Ethernet8)# no link state track downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-subif-view">
+    <COMMAND name="link" access="netadmin" help="Interface link"/>
+    <COMMAND name="link state" access="netadmin" help="Link state"/>
+    <COMMAND name="link state track" access="netadmin" help="Link state tracking" data_and_render_cb="show_running_lst_interface">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+      <PARAM name="group-direction" help="Upstream interface" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="1 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="1 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking set_link_state_tracking_group_${group-direction} ${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Configure upstream or downstream interfaces.
+                  </DESCRIPTION>
+        <EXAMPLE summary="Configure upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# link state track FooBar upstream
+                      sonic(conf-if-Ethernet4)# link state track FooBar downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no link" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state" access="netadmin" help="Link state tracking group"/>
+    <COMMAND name="no link state track" access="netadmin" help="Link state tracking group">
+      <PARAM name="grp-name-or-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME"/>
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <PARAM name="group-direction" help="" ptype="SUBCOMMAND" mode="switch" test="( ${grp-name} != &quot;upstream&quot; ) -a ( ${grp-name} != &quot;downstream&quot; )">
+        <PARAM name="upstream" help="Upstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 1"/>
+        <PARAM name="downstream" help="Downstream interface" ptype="SUBCOMMAND" mode="subcommand" test="2 -ge 2"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking delete_link_state_tracking_group_binding grp_dir=${group-direction} name=${grp-name} ${iface} ${vlan_name} ${po_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove upstream or downstream interfaces from the link state tracking group.
+                  </DESCRIPTION>
+        <USAGE>
+                      The link state tracking group name is optional. If the group name is not specified then the interface will be removed as upstream/downstream of any group the interface is part of.
+                  </USAGE>
+        <EXAMPLE summary="Remove upstream or downstream interfaces">
+                      sonic(conf-if-Vlan100)# no link state track FooBar upstream
+                      sonic(conf-if-Vlan100)# no link state track upstream
+                      sonic(conf-if-Ethernet4)# no link state track FooBar downstream
+                      sonic(conf-if-Ethernet8)# no link state track downstream
+                  </EXAMPLE>
+        <ALTCMD type="click">
+                      admin@sonic:~$ sudo config linktrack update &lt;name&gt; --upstream &lt;interfaces&gt; --downstream &lt;interfaces&gt;
+                  </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="enable-view">
+    <COMMAND name="show link" help="Display link state tracking information"/>
+    <COMMAND name="show link state" help="Display link state tracking information"/>
+    <COMMAND name="show link state tracking" help="Display link state tracking information">
+      <PARAM name="grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_link_state_tracking show_link_state_tracking_group_info ${grp-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show the link state tracking group operational state information.
+                 </DESCRIPTION>
+        <USAGE>
+                     Link state tracking group name can be of maximum 63 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                     If the group name is not specified then a summary of all configured groups will be displayed.
+                 </USAGE>
+        <EXAMPLE summary="Display link state tracking group summary/details">
+                     sonic# show link state tracking FooBar
+                     Name: FooBar
+                     Description: Example description
+                     Timeout: 120 seconds
+                     Upstream Interfaces:
+                         Ethernet0 (Up)
+                         Ethernet4 (Up)
+                         Vlan100 (Up)
+                     Downstream Interfaces:
+                         PortChannel1 (Up)
+                         PortChannel2 (Up)
+                         Ethernet4 (Up)
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show linktrack group &lt;name&gt;
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration link" help="Display current link state tracking configuration"/>
+    <COMMAND name="show running-configuration link state" help="Display current link state tracking configuration"/>
+    <COMMAND name="show running-configuration link state tracking" help="Display current link state tracking configuration">
+      <PARAM name="show-runn-grp-name" help="Group name (Max size 63)" ptype="LST_GROUP_NAME" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-link-state-track view_keys="group=${show-runn-grp-name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,7 @@
+### show ip interfaces
+Interface    IPv4 address/mask    Master    Admin/Oper    BGP Neighbor    Neighbor IP    Flags
+-----------  -------------------  --------  ------------  --------------  -------------  -------
+Ethernet0    30.1.1.3/24          Vrfibgp   up/up         N/A             N/A
+docker0      240.127.1.1/24                 up/down       N/A             N/A
+eth0         192.168.202.172/22             up/up         N/A             N/A
+lo           127.0.0.1/8                    up/up         N/A             N/A

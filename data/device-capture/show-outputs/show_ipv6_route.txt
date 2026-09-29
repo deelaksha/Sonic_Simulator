@@ -1,0 +1,12 @@
+### show ipv6 route
+Codes: K - kernel route, C - connected, A - attached-host,
+       S - static, O - OSPFv3, B - BGP, T - Table,
+       > - selected route, * - FIB route, q - queued route, r - rejected route, b - backup
+
+       t - trapped, o - offload failure
+
+K>*  fd00::/80 [0/1024] is directly connected, docker0, 3d03h09m
+C *  fe80::/64 is directly connected, redirect, 3d03h08m
+C *  fe80::/64 is directly connected, eth1, 3d03h09m
+C>*  fe80::/64 is directly connected, eth0, 3d03h09m
+

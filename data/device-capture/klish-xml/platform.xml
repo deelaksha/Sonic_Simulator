@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show platform" help="Display platform information"/>
+    <COMMAND name="show platform environment" ptype="SUBCOMMAND" mode="subcommand" help="Display platform Environment">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform platform_env_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform syseeprom" ptype="SUBCOMMAND" mode="subcommand" help="Display platform EEPROM information">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_openconfig_platform_components_component "System Eeprom" platform_eeprom_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform psustatus" ptype="SUBCOMMAND" mode="subcommand" help="Display platform PSU status">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform_psu_status sonic_platform_psustatus_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform psusummary" ptype="SUBCOMMAND" mode="subcommand" help="Display platform PSU summary">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform_psu_summary sonic_platform_psusummary_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform fanstatus" ptype="SUBCOMMAND" mode="subcommand" help="Display platform fan status">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform_fan_status sonic_platform_fanstatus_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform temperature" ptype="SUBCOMMAND" mode="subcommand" help="Display platform temperature sensors">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform_temperature_info sonic_platform_temperature_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform temperature detail" ptype="SUBCOMMAND" mode="subcommand" help="Display detailed temperature sensors information">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_sonic_platform_sonic_platform_temperature_info sonic_platform_temperature_detail_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform firmware" ptype="SUBCOMMAND" mode="subcommand" help="Display platform firmware">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_openconfig_platform_components_component_firmware platform_firmware_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform firmware detail" ptype="SUBCOMMAND" mode="subcommand" help="Display detailed firmware information">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_openconfig_platform_components_component_firmware platform_firmware_detail_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform sbstatus" ptype="SUBCOMMAND" mode="subcommand" help="Display secure boot status">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_openconfig_platform_components_component_sb_status platform_sb_status_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform ssdhealth" ptype="SUBCOMMAND" mode="subcommand" help="Display SSD health status">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py get_openconfig_platform_components_component "Ssdhealth" platform_ssdhealth_show.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show platform i2c" help="Display platform i2c information"/>
+    <COMMAND name="show platform i2c errors" ptype="SUBCOMMAND" mode="subcommand" help="Display platform i2c errors">
+      <PARAM name="comp_name" help="i2c component name" default="null" ptype="STRING" optional="true"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py show_i2c_error_stats i2cerrors_stats.j2 ${comp_name} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear i2c" access="admin" help="Clear I2C related information"/>
+    <COMMAND name="clear i2c errors" access="admin" help="Clear the I2C error stats collected so far">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-pfm.py clear_i2c_error_stats i2cerrors_stats.j2 </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

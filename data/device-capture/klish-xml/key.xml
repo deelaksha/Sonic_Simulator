@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <PTYPE name="PRIMARY_ENCRYPTION_KEY" pattern="(^(([^ #,]){1,65})$)" help="(Valid Chars: ASCII printable except SPACE, #, and COMMA, Max Len: 65) shared secret"/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show config-key" help="Display primary encryption key config"/>
+    <COMMAND name="show config-key password-encrypt" help="Display primary encryption key information">
+      <ACTION builtin="clish_pyobj"> sonic_cli_primary_encryption_key get_primary_encryption_key</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command indicates if a user configured primary encryption key is in use by the system.
+         </DESCRIPTION>
+        <EXAMPLE summary="The following command indicates if            user configured primary encryption key is in use by the system.">
+           sonic# show config-key password-encrypt
+           Primary encryption key configured : False
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="key" access="secadmin" help="Configure primary encryption key" test="-z ${__in_session}"/>
+    <COMMAND name="key config-key" access="secadmin" help="Configure primary encryption key" test="-z ${__in_session}"/>
+    <COMMAND name="key config-key password-encrypt" access="secadmin" help="Configure primary encryption key" mode="subcommand" ptype="SUBCOMMAND" test="-z ${__in_session}" command_keys="id=config" command_tables="sonic-primary-encryption-key:sonic-encryption-key/PRIMARY_ENCRYPTION_KEY_TABLE/PRIMARY_ENCRYPTION_KEY_TABLE_LIST/id={id}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_primary_encryption_key set_primary_encryption_config_key </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command is to used to configure a user selected passphrase that is used to
+           derive the primary encryption key. In the absence of user configured passphrase,
+           the system derives a unique default key.
+         </DESCRIPTION>
+        <USAGE>
+           User configures the primary encryption key passphrase from which the primary encryption key
+           will be derived. It is important to note that config cannot be copied/migrated from one box 
+           to another unless the same primary encryption key passphrase is configured on both the devices.
+         </USAGE>
+        <EXAMPLE summary="This command takes the primary encryption key passphrase interactively from the user.">
+           sonic#configure 
+           sonic(conf)#key config-key password-encrypt 
+           New key:
+           Old key:
+           Primary encryption key updated successfully.
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no key" access="secadmin" help="Unconfigure primary encryption key" test="-z ${__in_session}"/>
+    <COMMAND name="no key config-key" access="secadmin" help="Unconfigure primary encryption key" test="-z ${__in_session}"/>
+    <COMMAND name="no key config-key password-encrypt" access="secadmin" help="Unconfigure primary encryption key" mode="subcommand" ptype="SUBCOMMAND" test="-z ${__in_session}" command_tables="sonic-primary-encryption-key:sonic-primary-encryption-key/PRIMARY_ENCRYPTION_KEY_TABLE/PRIMARY_ENCRYPTION_KEY_TABLE_LIST/id={id}" command_keys="id=config" dbpath="sonic-primary-encryption-key:sonic-primary-encryption-key/PRIMARY_ENCRYPTION_KEY_TABLE/PRIMARY_ENCRYPTION_KEY_TABLE_LIST/configured=false">
+      <PARAM name="override" help="Clean up primary encryption key infrastructure" ptype="SUBCOMMAND" mode="subcommand" optional="true" hidden="true"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_primary_encryption_key delete_primary_encryption_config_key ${override} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command is to used to fallback to the default primary encryption key.
+         </DESCRIPTION>
+        <USAGE>
+           User can choose to fallback to the default primary encryption key. This step will re-encrypt all
+           the protocol passwords and update the primary encryption key. In case, the override option is 
+           provided, the system will not re-encrypt any protocol passwords and will force move to the default key.
+         </USAGE>
+        <EXAMPLE summary="This command is used to fallback to the default key.">
+           sonic#configure 
+           sonic(conf)#no key config-key password-encrypt 
+           WARNING:System will default to device specific primary encryption key. [confirm Y/N]: y
+           Primary encryption key updated successfully.
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

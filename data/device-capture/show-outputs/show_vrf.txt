@@ -1,0 +1,5 @@
+### show vrf
+VRF      Interfaces
+-------  ------------
+Vrfibgp  Ethernet0
+default

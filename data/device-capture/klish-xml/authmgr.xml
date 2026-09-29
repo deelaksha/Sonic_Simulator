@@ -1,0 +1,1556 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2021 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="PAC_AUTH_RESTART_PERIOD" method="integer" pattern="10..65535" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="PAC_AUTH_QUIET_PERIOD" method="integer" pattern="1..65535" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="PAC_AUTH_SERVER_TIMEOUT" method="integer" pattern="10..65535" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="PAC_REAUTH_PERIOD" method="integer" pattern="1..65535" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="PAC_AUTH_TX_PERIOD" method="integer" pattern="1..65535" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="PAC_AUTH_MAX_REQ" method="integer" pattern="1..5" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="AUTH_MAX_USERS_PER_PORT" method="integer" pattern="1..48" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="MAX_RETRY_ATTEMPTS" method="integer" pattern="1..5" help="authentication max-attempts"/>
+  <!--=======================================================-->
+  <PTYPE name="AUTH_CRITICAL_RECOVERY_MAX_REAUTH" method="integer" pattern="1..50" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="GROUPSIZE" method="select" pattern="1(1) 2(2) 4(4) 12(12)" help=""/>
+  <!--=======================================================-->
+  <PTYPE name="SEPERATOR_TYPE" method="select" pattern="-(-) :(:) .(.)" help=""/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show authentication" help="show authentication modes" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication get_sonic_authmgr_global_config:show_authmgr_global_config.j2,get_sonic_authmgr_global_oper_state_db_data:show_authmgr_global_oper_state_db_data.j2 ${__full_line}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show pac port_config interface -->
+    <COMMAND name="show authentication interface" help="Enter client interface to show mab interface." test="${macsec_supported}">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Enter 'all' to specify all ports." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <!-- show interface Ethernet [<id>] -->
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_authentication_intf_config ${if-subcommands} ${port} show_authmgr_interface_id.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration pac" help="Display Port Access Control configuration" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr show_running_pac views=configure-view" </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Shows running-config for Port Access Control
+         </DESCRIPTION>
+        <USAGE>
+             This command is useful in viewing a summary of running-config for Port Access control 
+         </USAGE>
+        <EXAMPLE summary="show running-config pac">
+ 			sonic-cli# show running-configuration pac 
+ 			dot1x system-auth-control
+ 			!
+ 			interface Ethernet0
+ 			 dot1x pae authenticator
+ 			 authentication order dot1x mab
+ 			 authentication priority dot1x mab
+ 			 authentication host-mode multi-auth
+ 			 authentication event fail action authorize vlan 30
+ 			 authentication event no-response action authorize vlan 30
+ 			 mab
+ 			!
+ 			interface Ethernet10
+ 			 dot1x pae authenticator
+ 			 authentication order dot1x mab
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show authentication clients" help="Shows Authentication Manager clients information." test="${macsec_supported}">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Enter 'all' to specify all ports." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_all_ethernet_authenticated_clients ${if-subcommands} ${port} show_authmgr_auth_clients_all_if.j2 show_authmgr_auth_clients_if.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show authentication authentication-history" help="Display the authentication manager authentication history log." test="${macsec_supported}">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Enter 'all' to specify all ports." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_all_ethernet_client_history "${if-subcommands}" ${port} show_authmgr_clients_history.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mab" help="Show mab information." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_all_ethernet_mab_config show_mab_global.j2 show_mab.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mab interface" help="Enter client interface to show mab interface." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_openconfig_mab_port_config_interface ${port} show_mab.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show dot1x" help="Display dot1x information." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_dot1x_status show_dot1x.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show dot1x detail" help="Display the details of the configuration for the specified port." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Enter 'all' to specify all ports." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_all_interface_dot1x_details ${if-subcommands} ${port} show_dot1x_details.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- <COMMAND name="show dot1x statistics" help="Display the statistics for the specified port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR" > </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_dot1x_stats ${mac-addr} show_dot1x_stats.j2</ACTION> </COMMAND>  <COMMAND name="show dot1x users" help="Display user information for locally configured users." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_authmgr get_all_dot1x_users_interface ${port} show_dot1x_users.j2</ACTION> </COMMAND> -->
+    <!-- Authmgr clear commands -->
+    <COMMAND name="clear authentication" access="secadmin" help="Clear authentication sessions." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/>
+    <COMMAND name="clear authentication sessions" access="secadmin" help="Clear authentication sessions." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="clear-session-opts" help="Clear authentication session options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="mac" help="The client MAC address" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="interface" help="Clear authentication sessions of an interface or all interfaces" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+          <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="all" help="Enter 'all' to specify all ports" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr rpc_openconfig_authmgr_clear_session ${clear-session-opts} ${mac-addr} ${if-subcommands} ${port}</ACTION>
+    </COMMAND>
+    <COMMAND name="clear authentication history" access="secadmin" help="Clear authentication history." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/>
+    <COMMAND name="clear authentication history interface" access="secadmin" help="Clear authentication history of an interface or all interfaces." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Enter 'all' to specify all ports." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr rpc_openconfig_authmgr_clear_history ${if-subcommands} ${port}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <!-- Config mode -->
+  <VIEW name="configure-view">
+    <COMMAND name="authentication" access="secadmin" help="Configure authentication modes" test="${macsec_supported}"/>
+    <!-- <COMMAND name="authentication port-control" help="Set the authentication mode on the specified port." ptype="SUBCOMMAND"/> <COMMAND name="authentication port-control all" help="Set the authentication mode on the specified port." ptype="SUBCOMMAND" > <PARAM name="port-control-mode-subcmds" help="Configures auto/force-authorized/force-unauthorized authentication port control mode." ptype="SUBCOMMAND" mode="switch" > <PARAM name="auto" help="Enter auto to enable authentication check." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> <PARAM name="force-authorized" help="Enter force-authorized to disable authentication check." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> <PARAM name="force-unauthorized" help="Enter force-unauthorized to deny all access through this interface." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_authenitcation_global_port_control_mode ${port-control-mode-subcmds}</ACTION> 	<DOCGEN>
+         <DESCRIPTION>
+             	This command configures the global authentication port-control mode.
+ 	    	The interface port-control mode takes precedence over the global port-control mode.
+         </DESCRIPTION>
+         <USAGE>
+             	By using this command user can configure global authentication port-control mode in the system.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# authentication port-control all {auto | force-authorized | force-un authorized}
+         </EXAMPLE>
+ </DOCGEN> </COMMAND>  <COMMAND name="authentication host-mode" help="Set the authentication host mode on ports." ptype="SUBCOMMAND"/> <COMMAND name="authentication host-mode all" help="Set the authentication host mode on the specified port" ptype="SUBCOMMAND"> <PARAM name="host-mode-subcmds" help="Configures multi-host/multi-domain/multi-auth/single-host as authentication host mode." ptype="SUBCOMMAND" mode="switch" > <PARAM name="single-host" help="Enter single host mode." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> <PARAM name="multi-auth" help="Enter multi-auth." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> <PARAM name="multi-domain" help="Enter multiple domain mode." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> <PARAM name="multi-host" help="Enter multi host mode." ptype="SUBCOMMAND" mode="subcommand" > </PARAM> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_authenitcation_global_host_control_mode ${host-mode-subcmds}</ACTION> 	<DOCGEN>
+         <DESCRIPTION>
+             	This command configures the global authentication host mode. The interface host mode takes precedence over the global host mode.
+         </DESCRIPTION>
+         <USAGE>
+ 	    	By using this command user can configure global authentication host mode in the system.
+         </USAGE>
+         <EXAMPLE>
+             sonic(config)# authentication host-mode all { multi-auth | multi-domain | multi-host | single-host }
+         </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="authentication monitor" access="secadmin" help="Enable authentication monitor mode support on the switch." command_tables="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" command_keys="keyleaf_val=GLOBAL" dbpath="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/monitor_mode_enable=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_monitor_mode_enable True </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		This command enables the Authentication monitor mode on the switch.
+ 		The purpose of Monitor mode is to help troubleshoot port-based authentication configuration 
+ 		issues without disrupting network access for hosts connected to the switch. In Monitor mode, a host is granted network
+ 		access to an authentication enforced port even if it fails the authentication process.
+ 		The results of the process are logged for diagnostic purposes.
+         </DESCRIPTION>
+        <USAGE>
+ 	    	By using this command user can enable monitor mode in the system.
+         </USAGE>
+        <EXAMPLE>
+                 sonic(config)# authentication monitor
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="authentication dynamic-vlan" help="Configure authentication manager dynamic vlan creation parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/> <COMMAND name="authentication dynamic-vlan enable" help="Enable authentication manager dynamic vlan creation configuration." command_tables="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" command_keys="keyleaf_val=GLOBAL" dbpath="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/dynamic_vlan_enable=true" test="${macsec_supported}" > <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_dynamic_vlan_enable True </ACTION>         <DOCGEN>
+         <DESCRIPTION>
+                 This command enables the switch to create VLANs dynamically when a RADIUS-assigned VLAN does not exist in the switch.
+         </DESCRIPTION>
+         <USAGE>
+                 Using this command user can enable dynamic vlan creation configuration when a RADIUS-assigned VLAN does not exist in the switch.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# authentication dynamic-vlan enable
+         </EXAMPLE>
+ </DOCGEN> </COMMAND>  <COMMAND name="authorization" help="Configure Authorization parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/> <COMMAND name="authorization network" help="Configure Authorization network parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/> <COMMAND name="authorization network radius" help="Configure Authorization network radius parameters." ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" command_keys="keyleaf_val=GLOBAL" dbpath="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/vlan_assign_enable=true" test="${macsec_supported}" > <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_authorization_vlan_assign_enable True </ACTION>         <DOCGEN>
+         <DESCRIPTION>
+                 This command enables the configuration by which RADIUS can assign a VLAN to a client.
+         </DESCRIPTION>
+         <USAGE>
+                 This command enables the configuration by which RADIUS can assign a VLAN to a client.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# authorization network radius
+         </EXAMPLE>
+ </DOCGEN> </COMMAND>  <COMMAND name="no authorization" help="Unconfigure Authorization parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/> <COMMAND name="no authorization network" help="Unconfigure Authorization network parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/> <COMMAND name="no authorization network radius" help="Unconfigure Authorization network radius parameters." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}" > <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_authorization_vlan_assign_enable False </ACTION>         <DOCGEN>
+         <DESCRIPTION>
+                 This command disables the configuration of RADIUS vlan assignment to a client.
+         </DESCRIPTION>
+         <USAGE>
+                 This command disables the configuration of RADIUS vlan assignment to a client.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# no authorization network radius
+         </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <!-- <COMMAND name="authentication critical" help="Configure critical authentication parameters." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication critical recovery" help="Confgure Critical Authentication Recovery parameters." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication critical recovery max-reauth" help="Configure number of Reauths per second." ptype="SUBCOMMAND" mode="subcommand" command_keys="keyleaf_val=GLOBAL" command_tables="sonic-authmgr:sonic-authmgr/PAC_GLOBAL_CONFIG_TABLE/PAC_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" render_command_cb="authmgr_global_critical_recovery_max_reauth"> <PARAM name="max-reauth" help="Enter the number of Reauths per second." ptype="AUTH_CRITICAL_RECOVERY_MAX_REAUTH" > </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_authentication_critical_recovery_max_reauth ${max-reauth}</ACTION> 	<DOCGEN>
+ 	<DESCRIPTION>
+ 		This command configures the number of supplicants that are re-authenticated per second. 
+ 		This configuration is for the entire system across all the supplicants on all ports.
+ 		This is used to control the system and network load when the number of supplicants to be re-authenticated is large.
+ 		These re-authentications can be triggered due to reinitialize dead or alive server actions.
+         </DESCRIPTION>
+         <USAGE>
+                 By using this command user can configure the number of supplicants that are re-authenticated per second.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# authentication critical recovery max-reauth {number-of-clients} 
+         </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="no authentication" access="secadmin" help="Unconfigure authentication manager parameters." test="${macsec_supported}"/>
+    <COMMAND name="no authentication monitor" access="secadmin" help="Disable authentication monitor mode support on the switch." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_monitor_mode_enable False </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command disables the Authentication monitor mode on the switch. 
+         </DESCRIPTION>
+        <USAGE>
+                 By using this command user can disable monitor mode in the system.
+         </USAGE>
+        <EXAMPLE>
+                 sonic(config)# no authentication monitor
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="no authentication dynamic-vlan" help="Unconfigure authentication manager dynamic vlan creation parameters." test="${macsec_supported}"/> <COMMAND name="no authentication dynamic-vlan enable" help="Disable authentication manager dynamic vlan creation configuration." test="${macsec_supported}" > <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_dynamic_vlan_enable False </ACTION>         <DOCGEN>
+         <DESCRIPTION>
+                 This command disables the configuration in the switch to create VLANs dynamically when a RADIUS-assigned VLAN does not exist in the switch.
+         </DESCRIPTION>
+         <USAGE>
+                 By using this command user can disable dynamic vlan creation configuration in the switch.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# no authentication dynamic-vlan enable
+         </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <!-- <COMMAND name="no authentication critical" help="Configure critical authentication parameters." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication critical recovery" help="Confgure Critical Authentication Recovery parameters." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication critical recovery max-reauth" help="Configure number of Reauths per second." ptype="SUBCOMMAND" mode="subcommand"> <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_authentication_critical_recovery_max_reauth</ACTION>         <DOCGEN>
+ 	<DESCRIPTION>
+ 		This command is similar to the authentication critical recovery max-reauth config command,
+ 		but allow configuring default number of supplicants that are re-authenticated per second in the system.
+         </DESCRIPTION>
+         <USAGE>
+                 By using this command user can configure the default number of supplicants that are re-authenticated per second in the system.
+         </USAGE>
+         <EXAMPLE>
+                 sonic(config)# no authentication critical recovery max-reauth 
+         </EXAMPLE>
+ </DOCGEN> </COMMAND>  <COMMAND name="no authentication port-control" help="Set the authentication mode on the specified port." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication port-control all" help="Set the authentication mode on the specified port." ptype="SUBCOMMAND" mode="subcommand"> <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_authenitcation_global_port_control_mode</ACTION> 	<DOCGEN>
+         <DESCRIPTION>
+             This command is similar to the global level port mode config command but allow configuring default(auto) authentication port mode in the system.
+         </DESCRIPTION>
+         <USAGE>
+             By using this command user can configure default(auto) authntication port mode in the system.
+         </USAGE>
+         <EXAMPLE>
+             sonic(config)# no authentication host-mode all 
+         </EXAMPLE>
+ </DOCGEN> </COMMAND>  <COMMAND name="no authentication host-mode" help="Set the authentication host mode on ports." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication host-mode all" help="Set the authentication host mode on the specified port." ptype="SUBCOMMAND" mode="subcommand"> <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_authenitcation_global_host_control_mode</ACTION> 	<DOCGEN>
+         <DESCRIPTION>
+             	This command is similar to the global level host mode config command but allow configuring default(multi_auth),
+ 		authentication host mode in the system.
+         </DESCRIPTION>
+         <USAGE>
+             	By using this command user can configure default(multi_auth) authntication host mode in the system.
+         </USAGE>
+         <EXAMPLE>
+             sonic(config)# no authentication host-mode all
+         </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="mab" access="secadmin" help="Configure MAB properties." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab request" access="secadmin" help="Configure MAB request properties." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab request format" access="secadmin" help="Configure MAB request format used for formatting RADIUS attributes." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab request format attribute" access="secadmin" help="Configure MAB request properties used for formatting RADIUS attributes." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab request format attribute 1" access="secadmin" help="Configure MAB request properties used for RADIUS attribute 1 formatting." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab request format attribute 1 groupsize" access="secadmin" help="Configure groupsize to be used by switch for formatting RADIUS attribute 1 in MAB request." ptype="SUBCOMMAND" mode="subcommand" command_keys="key=GLOBAL" command_tables="sonic-mab:sonic-mab/MAB_GLOBAL_CONFIG_TABLE/MAB_GLOBAL_CONFIG_TABLE_LIST/global=key" render_command_cb="mab_global_request_format_attribute" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="groupsize" help="Enter groupsize with in the supported values listed." ptype="GROUPSIZE">
+        <PARAM name="separator" help="Configure separator to be used by switch for formatting RADIUS attribute 1 in MAB request" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="separator_type" help="Configure separator as '-' or ':' or '.'." ptype="SEPERATOR_TYPE">
+            <PARAM name="format_casetype" help="choose lower/upper case for formatting the RADIUS attribute 1 in MAB request." mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="lowercase" help="Use lowercase for formatting the RADIUS attribute 1 in MAB request." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+              <PARAM name="uppercase" help="Use uppercase for formatting the RADIUS attribute 1 in MAB request." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr mab_request_format_radius_attribute ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		This command sets configuration parameters that are used to format attribute1 for MAB requests to the RADIUS server.
+ 		RADIUS attribute 1 is the username, which is often the client MAC address.
+         </DESCRIPTION>
+        <USAGE>
+                 By using this command user can set the configuration parameters that are used to format attribute1 for MAB requests to the RADIUS server.
+         </USAGE>
+        <EXAMPLE>
+             	sonic(config)# mab request format attribute 1 groupsize {1 | 2 | 4 | 12} separator {- | : | .} [lowercase | uppercase] 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mab" access="secadmin" help="Unconfigure MAB properties." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab request" access="secadmin" help="Unconfigure MAB request properties." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab request format" access="secadmin" help="Unconfigure MAB request format used for formatting RADIUS attributes." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab request format attribute" access="secadmin" help="Unconfigure MAB request properties used for formatting RADIUS attributes." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab request format attribute 1" access="secadmin" help="Unconfigure MAB request properties for RADIUS attribute 1 formatting." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_mab_request_format_radius_attribute </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command unconfigures the parameters that are used to format attribute1 for MAB requests to the RADIUS server.
+         </DESCRIPTION>
+        <USAGE>
+                 By using this command user can set the default configuration parameters that are used to format attribute1 for MAB requests to the RADIUS server.
+         </USAGE>
+        <EXAMPLE>
+                 sonic(config)# no mab request format attribute 1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x" access="secadmin" help="Configure dot1x parameters." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="dot1x system-auth-control" access="secadmin" help="Enable authentication support on the switch." ptype="SUBCOMMAND" mode="subcommand" command_keys="keyleaf_val=GLOBAL" command_tables="sonic-hostapd:sonic-hostapd/HOSTAPD_GLOBAL_CONFIG_TABLE/HOSTAPD_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" dbpath="sonic-hostapd:sonic-hostapd/HOSTAPD_GLOBAL_CONFIG_TABLE/HOSTAPD_GLOBAL_CONFIG_TABLE_LIST/dot1x_system_auth_control=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_do1x_system_auth_control "True"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command enables the dot1x authentication support on the switch. 
+ 		While disabled, the dot1x configuration is retained and can be changed, but is not activated.
+         </DESCRIPTION>
+        <USAGE>
+                 By using this command user can enable dot1x authentication support on the switch.
+         </USAGE>
+        <EXAMPLE>
+                 sonic(config)# dot1x system-auth-control
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x" access="secadmin" help="Unconfigure dot1x parameters." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no dot1x system-auth-control" access="secadmin" help="Disable authentication support on the switch." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_do1x_system_auth_control "False"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command disables the dot1x authentication support on the switch. 
+         </DESCRIPTION>
+        <USAGE>
+                 By using this command user can disable dot1x authentication support on the switch.
+         </USAGE>
+        <EXAMPLE>
+                 sonic(config)# no dot1x system-auth-control 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- Config interface mode -->
+  <VIEW name="configure-if-view">
+    <COMMAND name="authentication" access="secadmin" help="Configure Authentication parameters." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" render_command_cb="authmgr_intf_config_cb" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> </COMMAND>
+    <COMMAND name="authentication open" access="secadmin" help="Enable open authentication on the specified interface." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" dbpath="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/open_authentication_mode=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_open_auth_mode ${iface} True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command configures Open Authentication mode on the port. 
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can enable Open Authentication mode on the port.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Ethernet0)# authentication open 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication max-users" access="secadmin" help="Configure the maximum number of Supplicants on a port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="maxUsers" help="Enter maximum users in the range of 1-48" ptype="AUTH_MAX_USERS_PER_PORT"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_max_users_per_port ${iface} ${maxUsers}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command sets the maximum number of clients supported on an interface or
+      	    range of interfaces when multi-authentication host mode is enabled on the port.
+      	    The count value is in the range 1 - 48.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the maximum number of clients supported on an interface or 
+                  range of interfaces. The count value is in the range 1 - 48.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication max-users 37
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication port-control" access="secadmin" help="Configure authentication mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="port-control-mode-subcmds" help="Configures auto/force-authorized/force-unauthorized authentication port control mode." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="auto" help="Enter auto to enable authentication check." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="force-authorized" help="Enter force-authorized to disable authentication check." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="force-unauthorized" help="Enter force-unauthorized to deny all access through this interface." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_port_control_mode ${iface} ${port-control-mode-subcmds}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the authentication mode to use on the specified interface or range of interfaces.
+      	    The configuration on the interface mode takes precedence over the global configuration of this parameter.
+              </DESCRIPTION>
+        <USAGE>
+                  By using this command user can configure authentication port-control on the specified interface or range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                      sonic(conf-if-Ethernet0)# authentication port-control all {auto | force-authorized | force-un authorized}
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication host-mode" access="secadmin" help="Configure authentication host mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="host-mode-subcmds" help="Configures multi-host/multi-domain/multi-auth/single-host as authentication host mode." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="single-host" help="Enter single host mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-auth" help="Enter multi-auth." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-domain" help="Enter multiple domain mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-host" help="Enter multi host mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_host_control_mode ${iface} ${host-mode-subcmds}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the host mode of a port.
+      	    The configuration on the interface mode takes precedence over the global configuration of this parameter. 
+              </DESCRIPTION>
+        <USAGE>
+                   By using this command user can configure authentication host mode on an interface or range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic(conf-if-Ethernet0)# authentication host-mode all { multi-auth | multi-domain | multi-host | single-host }
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication periodic" access="secadmin" help="Enable periodic re-authentication on the specified interface." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" dbpath="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/reauth_enable=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_periodic_enable ${iface} True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command enables periodic reauthentication of the supplicant for the specified interface or range of interfaces.
+              </DESCRIPTION>
+        <USAGE>
+                   By using this command user can configure periodic reauthentication of the supplicant for the specified interface or range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+      	    sonic-cli(conf-if-Ethernet0)# authentication periodic 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication order" access="secadmin" help="Configure authentication manager method order." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="order-list" help="authentication order options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+        <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_order_list ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command sets the order of authentication methods used on the interface.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring order of authentication methods used on the interface. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication order dot1x mab
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication priority" access="secadmin" help="Configure authentication manager method priority." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="priority-list" help="authentication priority options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+        <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_priority_list ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	   The priority for the authentication methods used on the interface.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring priority for the authentication methods used on the interface. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication priority dot1x mab
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication allow" access="secadmin" help="Configure VLAN ID to allow wake on lan packets." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication allow vlan" access="secadmin" help="Configure VLAN ID on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_allow_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	        This command configures VLAN as allow vlan on an interface or a range of interfaces.
+      	        The range is 1 to the maximum VLAN ID supported by the platform.
+      	        By default, the allow VLAN is 0, i.e. invalid and is not operational.
+      	        Configuring the allow VLAN as 0 disables the allow VLAN and makes the allow vlan functionality not operational.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring VLAN as allow vlan on an interface or a range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication allow vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event" access="secadmin" help="Configure action for authentication events." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <!-- <COMMAND name="authentication event server" help="Configure actions for AAA server events." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server alive" help="Configure AAA server alive actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server alive action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"/> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_alive_action_reinitialize ${reinitialize} ${iface}</ACTION> 	<DOCGEN>
+              <DESCRIPTION>
+      	   This command configures the actions to take when one authentication server comes back alive after all were dead.
+      	   The reinitialize action triggers the re-authentication of supplicants authenticated on the critical VLAN. 
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows configuring the actions to take when one authentication server comes back alive after all were dead. 
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event server alive action reinitialize 
+              </EXAMPLE>
+      </DOCGEN> </COMMAND>  <COMMAND name="authentication event server dead" help="Configure AAA server dead actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server dead action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server dead action authorize" help="Authorize the port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="authorize-options" help="Authorize options." mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan-id" help="Enter a VLAN Id." ptype="VLAN_ID"> </PARAM> </PARAM> <PARAM name="voice" help="Enable Critical Voice VLAN feature." mode="subcommand" ptype="SUBCOMMAND" optional="true"> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_dead_action_autherize ${__full_line} ${iface}</ACTION> 	<DOCGEN>
+ <DESCRIPTION> This command enables authorization of voice devices on the critical voice VLAN when all the authentication servers are dead. The configured voice VLAN of the port, on which the voice device is connected, is used as the critical voice VLAN ID. </DESCRIPTION> <USAGE> This command allows enabling authorization of voice devices on the critical voice VLAN when all the authentication servers are dead. </USAGE> <EXAMPLE> sonic-cli(conf-if-Ethernet0)# authentication event server dead action authorize voice </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="authentication event server dead action reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_dead_action_reinitialize ${__full_line} ${iface}</ACTION> </COMMAND> -->
+    <COMMAND name="authentication event no-response" access="secadmin" help="Configure actions when no response received for EAP" ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action" access="secadmin" help="Configure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action authorize" access="secadmin" help="Configure authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action authorize vlan" access="secadmin" help="Configure Guest vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_no_response_action_authorize_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	   This command configures VLAN as guest vlan on an interface or a range of interfaces.
+      	   The range is 1 to the maximum VLAN ID supported by the platformor alive server actions.
+      	   By default, the guest VLAN is 0, i.e. invalid and is not operational.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring VLAN as guest vlan on an interface or a range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event no-response action authorize vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event fail" access="secadmin" help="Configure when server fails to recognize the client credentials actions." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action" access="secadmin" help="Configure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action authorize" access="secadmin" help="Configure authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action authorize vlan" access="secadmin" help="Configure Unauthenticated vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_fail_action_authorize_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      		This command configures the unauthenticated VLAN associated with the specified interface or range of interfaces
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring unauthenticated VLAN associated with the specified interface or range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event fail action authorize vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event fail retry" access="secadmin" help="Configure number of times authentication may be reattempted by the user." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="max-attempts" help="max attempts." ptype="MAX_RETRY_ATTEMPTS"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_fail_retry ${iface} ${max-attempts}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the number of times authentication may be reattempted by the client before a port moves to the authentication fail VLAN.
+      	    The reattemps range is 1 to 5 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the number of times authentication may be reattempted by the client before a port moves to the authentication fail VLAN.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)#  authentication event fail retry {max-attempts}
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication timer" access="secadmin" help="Configure the authentication timer values." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication timer reauthenticate" access="secadmin" help="Configure time period after which an automatic re-authentication is intiated." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="reauthenticate-timer-options" help="reauthenticate timer options." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="server" help="Get the re-authentication timeout value from the server." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_REAUTH_PERIOD"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_reauth_period ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command is used to configure the period of time after which the Authenticator attempts to reauthenticate a supplicant on the port.
+      	    This command also provides an option to specify re-authentication time out value from the server (ex. Radius).
+      	    When server option is selected, the server supplied Session time out and Session Termination-action are used by Authenticator to 
+      	    reauthenticate a supplicant on the port .  By default server option is enabled. The reauthenticate seconds value range is 1 to 65535.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the period of time after which the Authenticator attempts to reauthenticate a supplicant on the port.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication timer reauthenticate { seconds | server} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="authentication timer restart" help="Time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_RESTART_PERIOD"/> <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_restart ${time-period} ${iface}</ACTION>     <DOCGEN>
+              <DESCRIPTION>
+                  Configure time period after which try to authenticate an unauthorized port. 
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows configuring time period after which try to authenticate an unauthorized port. 
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication restart 77 
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="no authentication" access="secadmin" help="Unconfigure authentication manager parameters." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> </COMMAND>
+    <COMMAND name="no authentication allow" access="secadmin" help="Unconfigure the VLAN ID to not allow wake on lan packets." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication allow vlan" access="secadmin" help="Unconfigure the allow VLAN ID." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_authentication_allow_vlan ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	        This command is to unconfigure VLAN ID for not allowing wake on lan packets on an interface or a range of interfaces.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfigure and set default parameters for allow VLAN ID.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication allow vlan 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication host-mode" access="secadmin" help="Unconfigure authentication host mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_host_control_mode ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication order" access="secadmin" help="Unconfigure authentication manager method order." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_order_list ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication priority" access="secadmin" help="Unconfigure authentication manager method priority." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_priority_list ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication max-users" access="secadmin" help="Unconfigure maximum number of Supplicants on a port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_pac_max_users_per_port ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command sets the maximum number of clients supported on an interface to default value 
+                  multi-authentication host mode is enabled on the port. default value is 48. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the default maximum number of clients supported on an interface or
+                  range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication max-users 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication port-control" access="secadmin" help="Unconfigure authentication mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_port_control_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  un-configure authentication port-control.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows un configuring authentication port control mode.
+              </USAGE>
+        <EXAMPLE>
+                  sonic(config)# no authentication port-control 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication periodic" access="secadmin" help="Disable periodic re-authentication on the specified interfaces." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_periodic_enable ${iface} False</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  un-configure authentication periodic.
+              </DESCRIPTION>
+        <USAGE>
+                  un-configure authentication periodic.
+              </USAGE>
+        <EXAMPLE>
+                  sonic(config)# no authentication periodic 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication timer" access="secadmin" help="Unconfigure the authentication timer values." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication timer reauthenticate" access="secadmin" help="Unconfigure time period after which an automatic re-authentication is intiated." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_reauth_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure time period after which an automatic re-authentication is intiated.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for time period after which an automatic re-authentication is intiated.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication reauthenticate
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="no authentication timer restart" help="Unconfigure time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_restart_period ${iface}</ACTION>     <DOCGEN>
+              <DESCRIPTION>
+                  Unconfigure time period after which try to authenticate an unauthorized port.
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows setting default parameters for time period after which try to authenticate an unauthorized port.
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication restart
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="no authentication open" access="secadmin" help="Disable open authentication on the specified interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_open_auth_mode ${iface} False</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command disables Open Authentication mode on the port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can disable Open Authentication mode on the port.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Ethernet0)# no authentication open
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication event" access="secadmin" help="Unconfigure action for authentication events." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <!-- <COMMAND name="no authentication event server" help="Configure actions for AAA server events." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server alive" help="Configure AAA server alive actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server alive action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_alive_action ${iface}</ACTION> </COMMAND> <COMMAND name="no authentication event server dead" help="Configure AAA server dead actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server dead action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server dead action authorize" help="Authorize the port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="authorize-options" help="Authorize options." mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> <PARAM name="voice" help="Enable Critical Voice VLAN feature." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_dead_action_autherize ${authorize-options} ${iface}</ACTION> </COMMAND> <COMMAND name="no authentication event server dead action reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_dead_action_reinitialize ${vlan} ${iface}</ACTION> </COMMAND> -->
+    <COMMAND name="no authentication event no-response" access="secadmin" help="Unconfigure actions when no response received for EAP" ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action" access="secadmin" help="Unconfigure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action authorize" access="secadmin" help="Unconfigure the authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action authorize vlan" access="secadmin" help="Unconfigure Guest vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_no_response_action_authorize_vlan ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication event fail" access="secadmin" help="Unconfigure when server fails to recognize the client credentials actions." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action" access="secadmin" help="Unconfigure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action authorize" access="secadmin" help="Unconfigure the authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action authorize vlan" access="secadmin" help="Unconfigure Unauthenticated vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_fail_action_authorize_vlan ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication event fail retry" access="secadmin" help="Unconfigure number of authentication event failure retry attempts." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_fail_retry ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command unconfigures the number of authentication event failure retry attempts.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfiguration of authentication event failure retry attempts.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# no authentication event fail retry
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mab" access="secadmin" help="Enable Mac-based authentication Bypass(MAB)on a specified port." command_tables="sonic-mab:sonic-mab/MAB_PORT_CONFIG_TABLE/MAB_PORT_CONFIG_TABLE_LIST/port={name}" render_command_cb="mab_intf_config_cb" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="auth-type" help="Specify the authentication type to be used for MAB." mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="authtype-options" help="Mab auth type options." mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="chap" help="Enable CHAP as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+          <PARAM name="eap-md5" help="Enable EAP-MD5 as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+          <PARAM name="pap" help="Enable PAP as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_commandMab ${iface} True ${authtype-options}</ACTION>
+    </COMMAND>
+    <COMMAND name="no mab" access="secadmin" help="Disable Mac-based authentication Bypass(MAB)on a specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr disable_mab_authentication ${iface} False</ACTION>
+    </COMMAND>
+    <COMMAND name="dot1x" access="secadmin" help="Configure 802.1x authentication." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="dot1x pae" access="secadmin" help="Configure PAE capability mode on the specified port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="dot1-pae-role-options" help="Configures authenticator or none as dot1x pae role." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="authenticator" help="Enter authenticator to enable Authenticator mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="none" help="Enter none to disable Authenticator mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_do1x_pae_role ${iface} ${dot1-pae-role-options}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     This command configures the port's dot1x pae role. The port can serve as either an authenticator or none.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can configure port's dot1x role.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# dot1x pae { authenticator | none }
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x max-req" access="secadmin" help="Configure the maximum number of retries for the authenticator to communicate with the supplicant over EAP." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="max-req" help="Enter maximum number of reties in the given range" ptype="PAC_AUTH_MAX_REQ"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_max_req ${iface} ${max-req}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	      This command sets the maximum number of retries for the authenticator to communicate with the supplicant over EAP.
+      	      The retries value is in the range of 1-5.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the maximum number of retries for the authenticator to communicate with the supplicant over EAP. 
+                  The count value is in the range of 1-5.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x max-req 2 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x" access="secadmin" help="Unconfigure the dot1x parameters." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no dot1x pae" access="secadmin" help="Unconfigure PAE capability mode on the specified port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_do1x_pae_role ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command unconfigures the dot1x pae role of specified port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can disable port's dot1x role.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# no dot1x pae
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x max-req" access="secadmin" help="Unconfigure the maximum number of retries for the authenticator to communicate with the supplicant over EAP." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_max_req ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command unconfigures the dot1x max-req of specified port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can unconfigure the maximum number of retries for the authenticator to communicate with the supplicant over EAP.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# no dot1x max-req
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout" access="secadmin" help="Configures the timeout parameters that determine the time interval for client reauthentication." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="dot1x timeout quiet-period" access="secadmin" help="Time period that the authenticator remains quiet following a failed authentication exchange with the client." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_QUIET_PERIOD"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_quiet_period ${iface} ${time-period} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Time period in seconds that the port remains in the wait state following a failed authentication exchange with the client,
+                  before reattempting authentication.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x quiet period that the device remains in the quiet state following a failed authentication.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout quiet-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout server-timeout" access="secadmin" help="Time period that the device waits for a response from the authentication server." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_SERVER_TIMEOUT"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_server_timeout ${iface} ${time-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  The time period in seconds that the device waits for a response from the authentication server.  
+                  If the server does not send a response to an 802.1X packet within the specified period, the packet is sent again.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x server timeout that the device waits for a response from the authentication server.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout tx-period" access="secadmin" help="Time period that the authenticator waits for supplicant response of EAP-request/identify frame before retransmitting the request." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="tx-period" help="Enter time period in seconds." ptype="PAC_AUTH_TX_PERIOD"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_tx_period ${iface} ${tx-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  The time period in seconds that the device waits for a response from the supplicant for EAP request/Indentity.
+                  If the supplicant does not send a response to an EAP request/Indentity within the specified period, the request is sent again.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x tx-period that the device waits for a response from the supplicant for EAP request/Indentity. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout tx-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout" access="secadmin" help="Unconfigure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no dot1x timeout quiet-period" access="secadmin" help="Unconfigure time period after which try to authenticate an failed authenticated port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_quiet_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure time period after which try to authenticate an failed authenticated port. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for quiet time period.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout quiet-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout server-timeout" access="secadmin" help="Unconfigure server timeout period." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_server_timeout ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure server timeout period. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for server timeout period. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout tx-period" access="secadmin" help="Unconfigure time period that the authenticator waits for supplicant response of EAP-request/identify frames." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_tx_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure tx period after which try to authenticate an failed authenticated port. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfigure and set default parameters for tx period.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout tx-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mab timeout" access="secadmin" help="Configure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab timeout server-timeout" access="secadmin" help="Time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_SERVER_TIMEOUT"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_mab_timer_server_timeout ${iface} ${time-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Time period after which specify the number of seconds the access device sends a RADIUS Access-Request packet to the
+                  authentication server. If no response is received when this timer expires, the MAB  authentication fails. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring server timeout. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# mab timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mab timeout" access="secadmin" help="Configure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab timeout server-timeout" access="secadmin" help="Unconfigure server timeout period." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_mab_timer_server_timeout ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure server timeout period. 
+              </DESCRIPTION>
+        <USAGE>
+                  Unconfigure the dot1x server timeout period and set to default values. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no mab timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- Config interface range mode -->
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="authentication" access="secadmin" help="Configure Authentication parameters." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" render_command_cb="authmgr_intf_config_cb" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> </COMMAND>
+    <COMMAND name="authentication open" access="secadmin" help="Enable open authentication on the specified interface." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" dbpath="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/open_authentication_mode=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_open_auth_mode ${iface} True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command configures Open Authentication mode on the port. 
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can enable Open Authentication mode on the port.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Ethernet0)# authentication open 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication max-users" access="secadmin" help="Configure the maximum number of Supplicants on a port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="maxUsers" help="Enter maximum users in the range of 1-48" ptype="AUTH_MAX_USERS_PER_PORT"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_max_users_per_port ${iface} ${maxUsers}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command sets the maximum number of clients supported on an interface or
+      	    range of interfaces when multi-authentication host mode is enabled on the port.
+      	    The count value is in the range 1 - 48.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the maximum number of clients supported on an interface or 
+                  range of interfaces. The count value is in the range 1 - 48.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication max-users 37
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication port-control" access="secadmin" help="Configure authentication mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="port-control-mode-subcmds" help="Configures auto/force-authorized/force-unauthorized authentication port control mode." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="auto" help="Enter auto to enable authentication check." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="force-authorized" help="Enter force-authorized to disable authentication check." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="force-unauthorized" help="Enter force-unauthorized to deny all access through this interface." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_port_control_mode ${iface} ${port-control-mode-subcmds}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the authentication mode to use on the specified interface or range of interfaces.
+      	    The configuration on the interface mode takes precedence over the global configuration of this parameter.
+              </DESCRIPTION>
+        <USAGE>
+                  By using this command user can configure authentication port-control on the specified interface or range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                      sonic(conf-if-Ethernet0)# authentication port-control all {auto | force-authorized | force-un authorized}
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication host-mode" access="secadmin" help="Configure authentication host mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="host-mode-subcmds" help="Configures multi-host/multi-domain/multi-auth/single-host as authentication host mode." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="single-host" help="Enter single host mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-auth" help="Enter multi-auth." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-domain" help="Enter multiple domain mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="multi-host" help="Enter multi host mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_host_control_mode ${iface} ${host-mode-subcmds}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the host mode of a port.
+      	    The configuration on the interface mode takes precedence over the global configuration of this parameter. 
+              </DESCRIPTION>
+        <USAGE>
+                   By using this command user can configure authentication host mode on an interface or range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic(conf-if-Ethernet0)# authentication host-mode all { multi-auth | multi-domain | multi-host | single-host }
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication periodic" access="secadmin" help="Enable periodic re-authentication on the specified interface." command_tables="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/port={name}" dbpath="sonic-authmgr:sonic-authmgr/PAC_PORT_CONFIG_TABLE/PAC_PORT_CONFIG_TABLE_LIST/reauth_enable=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_periodic_enable ${iface} True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command enables periodic reauthentication of the supplicant for the specified interface or range of interfaces.
+              </DESCRIPTION>
+        <USAGE>
+                   By using this command user can configure periodic reauthentication of the supplicant for the specified interface or range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+      	    sonic-cli(conf-if-Ethernet0)# authentication periodic 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication order" access="secadmin" help="Configure authentication manager method order." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="order-list" help="authentication order options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+        <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_order_list ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command sets the order of authentication methods used on the interface.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring order of authentication methods used on the interface. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication order dot1x mab
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication priority" access="secadmin" help="Configure authentication manager method priority." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="priority-list" help="authentication priority options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+        <PARAM name="mab" help="Select MAB." ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1x" help="Select IEEE 802.1X." ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_priority_list ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	   The priority for the authentication methods used on the interface.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring priority for the authentication methods used on the interface. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication priority dot1x mab
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication allow" access="secadmin" help="Configure VLAN ID to allow wake on lan packets." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication allow vlan" access="secadmin" help="Configure VLAN ID on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_allow_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	        This command configures VLAN as allow vlan on an interface or a range of interfaces.
+      	        The range is 1 to the maximum VLAN ID supported by the platform.
+      	        By default, the allow VLAN is 0, i.e. invalid and is not operational.
+      	        Configuring the allow VLAN as 0 disables the allow VLAN and makes the allow vlan functionality not operational.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring VLAN as allow vlan on an interface or a range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication allow vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event" access="secadmin" help="Configure action for authentication events." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <!-- <COMMAND name="authentication event server" help="Configure actions for AAA server events." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server alive" help="Configure AAA server alive actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server alive action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"/> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_alive_action_reinitialize ${reinitialize} ${iface}</ACTION> 	<DOCGEN>
+              <DESCRIPTION>
+      	   This command configures the actions to take when one authentication server comes back alive after all were dead.
+      	   The reinitialize action triggers the re-authentication of supplicants authenticated on the critical VLAN. 
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows configuring the actions to take when one authentication server comes back alive after all were dead. 
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event server alive action reinitialize 
+              </EXAMPLE>
+      </DOCGEN> </COMMAND>  <COMMAND name="authentication event server dead" help="Configure AAA server dead actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server dead action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="authentication event server dead action authorize" help="Authorize the port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="authorize-options" help="Authorize options." mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan-id" help="Enter a VLAN Id." ptype="VLAN_ID"> </PARAM> </PARAM> <PARAM name="voice" help="Enable Critical Voice VLAN feature." mode="subcommand" ptype="SUBCOMMAND" optional="true"> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_dead_action_autherize ${__full_line} ${iface}</ACTION> 	<DOCGEN>
+ <DESCRIPTION> This command enables authorization of voice devices on the critical voice VLAN when all the authentication servers are dead. The configured voice VLAN of the port, on which the voice device is connected, is used as the critical voice VLAN ID. </DESCRIPTION> <USAGE> This command allows enabling authorization of voice devices on the critical voice VLAN when all the authentication servers are dead. </USAGE> <EXAMPLE> sonic-cli(conf-if-Ethernet0)# authentication event server dead action authorize voice </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="authentication event server dead action reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_server_dead_action_reinitialize ${__full_line} ${iface}</ACTION> </COMMAND> -->
+    <COMMAND name="authentication event no-response" access="secadmin" help="Configure actions when no response received for EAP" ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action" access="secadmin" help="Configure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action authorize" access="secadmin" help="Configure authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event no-response action authorize vlan" access="secadmin" help="Configure Guest vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_no_response_action_authorize_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	   This command configures VLAN as guest vlan on an interface or a range of interfaces.
+      	   The range is 1 to the maximum VLAN ID supported by the platformor alive server actions.
+      	   By default, the guest VLAN is 0, i.e. invalid and is not operational.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring VLAN as guest vlan on an interface or a range of interfaces. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event no-response action authorize vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event fail" access="secadmin" help="Configure when server fails to recognize the client credentials actions." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action" access="secadmin" help="Configure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action authorize" access="secadmin" help="Configure authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication event fail action authorize vlan" access="secadmin" help="Configure Unauthenticated vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="vlan-id" help="Configure Vlan Id." ptype="VLAN_ID"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_fail_action_authorize_vlan ${iface} ${vlan-id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      		This command configures the unauthenticated VLAN associated with the specified interface or range of interfaces
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring unauthenticated VLAN associated with the specified interface or range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# authentication event fail action authorize vlan {vlan-id} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication event fail retry" access="secadmin" help="Configure number of times authentication may be reattempted by the user." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="max-attempts" help="max attempts." ptype="MAX_RETRY_ATTEMPTS"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_authentication_event_fail_retry ${iface} ${max-attempts}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command configures the number of times authentication may be reattempted by the client before a port moves to the authentication fail VLAN.
+      	    The reattemps range is 1 to 5 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the number of times authentication may be reattempted by the client before a port moves to the authentication fail VLAN.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)#  authentication event fail retry {max-attempts}
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication timer" access="secadmin" help="Configure the authentication timer values." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication timer reauthenticate" access="secadmin" help="Configure time period after which an automatic re-authentication is intiated." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="reauthenticate-timer-options" help="reauthenticate timer options." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="server" help="Get the re-authentication timeout value from the server." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_REAUTH_PERIOD"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_reauth_period ${iface} ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	    This command is used to configure the period of time after which the Authenticator attempts to reauthenticate a supplicant on the port.
+      	    This command also provides an option to specify re-authentication time out value from the server (ex. Radius).
+      	    When server option is selected, the server supplied Session time out and Session Termination-action are used by Authenticator to 
+      	    reauthenticate a supplicant on the port .  By default server option is enabled. The reauthenticate seconds value range is 1 to 65535.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the period of time after which the Authenticator attempts to reauthenticate a supplicant on the port.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication timer reauthenticate { seconds | server} 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="authentication timer restart" help="Time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_RESTART_PERIOD"/> <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_restart ${time-period} ${iface}</ACTION>     <DOCGEN>
+              <DESCRIPTION>
+                  Configure time period after which try to authenticate an unauthorized port. 
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows configuring time period after which try to authenticate an unauthorized port. 
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# authentication restart 77 
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="no authentication" access="secadmin" help="Unconfigure authentication manager parameters." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> </COMMAND>
+    <COMMAND name="no authentication allow" access="secadmin" help="Unconfigure the VLAN ID to not allow wake on lan packets." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication allow vlan" access="secadmin" help="Unconfigure the allow VLAN ID." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_authentication_allow_vlan ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	        This command is to unconfigure VLAN ID for not allowing wake on lan packets on an interface or a range of interfaces.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfigure and set default parameters for allow VLAN ID.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication allow vlan 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication host-mode" access="secadmin" help="Unconfigure authentication host mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_host_control_mode ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication order" access="secadmin" help="Unconfigure authentication manager method order." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_order_list ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication priority" access="secadmin" help="Unconfigure authentication manager method priority." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_priority_list ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication max-users" access="secadmin" help="Unconfigure maximum number of Supplicants on a port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_pac_max_users_per_port ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command sets the maximum number of clients supported on an interface to default value 
+                  multi-authentication host mode is enabled on the port. default value is 48. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the default maximum number of clients supported on an interface or
+                  range of interfaces.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication max-users 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication port-control" access="secadmin" help="Unconfigure authentication mode on the specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_port_control_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  un-configure authentication port-control.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows un configuring authentication port control mode.
+              </USAGE>
+        <EXAMPLE>
+                  sonic(config)# no authentication port-control 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication periodic" access="secadmin" help="Disable periodic re-authentication on the specified interfaces." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_periodic_enable ${iface} False</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  un-configure authentication periodic.
+              </DESCRIPTION>
+        <USAGE>
+                  un-configure authentication periodic.
+              </USAGE>
+        <EXAMPLE>
+                  sonic(config)# no authentication periodic 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication timer" access="secadmin" help="Unconfigure the authentication timer values." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication timer reauthenticate" access="secadmin" help="Unconfigure time period after which an automatic re-authentication is intiated." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_reauth_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure time period after which an automatic re-authentication is intiated.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for time period after which an automatic re-authentication is intiated.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication reauthenticate
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="no authentication timer restart" help="Unconfigure time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"> <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_restart_period ${iface}</ACTION>     <DOCGEN>
+              <DESCRIPTION>
+                  Unconfigure time period after which try to authenticate an unauthorized port.
+              </DESCRIPTION>
+              <USAGE>
+                  This command allows setting default parameters for time period after which try to authenticate an unauthorized port.
+              </USAGE>
+              <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no authentication restart
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> -->
+    <COMMAND name="no authentication open" access="secadmin" help="Disable open authentication on the specified interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_open_auth_mode ${iface} False</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command disables Open Authentication mode on the port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can disable Open Authentication mode on the port.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Ethernet0)# no authentication open
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication event" access="secadmin" help="Unconfigure action for authentication events." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <!-- <COMMAND name="no authentication event server" help="Configure actions for AAA server events." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server alive" help="Configure AAA server alive actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server alive action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_alive_action ${iface}</ACTION> </COMMAND> <COMMAND name="no authentication event server dead" help="Configure AAA server dead actions." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server dead action" help="Required action for authentication server event." ptype="SUBCOMMAND" mode="subcommand"/> <COMMAND name="no authentication event server dead action authorize" help="Authorize the port." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="authorize-options" help="Authorize options." mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> <PARAM name="voice" help="Enable Critical Voice VLAN feature." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_dead_action_autherize ${authorize-options} ${iface}</ACTION> </COMMAND> <COMMAND name="no authentication event server dead action reinitialize" help="Reinitialize all authorized clients." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan" help="Critical VLAN." mode="subcommand" ptype="SUBCOMMAND" optional="true"/> <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_server_dead_action_reinitialize ${vlan} ${iface}</ACTION> </COMMAND> -->
+    <COMMAND name="no authentication event no-response" access="secadmin" help="Unconfigure actions when no response received for EAP" ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action" access="secadmin" help="Unconfigure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action authorize" access="secadmin" help="Unconfigure the authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event no-response action authorize vlan" access="secadmin" help="Unconfigure Guest vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_no_response_action_authorize_vlan ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication event fail" access="secadmin" help="Unconfigure when server fails to recognize the client credentials actions." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action" access="secadmin" help="Unconfigure action for authentication event." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action authorize" access="secadmin" help="Unconfigure the authorization on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication event fail action authorize vlan" access="secadmin" help="Unconfigure Unauthenticated vlan on the interface." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_fail_action_authorize_vlan ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no authentication event fail retry" access="secadmin" help="Unconfigure number of authentication event failure retry attempts." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr del_authmgr_authentication_event_fail_retry ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  This command unconfigures the number of authentication event failure retry attempts.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfiguration of authentication event failure retry attempts.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Ethernet0)# no authentication event fail retry
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mab" access="secadmin" help="Enable Mac-based authentication Bypass(MAB)on a specified port." command_tables="sonic-mab:sonic-mab/MAB_PORT_CONFIG_TABLE/MAB_PORT_CONFIG_TABLE_LIST/port={name}" render_command_cb="mab_intf_config_cb" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="auth-type" help="Specify the authentication type to be used for MAB." mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="authtype-options" help="Mab auth type options." mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="chap" help="Enable CHAP as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+          <PARAM name="eap-md5" help="Enable EAP-MD5 as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+          <PARAM name="pap" help="Enable PAP as an authentication type." mode="subcommand" ptype="SUBCOMMAND"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_commandMab ${iface} True ${authtype-options}</ACTION>
+    </COMMAND>
+    <COMMAND name="no mab" access="secadmin" help="Disable Mac-based authentication Bypass(MAB)on a specified port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr disable_mab_authentication ${iface} False</ACTION>
+    </COMMAND>
+    <COMMAND name="dot1x" access="secadmin" help="Configure 802.1x authentication." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="dot1x pae" access="secadmin" help="Configure PAE capability mode on the specified port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="dot1-pae-role-options" help="Configures authenticator or none as dot1x pae role." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="authenticator" help="Enter authenticator to enable Authenticator mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="none" help="Enter none to disable Authenticator mode." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_do1x_pae_role ${iface} ${dot1-pae-role-options}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     This command configures the port's dot1x pae role. The port can serve as either an authenticator or none.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can configure port's dot1x role.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# dot1x pae { authenticator | none }
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x max-req" access="secadmin" help="Configure the maximum number of retries for the authenticator to communicate with the supplicant over EAP." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <PARAM name="max-req" help="Enter maximum number of reties in the given range" ptype="PAC_AUTH_MAX_REQ"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_authmgr set_authmgr_max_req ${iface} ${max-req}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+      	      This command sets the maximum number of retries for the authenticator to communicate with the supplicant over EAP.
+      	      The retries value is in the range of 1-5.
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring the maximum number of retries for the authenticator to communicate with the supplicant over EAP. 
+                  The count value is in the range of 1-5.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x max-req 2 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x" access="secadmin" help="Unconfigure the dot1x parameters." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no dot1x pae" access="secadmin" help="Unconfigure PAE capability mode on the specified port." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_do1x_pae_role ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command unconfigures the dot1x pae role of specified port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can disable port's dot1x role.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# no dot1x pae
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x max-req" access="secadmin" help="Unconfigure the maximum number of retries for the authenticator to communicate with the supplicant over EAP." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_max_req ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command unconfigures the dot1x max-req of specified port.
+              </DESCRIPTION>
+        <USAGE>
+                      By using this command user can unconfigure the maximum number of retries for the authenticator to communicate with the supplicant over EAP.
+              </USAGE>
+        <EXAMPLE>
+                      sonic-cli(conf-if-Eth1/1/1)# no dot1x max-req
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout" access="secadmin" help="Configures the timeout parameters that determine the time interval for client reauthentication." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="dot1x timeout quiet-period" access="secadmin" help="Time period that the authenticator remains quiet following a failed authentication exchange with the client." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_QUIET_PERIOD"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_quiet_period ${iface} ${time-period} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Time period in seconds that the port remains in the wait state following a failed authentication exchange with the client,
+                  before reattempting authentication.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x quiet period that the device remains in the quiet state following a failed authentication.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout quiet-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout server-timeout" access="secadmin" help="Time period that the device waits for a response from the authentication server." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_SERVER_TIMEOUT"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_server_timeout ${iface} ${time-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  The time period in seconds that the device waits for a response from the authentication server.  
+                  If the server does not send a response to an 802.1X packet within the specified period, the packet is sent again.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x server timeout that the device waits for a response from the authentication server.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="dot1x timeout tx-period" access="secadmin" help="Time period that the authenticator waits for supplicant response of EAP-request/identify frame before retransmitting the request." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="tx-period" help="Enter time period in seconds." ptype="PAC_AUTH_TX_PERIOD"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_authmgr_timer_tx_period ${iface} ${tx-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  The time period in seconds that the device waits for a response from the supplicant for EAP request/Indentity.
+                  If the supplicant does not send a response to an EAP request/Indentity within the specified period, the request is sent again.
+              </DESCRIPTION>
+        <USAGE>
+                  Configure the dot1x tx-period that the device waits for a response from the supplicant for EAP request/Indentity. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# dot1x timeout tx-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout" access="secadmin" help="Unconfigure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no dot1x timeout quiet-period" access="secadmin" help="Unconfigure time period after which try to authenticate an failed authenticated port." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_quiet_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure time period after which try to authenticate an failed authenticated port. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for quiet time period.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout quiet-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout server-timeout" access="secadmin" help="Unconfigure server timeout period." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_server_timeout ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure server timeout period. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows setting default parameters for server timeout period. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no dot1x timeout tx-period" access="secadmin" help="Unconfigure time period that the authenticator waits for supplicant response of EAP-request/identify frames." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_authmgr_timer_tx_period ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure tx period after which try to authenticate an failed authenticated port. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows unconfigure and set default parameters for tx period.
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no dot1x timeout tx-period 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="mab timeout" access="secadmin" help="Configure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="mab timeout server-timeout" access="secadmin" help="Time period after which try to authenticate an unauthorized port." ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="time-period" help="Enter time period in seconds." ptype="PAC_AUTH_SERVER_TIMEOUT"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr set_mab_timer_server_timeout ${iface} ${time-period}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Time period after which specify the number of seconds the access device sends a RADIUS Access-Request packet to the
+                  authentication server. If no response is received when this timer expires, the MAB  authentication fails. 
+              </DESCRIPTION>
+        <USAGE>
+                  This command allows configuring server timeout. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# mab timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mab timeout" access="secadmin" help="Configure time period." ptype="SUBCOMMAND" mode="subcommand" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no mab timeout server-timeout" access="secadmin" help="Unconfigure server timeout period." test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_authmgr del_mab_timer_server_timeout ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                  Unconfigure server timeout period. 
+              </DESCRIPTION>
+        <USAGE>
+                  Unconfigure the dot1x server timeout period and set to default values. 
+              </USAGE>
+        <EXAMPLE>
+                  sonic-cli(conf-if-Eth1/1/1)# no mab timeout server-timeout 
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

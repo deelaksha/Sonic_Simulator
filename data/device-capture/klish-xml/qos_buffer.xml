@@ -1,0 +1,488 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2021 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_POOL_SIZE" method="unsignedInteger" pattern="0..4294967295" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_POOL_THRESHOLD_LIMIT" method="unsignedInteger" pattern="1..4294967295" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_DYNAMIC_THRESHOLD" method="integer" pattern="-6..3" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_PG_MIN_LIMIT" method="unsignedInteger" pattern="0..18796" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_QUEUE_MIN_LIMIT" method="unsignedInteger" pattern="0..9216" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_RESUME_LIMIT" method="unsignedInteger" pattern="1..18432" help=""/>
+  <!--=========================================================================-->
+  <PTYPE name="QOS_BUFFER_POOLS" method="select" pattern="ingress_lossless_pool egress_lossless_pool egress_lossy_pool" help="Name of the buffer pools"/>
+  <VIEW name="enable-view">
+    <COMMAND name="show buffer" help="Display QoS buffer information"/>
+    <COMMAND name="show buffer pool" help="Display QoS buffer pool information" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer get_qos_buffer_pools show_qos_buffer.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Display all QoS buffer pools with their configured parameters.
+           </DESCRIPTION>
+        <USAGE>
+               sonic# show buffer pool
+           </USAGE>
+        <EXAMPLE summary="Display QoS buffer pools">
+               sonic# show buffer pool
+               Pool egress_lossless_pool:
+                  mode : static
+                  size : 32575488 bytes
+                  type : egress
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show buffer profile" help="Display QoS buffer profile information" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer get_qos_buffer_profiles show_qos_buffer.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Display all QoS profiles with their configured parameters.
+           </DESCRIPTION>
+        <USAGE>
+               sonic# show buffer profile
+           </USAGE>
+        <EXAMPLE summary="Display QoS buffer profiles">
+               sonic# show buffer profile
+               Profile egress_lossless_profile:
+                  pool             : egress_lossless_pool
+                  mode             : static
+                  size             : 0
+                  static_threshold : 32575488 bytes
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show buffer interface" help="Display QoS priority group or queue information per interface" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE_ALL">
+        <PARAM name="pg-q-subcommands" help="Priority group or queue subcommands" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="priority-group" help="Display QoS priority group information" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="queue" help="Display QoS queue information" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="cable-length" help="Display cable length information" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${pg-q-subcommands}" = "priority-group"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py get_qos_buffer_priority_groups show_qos_buffer.j2 ${phy-intf-name}
+ elif test "${pg-q-subcommands}" = "queue"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py get_qos_buffer_queues show_qos_buffer.j2 ${phy-intf-name}
+ elif test "${pg-q-subcommands}" = "cable-length"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py get_qos_buffer_cable_length show_qos_cable_length.j2 ${phy-intf-name}
+ fi
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Display QoS priority group and queue association with QoS buffer profile and cable length on interfaces.
+           </DESCRIPTION>
+        <USAGE>
+               sonic# show buffer interface Ethernet all priority-group
+               sonic# show buffer interface Ethernet IFNo priority-group
+               sonic# show buffer interface Ethernet all queue
+               sonic# show buffer interface Ethernet IFNo queue
+               sonic# show buffer interface Ethernet all cable-length
+               sonic# show buffer interface Ethernet IFNo cable-length
+ 
+               where IFNo is ethernet interface number.
+           </USAGE>
+        <EXAMPLE summary="Display QoS priority group and queue and cable-length">
+               sonic# show buffer interface ethernet all priority-group
+               Interface   Priority-group     Profile
+               Ethernet0        0             ingress_lossy_profile
+               Ethernet4        3-4           ingress_lossless_profile
+ 
+               sonic# show buffer interface Ethernet0 priority-group
+               Interface   Priority-group     Profile
+               Ethernet0        0             ingress_lossy_profile
+ 
+               sonic# show buffer interface ethernet all queue
+               Interface       Queue          Profile
+               Ethernet0        0             ingress_lossy_profile
+               Ethernet4        3-4           ingress_lossless_profile
+ 
+               sonic# show buffer interface Ethernet0 queue
+               Interface       Queue          Profile
+               Ethernet0        0             ingress_lossy_profile
+ 
+               sonic# show buffer interface ethernet all cable-length
+               Interface       Cable-length
+               Ethernet0        5m             
+               Ethernet4        40m           
+ 
+               sonic# show buffer interface Ethernet0 cable-length
+               Interface       Cable-length
+               Ethernet0        5m
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- QoS buffers -->
+    <COMMAND name="buffer" access="netadmin" help="QoS buffer configuration"> </COMMAND>
+    <COMMAND name="no buffer" access="netadmin" help="Unconfigure QoS buffer"> </COMMAND>
+    <!-- buffer init -->
+    <COMMAND name="buffer init" access="netadmin" test="-z ${__in_session}" help="Initialize QoS buffer (create buffer pools, profiles and priority-group, queue with profile mapping) based on system defaults" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}">
+      <PARAM name="lossless" help="Initialize lossless QoS buffer" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/buffer_mode_lossless=true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer rpc_init_qos_buffer </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             QoS buffer init lossless populates the QoS buffer related tables in the Redis ConfigDB by
+             default, the size and xoff values vary based on platform capabilities.
+           </DESCRIPTION>
+        <USAGE>
+              Use this command to configure lossless QoS buffer related entries to default settings.
+           </USAGE>
+        <EXAMPLE summary="The following command configures QoS buffer related entries to default settings.">
+             sonic# configure terminal
+             sonic(config)# buffer init lossless
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no buffer init -->
+    <COMMAND name="no buffer init" access="netadmin" test="-z ${__in_session}" help="Clear QoS buffer configuration" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer rpc_clear_qos_buffer </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           QoS buffer clear removes the QoS buffer related configurations.
+         </DESCRIPTION>
+        <USAGE>
+            Use this command to remove the QoS buffer related configurations.
+         </USAGE>
+        <EXAMPLE summary="The following command removes the QoS buffer related configurations.">
+           sonic# configure terminal
+           sonic(config)# no buffer init
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- RoCE buffers -->
+    <COMMAND name="roce" access="netadmin" test="-z ${__in_session}" help="Enable RoCEv2 default buffer configuration"> </COMMAND>
+    <COMMAND name="no roce" access="netadmin" test="-z ${__in_session}" help="Disable RoCEv2 default buffer configuration"> </COMMAND>
+    <!-- RoCE enable -->
+    <COMMAND name="roce enable" access="netadmin" test="-z ${__in_session}" help="Initialize RoCEv2 default buffer configuration" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}" render_command_cb="roce_enable_config">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer qos_roce_enable </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           RoCE enable populates the roce QoS buffer related tables in the Redis ConfigDB by
+           default, the size and xoff values vary based on platform capabilities.
+         </DESCRIPTION>
+        <USAGE>
+            Use this command to apply roce default lossless buffer/QOS settings based on platform.
+         </USAGE>
+        <EXAMPLE summary="The following command configures lossless RoCE buffer related entries to default settings.">
+           sonic# configure terminal
+           sonic(config)# roce enable
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- RoCE enable force-deafults-->
+    <COMMAND name="roce enable force-defaults" access="netadmin" test="-z ${__in_session}" help="Clear any previous applied QOS buffer and force Initialize RoCEv2 default buffer configuration" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer qos_roce_enable "force-defaults" </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           RoCE enable force-defaults populates the roce QoS buffer related tables by clearing any previously applied buffer/QOS
+           configs in the Redis ConfigDB by default, the size and xoff values vary based on platform capabilities.
+         </DESCRIPTION>
+        <USAGE>
+            Use this command to force apply roce default lossless buffer/QOS settings based on platform.
+         </USAGE>
+        <EXAMPLE summary="The following command configures lossless RoCE buffer related entries to default settings.">
+           sonic# configure terminal
+           sonic(config)# roce enable force-defaults
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- RoCE enable pfc-priority -->
+    <COMMAND name="roce enable pfc-priority" access="netadmin" test="-z ${__in_session}" help="RoCEv2 buffer configuration based on the PFC priorities" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}">
+      <PARAM name="priorities" help="Priority values or (,) separated Priority value; for example, 3,4. Maximum Priorities supported are 2" ptype="VAL_0_7_RANGE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer qos_roce_enable ${priorities} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           RoCE enable pfc-priority populates the roce QoS buffer and maps related configs in the Redis ConfigDB
+           based on the PFC priority, the size and xoff values vary based on platform capabilities.
+         </DESCRIPTION>
+        <USAGE>
+            Use this command to apply roce lossless buffer/QOS settings based on the PFC priority.
+         </USAGE>
+        <EXAMPLE summary="The following command configures lossless RoCE buffer related entries.">
+           sonic# configure terminal
+           sonic(config)# roce enable pfc-priority
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- RoCE disable -->
+    <COMMAND name="no roce enable" access="netadmin" test="-z ${__in_session}" help="Clear RoCEv2 default lossless buffer configuration" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer qos_roce_disable </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           RoCE disable removes default roce lossless buffer configuration.
+         </DESCRIPTION>
+        <USAGE>
+            Use this command to remove the QoS buffer related configurations.
+         </USAGE>
+        <EXAMPLE summary="The following command removes the RoCE buffer related configurations.">
+           sonic# configure terminal
+           sonic(config)# roce disable
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- buffer pool -->
+    <COMMAND name="buffer pool" access="netadmin" help="QoS buffer pool configuration" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-pool:sonic-buffer-pool/BUFFER_POOL/BUFFER_POOL_LIST/name={name}">
+      <PARAM name="ingress_lossless_pool" help="Name of configurable QoS buffer pool" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-buffer-pool:sonic-buffer-pool/BUFFER_POOL/BUFFER_POOL_LIST/name">
+        <PARAM name="shared-headroom-size" help="Configure shared headroom size" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="headroom-size" help="Shared headroom size in bytes" ptype="QOS_BUFFER_POOL_THRESHOLD_LIMIT" dbpath="sonic-buffer-pool:sonic-buffer-pool/BUFFER_POOL/BUFFER_POOL_LIST/xoff"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer update_qos_buffer_pool ${ingress_lossless_pool} ${headroom-size} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command configures shared head room size for QoS buffer pool ingress_lossless_pool.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(config)# buffer pool ingress_lossless_pool shared-headroom-size SHARED-HEADROOM-SIZE
+         </USAGE>
+        <EXAMPLE summary="The following command configures shared head room size for ingress_lossless_pool.">
+           sonic# configure terminal
+           sonic(config)# buffer pool ingress_lossless_pool shared-headroom-size 100000
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no buffer pool -->
+    <COMMAND name="no buffer pool" access="netadmin" help="Delete QoS buffer pool" mode="subcommand" hidden="true" ptype="SUBCOMMAND">
+      <PARAM name="name" help="Name of QoS buffer pool" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer delete_qos_buffer_pool ${name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command deletes QoS buffer pool.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(config)# no buffer pool POOL-NAME
+         </USAGE>
+        <EXAMPLE summary="The following command deletes QoS buffer pool.">
+           sonic# configure terminal
+           sonic(config)# no buffer pool pool_1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- buffer profile -->
+    <COMMAND name="buffer profile" access="netadmin" help="QoS buffer profile configuration" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/name={name}" render_command_cb="qos_buffer_profile">
+      <PARAM name="name" help="Name of the QoS buffer profile" ptype="STRING" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/name">
+        <PARAM name="pool-name" help="Name of the QoS buffer pool" ptype="QOS_BUFFER_POOLS" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/pool">
+          <PARAM name="size" help="Size (in bytes) reserved from the buffer pool" ptype="QOS_BUFFER_PG_MIN_LIMIT" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/size">
+            <PARAM name="static-threshold" help="Configure static threshold" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="static-threshold-value" help="Static threshold value" ptype="QOS_BUFFER_POOL_THRESHOLD_LIMIT" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/static_th"> </PARAM>
+            </PARAM>
+            <PARAM name="dynamic-threshold" help="Configure dynamic threshold" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="dynamic-threshold-value" help="Dynamic threshold value" ptype="QOS_BUFFER_DYNAMIC_THRESHOLD" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/dynamic_th"> </PARAM>
+            </PARAM>
+            <PARAM name="pause-threshold" help="Configure pause threshold" ptype="SUBCOMMAND" optional="true" mode="subcommand">
+              <PARAM name="pause-threshold-value" help="Pause threshold value" ptype="QOS_BUFFER_POOL_THRESHOLD_LIMIT" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/xoff"> </PARAM>
+              <PARAM name="resume-threshold" help="Configure resume threshold" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="resume-threshold-value" help="Resume threshold value" ptype="QOS_BUFFER_RESUME_LIMIT" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/xon"> </PARAM>
+              </PARAM>
+              <PARAM name="resume-offset-threshold" help="Configure resume offset threshold" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="resume-offset-threshold-value" help="Resume offset threshold value" ptype="QOS_BUFFER_RESUME_LIMIT" dbpath="sonic-buffer-profile:sonic-buffer-profile/BUFFER_PROFILE/BUFFER_PROFILE_LIST/xon_offset"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer create_qos_buffer_profile ${name} ${pool-name} ${size} static-threshold:${static-threshold-value} dynamic-threshold:${dynamic-threshold-value} pause-threshold:${pause-threshold-value} resume-threshold:${resume-threshold-value} resume-offset-threshold:${resume-offset-threshold-value} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command creates the buffer profile for priority groups (ingress) and
+           queue (egress) QoS operations.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(config)# buffer profile PROFILE-NAME POOL-NAME RESERVED-BUFFER-SIZE
+ static-threshold STATIC-THRESHOLD-VALUE dynamic-threshold DYNAMIC-THRESHOLD-VALUE pause pause-threshold PAUSE-THRESHOLD-VALE resume-threshold RESUME-THRESHODL-VALE resume-offset-threshold RESUME-OFFSET-THRESHODL-VALUE
+         </USAGE>
+        <EXAMPLE summary="The following command creates QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# buffer profile profile_1 pool_1 1000000 static-threshold 100000 dynamic-threshold -3
+           sonic(config)# buffer profile profile_2 pool_2 2000000 dynamic-threshold -2
+           sonic(config)# buffer profile profile_3 pool_3 3000000 static-threshold 300000 pause pause-threshold 30000 resume-threshold 3000 resume-offset-threshold 300
+           sonic(config)# buffer profile profile_4 pool_4 4000000 dynamic-threshold -1 pause pause-threshold 40000 resume-threshold 4000 resume-offset-threshold 400
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no buffer profile -->
+    <COMMAND name="no buffer profile" access="netadmin" help="Delete QoS buffer profile" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="name" help="Name of QoS buffer profile" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer delete_qos_buffer_profile ${name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command deletes QoS buffer profile.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(config)# no buffer profile PROFILE-NAME
+         </USAGE>
+        <EXAMPLE summary="The following command deletes QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# no buffer profile profile_1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- QoS buffer configuration on interface -->
+  <!--=======================================================-->
+  <VIEW name="configure-if-view">
+    <!-- QoS buffer configuration on interface -->
+    <COMMAND name="buffer" access="netadmin" help="QoS buffer configuration"> </COMMAND>
+    <COMMAND name="no buffer" access="netadmin" help="Unconfigure QoS buffer"> </COMMAND>
+    <!-- Associate priority group with QoS buffer profile -->
+    <COMMAND name="buffer priority-group" access="netadmin" help="Associate priority-group with QoS buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/ifname={name},pg_num={pg-range}" render_command_cb="qos_buffer_priority_group">
+      <PARAM name="pg-value-range" help="(-) or (,) separated individual priority and ranges of priority's; for example, 0,2-7" ptype="VAL_0_7_RANGE" dbpath="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/pg_num">
+        <PARAM name="profile-name" help="Name of QoS buffer profile" ptype="STRING" dbpath="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/profile"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer associate_priority_group_with_qos_buffer_profile ${iface} ${pg-value-range} ${profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command maps QoS priority group (ingress) with QoS buffer profile.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# buffer priority-group PG-ID-LIST PROFILE-NAME
+         </USAGE>
+        <EXAMPLE summary="The following command maps QoS priority group (ingress) with QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# buffer priority-group 2-6 profile_1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Dissociate priority group from QoS buffer profile -->
+    <COMMAND name="no buffer priority-group" access="netadmin" help="Disssociate priority-group from QoS buffer profile" mode="subcommand" hidden="true" ptype="SUBCOMMAND">
+      <PARAM name="pg-value-range" help="(-) or (,) separated individual priority and ranges of priority's; for example, 0,2-7" ptype="VAL_0_7_RANGE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer disssociate_priority_group_from_qos_buffer_profile ${iface} ${pg-value-range} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command unmaps QoS priority group (ingress) from QoS buffer profile.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# no buffer priority-group PG-ID-LIST
+         </USAGE>
+        <EXAMPLE summary="The following command unmaps QoS priority group (ingress) from QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# no buffer priority-group 2-6
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Associate queue with QoS buffer profile -->
+    <COMMAND name="buffer queue" access="netadmin" help="Associate queue with QoS buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/ifname={name},qindex={q-range}" render_command_cb="qos_buffer_queue">
+      <PARAM name="queue-value-range" help="(-) or (,) separated individual queue and ranges of queue's; for example, 0,2-7" ptype="VAL_0_7_RANGE" dbpath="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/qindex">
+        <PARAM name="profile-name" help="Name of QoS buffer profile" ptype="STRING" dbpath="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/profile"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer associate_queue_with_qos_buffer_profile ${iface} ${queue-value-range} ${profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command maps QoS queue (egress) with QoS buffer profile.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# buffer queue Q-ID-LIST PROFILE-NAME
+         </USAGE>
+        <EXAMPLE summary="The following command maps QoS queue (egress) with QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# buffer queue 2-6 profile_1
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Dissociate queue from QoS buffer profile -->
+    <COMMAND name="no buffer queue" access="netadmin" help="Disssociate queue from QoS buffer profile" mode="subcommand" hidden="true" ptype="SUBCOMMAND">
+      <PARAM name="queue-value-range" help="(-) or (,) separated individual queue and ranges of queue's; for example, 0,2-7" ptype="VAL_0_7_RANGE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer disssociate_queue_from_qos_buffer_profile ${iface} ${queue-value-range} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command unmaps QoS queue (egress) from QoS buffer profile.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# no buffer queue Q-ID-LIST
+         </USAGE>
+        <EXAMPLE summary="The following command unmaps QoS queue (egress) from QoS buffer profile.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# no buffer queue 2-6
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Enable default lossless buffer profile -->
+    <COMMAND name="buffer default-lossless-buffer-profile" access="netadmin" help="Enable automatic creation of system's pre-defined default lossless buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/ifname={name}">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer set_default_lossless_buffer_profile ${iface} True </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command enables default QoS lossless buffer profile on interface.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# buffer default-lossless-buffer-profile
+         </USAGE>
+        <EXAMPLE summary="The following command enables default QoS lossless buffer profile on interface.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# buffer default-lossless-buffer-profile
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Disable default lossless buffer profile -->
+    <COMMAND name="no buffer default-lossless-buffer-profile" access="netadmin" help="Disable automatic ingress lossless buffer profile creation based on cable length and speed for user desired ingress lossless buffer profile" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/default_lossless_buffer_profile=false">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer set_default_lossless_buffer_profile ${iface} False </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command disables default QoS lossless buffer profile on interface.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# no buffer default-lossless-buffer-profile
+         </USAGE>
+        <EXAMPLE summary="The following command disables default QoS lossless buffer profile on interface.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# no buffer default-lossless-buffer-profile
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- cable length config -->
+    <COMMAND name="buffer cable-length" access="netadmin" help="Configure cable length for buffer reservation on the interface" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="qos_buffer_cable_length">
+      <PARAM name="length" help="Round up to the nearest length option" ptype="CABLE_LENGTH_VAL"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer set_cable_length ${iface} ${length} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command configures cable length on interface.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# buffer cable-length
+         </USAGE>
+        <EXAMPLE summary="The following command configures cable length on interface.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# buffer cable-length 5m
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Remove cable length config -->
+    <COMMAND name="no buffer cable-length" access="netadmin" help="Reset cable length configuration to default" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-cable-length:sonic-cable-length/CABLE_LENGTH/CABLE_LENGTH_LIST">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_buffer remove_cable_length ${iface} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command resets cable length configuration to default on an interface.
+         </DESCRIPTION>
+        <USAGE>
+           sonic(conf-if-Ethernet8)# no buffer cable-length
+         </USAGE>
+        <EXAMPLE summary="The following command removes cable length config on interface.">
+           sonic# configure terminal
+           sonic(config)# interface Ethernet 8
+           sonic(conf-if-Ethernet8)# no buffer cable-length
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

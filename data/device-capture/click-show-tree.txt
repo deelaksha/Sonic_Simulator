@@ -1,0 +1,2626 @@
+@@@ show aaa
+Usage: show aaa [OPTIONS]
+
+  Show AAA configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show acl
+Usage: show acl [OPTIONS] COMMAND [ARGS]...
+
+  Show ACL related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  rule   Show existing ACL rules
+  table  Show existing ACL tables
+@@@ show acl rule
+Usage: show acl rule [OPTIONS] [TABLE_NAME] [RULE_ID]
+
+  Show existing ACL rules
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show acl table
+Usage: show acl table [OPTIONS] [TABLE_NAME]
+
+  Show existing ACL tables
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show arp
+Usage: show arp [OPTIONS] [IPADDRESS]
+
+  Show IP ARP table
+
+Options:
+  -if, --iface TEXT  Neigbhors learned on specific L3 interface
+  -vrf, --vrf TEXT   Neigbhors learned on specific VRF
+  --verbose          Enable verbose output
+  -nud, --nud TEXT   State of Neighbor entry
+  -t, --timeout      Neighbor refresh timeout value in secs
+  -?, -h, --help     Show this message and exit.
+@@@ show bgp
+Usage: show bgp [OPTIONS] [BGP_ARGS]...
+
+  Show BGP information
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show boot
+Usage: show boot [OPTIONS]
+
+  Show boot configuration
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show buffer
+Usage: show buffer [OPTIONS] COMMAND [ARGS]...
+
+  Show buffer information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  configuration  show buffer configuration
+  information    show buffer information
+@@@ show buffer configuration
+Usage: show buffer configuration [OPTIONS]
+
+  show buffer configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show buffer information
+Usage: show buffer information [OPTIONS]
+
+  show buffer information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show buffer_pool
+Usage: show buffer_pool [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the buffer pools
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  persistent-watermark  Show persistent WM for buffer pools
+  threshold             Show priority group threshold config
+  watermark             Show user WM for buffer pools
+@@@ show buffer_pool persistent-watermark
+Usage: show buffer_pool persistent-watermark [OPTIONS]
+
+  Show persistent WM for buffer pools
+
+Options:
+  -p, --percentage
+  -h, -?, --help    Show this message and exit.
+@@@ show buffer_pool threshold
+Usage: show buffer_pool threshold [OPTIONS] COMMAND [ARGS]...
+
+  Show priority group threshold config
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  buffer_pool_all  Show threshold config for buffer pool
+@@@ show buffer_pool watermark
+Usage: show buffer_pool watermark [OPTIONS]
+
+  Show user WM for buffer pools
+
+Options:
+  -p, --percentage
+  -h, -?, --help    Show this message and exit.
+@@@ show chassis-modules
+Usage: show chassis-modules [OPTIONS] COMMAND [ARGS]...
+
+  Show chassis-modules information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  status  Show chassis-modules status
+@@@ show chassis-modules status
+Usage: show chassis-modules status [OPTIONS] <module_name>
+
+  Show chassis-modules status
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show classifier
+Usage: show classifier [OPTIONS] [NAME]
+
+  Show flow based services classifiers related information
+
+Options:
+  -m, --match-type <match-type>  Classifier type acl or fields
+  -h, -?, --help                 Show this message and exit.
+@@@ show clock
+Usage: show clock [OPTIONS]
+
+  Show date and time
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show config
+Usage: show config [OPTIONS] COMMAND [ARGS]...
+
+  Show details about configuration profiles available
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  profiles  List configuration profiles available
+@@@ show config profiles
+Usage: show config profiles [OPTIONS]
+
+  List configuration profiles available
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show copp
+Usage: show copp [OPTIONS] COMMAND [ARGS]...
+
+  Show COPP
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  config      Show COPP configuration
+  rate-limit  Show COPP rate-limit
+@@@ show copp config
+Usage: show copp config [OPTIONS]
+
+  Show COPP configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show copp rate-limit
+Usage: show copp rate-limit [OPTIONS]
+
+  Show COPP rate-limit
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show cores
+Usage: show cores [OPTIONS] COMMAND [ARGS]...
+
+  Show core dump events encountered
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  config  Show coredump configuration
+  info    Show information about one or more coredumps
+  list    List available coredumps
+@@@ show cores config
+Usage: show cores config [OPTIONS]
+
+  Show coredump configuration
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show cores info
+Usage: show cores info [OPTIONS] [PATTERN]
+
+  Show information about one or more coredumps
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show cores list
+Usage: show cores list [OPTIONS] [PATTERN]
+
+  List available coredumps
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show database
+Usage: show database [OPTIONS] COMMAND [ARGS]...
+
+  Show Redis database information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  map  Show Redis database mapping currently in use
+@@@ show database map
+Usage: show database map [OPTIONS]
+
+  Show Redis database mapping currently in use
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show debug
+Usage: show debug [OPTIONS] COMMAND [ARGS]...
+
+  Collect debugging information from components
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all              Collect debugging information from all components
+  component        Collect debugging information from component
+  dropmonitororch  Active debugging for DropMonitorOrch
+  fdborch          Active debugging for FdbOrch
+  intfsorch        Active debugging for IntfsOrch
+  ipmcorch         Active debugging for IpmcOrch
+  l2mcd-debug      Active debugging for L2MCD
+  l2mcorch         Active debugging for L2mcOrch
+  natorch          Active debugging for NatOrch
+  neighorch        Active debugging for NeighOrch
+  policerorch      Active debugging for PolicerOrch
+  routeorch        Active debugging for RouteOrch
+  tosyslog         Write the logs to syslog
+@@@ show debug all
+Usage: show debug all [OPTIONS]
+
+  Collect debugging information from all components
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show debug component
+Usage: show debug component [OPTIONS] COMPONENTNAME
+
+  Collect debugging information from component
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show debug dropmonitororch
+Usage: show debug dropmonitororch [OPTIONS]
+
+  Active debugging for DropMonitorOrch
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show debug fdborch
+Usage: show debug fdborch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for FdbOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  counters  Active debugging for FdbOrch
+@@@ show debug intfsorch
+Usage: show debug intfsorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for IntfsOrch
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all  Dump all intfsorch debugs
+@@@ show debug ipmcorch
+Usage: show debug ipmcorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for IpmcOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all              Dump all ipmcorch debugs
+  counters         Dump IPMC counters
+  ipmc-groups      Dump IPMC groups
+  ipmc-routes      Dump ipmcorch routes
+  ipmcvlan-l2oifs  Dump snooping vlan oifs
+  rpf-groups       Dump RPF groups
+  saved-mroutes    Dump Saved mroutes
+@@@ show debug l2mcd-debug
+Usage: show debug l2mcd-debug [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for L2MCD
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all                Dump All L2MCD
+  clear-igmp-groups  Clear dynamic IGMP Groups -v <vid>
+  clear-igmp-stats   Clear IGMP Control Packet statistics -v <vid>
+  globalvars         Global
+  igmp-groups        Dump IGMP Groups
+  portlist           Ports
+  setdebuglevel      Set L2MCD Debug Level <5:Notice 6:Info>
+  setvlanlog         Set L2MCD Vlan Debug Logging : Level Mask <0:None,...
+  vdb                Dump vdb
+  vdb-stats          Dump vdb Stats
+@@@ show debug l2mcorch
+Usage: show debug l2mcorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for L2mcOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all            Dump all l2mcorch debugs
+  counters       Dump l2mcorch debug counters
+  entries        Dump L2mc entries
+  grp2members    Dump l2mcGrps and associated members
+  mrouter-ports  Dump l2mcorch debug counters
+  snoop-vlans    Dump all Snooping Enabled Vlans
+@@@ show debug natorch
+Usage: show debug natorch [OPTIONS]
+
+  Active debugging for NatOrch
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show debug neighorch
+Usage: show debug neighorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for NeighOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all    Dump all neighorch debugs
+  neigh  Dump Neighorch neighbor entries
+  nhops  Dump NeighOrch nhop entries
+@@@ show debug policerorch
+Usage: show debug policerorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for PolicerOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all                     Dump all policerorch debugs
+  named-policers          Dump Policerorch named policer entries
+  named-policers-stats    Dump Policerorch named policer statistics
+  storm-control-policers  Dump PolicerOrch storm-control entries
+@@@ show debug routeorch
+Usage: show debug routeorch [OPTIONS] COMMAND [ARGS]...
+
+  Active debugging for RouteOrch
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all        Dump all routeorch debugs
+  dbgassert  Verify assert types in routeorch
+  nhgrp      Dump routeorch NexthopGroups
+  routes     Dump routeorch routes
+@@@ show debug tosyslog
+Usage: show debug tosyslog [OPTIONS] COMMAND [ARGS]...
+
+  Write the logs to syslog
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all        Collect debugging information from all components and write in...
+  component  Collect debugging information from component and write in...
+@@@ show dropcounters
+Usage: show dropcounters [OPTIONS] COMMAND [ARGS]...
+
+  Show drop counter related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  capabilities   Show device drop counter capabilities
+  configuration  Show current drop counter configuration
+  counts         Show drop counts
+@@@ show dropcounters capabilities
+Usage: show dropcounters capabilities [OPTIONS]
+
+  Show device drop counter capabilities
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show dropcounters configuration
+Usage: show dropcounters configuration [OPTIONS]
+
+  Show current drop counter configuration
+
+Options:
+  -g, --group TEXT
+  --verbose         Enable verbose output
+  -?, -h, --help    Show this message and exit.
+@@@ show dropcounters counts
+Usage: show dropcounters counts [OPTIONS]
+
+  Show drop counts
+
+Options:
+  -g, --group TEXT
+  -t, --counter_type TEXT
+  --verbose                Enable verbose output
+  -h, -?, --help           Show this message and exit.
+@@@ show ecn
+Usage: show ecn [OPTIONS]
+
+  Show ECN configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show environment
+Usage: show environment [OPTIONS]
+
+  Show environmentals (voltages, fans, temps)
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show errdisable
+Usage: show errdisable [OPTIONS] COMMAND [ARGS]...
+
+  Errdisable information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  recovery  Show errdisable recovery
+@@@ show errdisable recovery
+Usage: show errdisable recovery [OPTIONS]
+
+  Show errdisable recovery
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show error_database
+Usage: show error_database [OPTIONS] [TABLENAME]
+
+  Show ERROR DB entries
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show export
+Usage: show export [OPTIONS]
+
+  show tech-support export configurations
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show feature
+Usage: show feature [OPTIONS] COMMAND [ARGS]...
+
+  Show feature status
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  autorestart  Show auto-restart state for a feature
+  config       Show feature config
+  status       Show feature state
+@@@ show feature autorestart
+Usage: show feature autorestart [OPTIONS] [FEATURE_NAME]
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show feature config
+Usage: show feature config [OPTIONS] [FEATURE_NAME]
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show feature status
+Usage: show feature status [OPTIONS] [FEATURE_NAME]
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show fgnhg
+Usage: show fgnhg [OPTIONS] COMMAND [ARGS]...
+
+  Show FGNHG information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  active-hops
+  hash-view
+@@@ show fgnhg active-hops
+Usage: show fgnhg active-hops [OPTIONS] [NHG]
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show fgnhg hash-view
+Usage: show fgnhg hash-view [OPTIONS] [NHG]
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show hardware
+Usage: show hardware [OPTIONS] COMMAND [ARGS]...
+
+  Show ASIC related information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  access-list
+@@@ show hardware access-list
+Usage: show hardware access-list [OPTIONS]
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show headroom-pool
+Usage: show headroom-pool [OPTIONS] COMMAND [ARGS]...
+
+  Show details of headroom pool
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  persistent-watermark  Show persistent WM for headroom pool
+  watermark             Show user WM for headroom pool
+@@@ show headroom-pool persistent-watermark
+Usage: show headroom-pool persistent-watermark [OPTIONS]
+
+  Show persistent WM for headroom pool
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show headroom-pool watermark
+Usage: show headroom-pool watermark [OPTIONS]
+
+  Show user WM for headroom pool
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show histogram
+Usage: show histogram [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  memory
+@@@ show histogram memory
+Usage: show histogram memory [OPTIONS] [process|system|docker] COMMAND
+                             [ARGS]...
+
+Options:
+  -v, --verbose   verbose
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  analyze  Leak analysis
+  etime    Datetime should be ISO format Example formats: 'July 23' '2 days...
+  filter   Search string
+  stime    Datetime should be ISO format Example formats: 'July 23' '2 days...
+@@@ show hostname
+Usage: show hostname [OPTIONS] COMMAND [ARGS]...
+
+  Show hostname
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show hosts
+Usage: show hosts [OPTIONS]
+
+  Show nameserver configuration
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show in-memory-logging
+Usage: show in-memory-logging [OPTIONS] [PROCESS]
+
+  Show in-memory system log
+
+Options:
+  -l, --lines TEXT
+  -f, --follow
+  --verbose         Enable verbose output
+  -h, -?, --help    Show this message and exit.
+@@@ show interfaces
+Usage: show interfaces [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the network interfaces
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  alias         Show Interface Name/Alias Mapping
+  counters      Show interface counters
+  description   Show interface status, protocol and description
+  errdisable
+  flexbreakout  Show Interface flex port breakout
+  loopback      Show interfaces loopback
+  neighbor      Show neighbor related information
+  pipelines
+  pktdrops      Show interface packet drops
+  portchannel   Show PortChannel information
+  status        Show Interface status information
+  transceiver   Show SFP Transceiver information
+@@@ show interfaces alias
+Usage: show interfaces alias [OPTIONS] [INTERFACENAME]
+
+  Show Interface Name/Alias Mapping
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show interfaces counters
+Usage: show interfaces counters [OPTIONS] COMMAND [ARGS]...
+
+  Show interface counters
+
+Options:
+  -a, --printall
+  -c, --clear
+  -p, --period TEXT
+  -i, --interface TEXT
+  --verbose             Enable verbose output
+  -?, -h, --help        Show this message and exit.
+
+Commands:
+  detailed  Show interface counters detailed
+  rate      Show interface counters rate
+  rif       Show interface counters
+@@@ show interfaces description
+Usage: show interfaces description [OPTIONS] [INTERFACENAME]
+
+  Show interface status, protocol and description
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show interfaces errdisable
+Usage: show interfaces errdisable [OPTIONS] [INTERFACENAME]
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show interfaces flexbreakout
+Usage: show interfaces flexbreakout [OPTIONS] [PIPELINE]
+
+  Show Interface flex port breakout
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show interfaces loopback
+Usage: show interfaces loopback [OPTIONS] [LOOPBACK_NAME]
+
+  Show interfaces loopback
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show interfaces neighbor
+Usage: show interfaces neighbor [OPTIONS] COMMAND [ARGS]...
+
+  Show neighbor related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  expected  Show expected neighbor information by interfaces
+@@@ show interfaces pipelines
+Usage: show interfaces pipelines [OPTIONS]
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show interfaces pktdrops
+Usage: show interfaces pktdrops [OPTIONS] COMMAND [ARGS]...
+
+  Show interface packet drops
+
+Options:
+  -a, --printall
+  -d, --debug TEXT
+  --verbose         Enable verbose output
+  -h, -?, --help    Show this message and exit.
+
+Commands:
+  nonzero  Show interfaces pktdrops nonzero
+@@@ show interfaces portchannel
+Usage: show interfaces portchannel [OPTIONS] <portchannel_name> fallback
+
+  Show PortChannel information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show interfaces status
+Usage: show interfaces status [OPTIONS] [INTERFACENAME]
+
+  Show Interface status information
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show interfaces transceiver
+Usage: show interfaces transceiver [OPTIONS] COMMAND [ARGS]...
+
+  Show SFP Transceiver information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  eeprom    Show interface transceiver EEPROM information
+  lpmode    Show interface transceiver low-power mode status
+  presence  Show interface transceiver presence
+  summary   Show interface transceiver summary information
+@@@ show ip
+Usage: show ip [OPTIONS] COMMAND [ARGS]...
+
+  Show IP (IPv4) commands
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  bgp                     Show IPv4 BGP (Border Gateway Protocol)...
+  dhcp-relay              Show IP DHCP relay information
+  dhcp-snooping           Show IP DHCP snooping information
+  forward-protocol        Show IP Forwarding Protocol information
+  helper-address          Show IP Helper Addresses information
+  igmp                    Show IP IGMP information
+  interfaces              Show interfaces IPv4 address
+  local-neigh-size        Show ip local-neigh-size
+  prefix-list             show ip prefix-list
+  protocol                Show IPv4 protocol information
+  route                   Show IP (IPv4) routing table
+  static-anycast-gateway  Show sag commands
+@@@ show ip bgp
+Usage: show ip bgp [OPTIONS] COMMAND [ARGS]...
+
+  Show IPv4 BGP (Border Gateway Protocol) information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  neighbors  Show IP (IPv4) BGP neighbors
+  network    Show IP (IPv4) BGP network
+  summary
+@@@ show ip dhcp-relay
+Usage: show ip dhcp-relay [OPTIONS] COMMAND [ARGS]...
+
+  Show IP DHCP relay information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  brief       Show IP DHCP relay information
+  detailed    Show detailed DHCP Relay configuration
+  statistics  Show IP DHCP relay statistics
+@@@ show ip dhcp-snooping
+Usage: show ip dhcp-snooping [OPTIONS] COMMAND [ARGS]...
+
+  Show IP DHCP snooping information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  binding     Show IP DHCP snooping binding information
+  statistics  Show IP DHCP snooping statistics information
+@@@ show ip forward-protocol
+Usage: show ip forward-protocol [OPTIONS] COMMAND [ARGS]...
+
+  Show IP Forwarding Protocol information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  config  Show IP Forward Protocol config information
+@@@ show ip helper-address
+Usage: show ip helper-address [OPTIONS] COMMAND [ARGS]...
+
+  Show IP Helper Addresses information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  config      Show IP Helper Address config information
+  statistics  Show IP Helper Address statistics information
+@@@ show ip igmp
+Usage: show ip igmp [OPTIONS] COMMAND [ARGS]...
+
+  Show IP IGMP information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  snooping  Show IP IGMP snooping information
+@@@ show ip interfaces
+Usage: show ip interfaces [OPTIONS]
+
+  Show interfaces IPv4 address
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show ip local-neigh-size
+Usage: show ip local-neigh-size [OPTIONS]
+
+  Show ip local-neigh-size
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show ip prefix-list
+Usage: show ip prefix-list [OPTIONS] [PREFIX_LIST_NAME]
+
+  show ip prefix-list
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show ip protocol
+Usage: show ip protocol [OPTIONS]
+
+  Show IPv4 protocol information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show ip route
+Usage: show ip route [OPTIONS] [IPADDRESS] [vrf <vrf_name>] [...]
+
+  Show IP (IPv4) routing table
+
+Options:
+  -d, --display TEXT    all|frontend
+  -n, --namespace TEXT  Namespace name or all
+  --verbose             Enable verbose output
+  -?, -h, --help        Show this message and exit.
+@@@ show ip static-anycast-gateway
+Usage: show ip static-anycast-gateway [OPTIONS] [INTERFACE_NAME]
+
+  Show sag commands
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show ipv6
+Usage: show ipv6 [OPTIONS] COMMAND [ARGS]...
+
+  Show IPv6 commands
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  bgp                     Show IPv6 BGP (Border Gateway Protocol)...
+  dhcp-relay              Show IPv6 DHCP relay information
+  dhcp-snooping           Show IPv6 DHCP snooping information
+  interfaces              Show interfaces IPv6 address
+  prefix-list             show ip prefix-list
+  protocol                Show IPv6 protocol information
+  route                   Show IPv6 routing table
+  static-anycast-gateway  Show sag commands
+@@@ show ipv6 bgp
+Usage: show ipv6 bgp [OPTIONS] COMMAND [ARGS]...
+
+  Show IPv6 BGP (Border Gateway Protocol) information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  neighbors  Show IPv6 BGP neighbors
+  network    Show BGP ipv6 network
+  summary    Show summarized information of IPv6 BGP state
+@@@ show ipv6 dhcp-relay
+Usage: show ipv6 dhcp-relay [OPTIONS] COMMAND [ARGS]...
+
+  Show IPv6 DHCP relay information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  brief       Show IPv6 DHCP relay information
+  detailed    Show detailed DHCP Relay configuration
+  statistics  Show IPv6 DHCP relay statistics
+@@@ show ipv6 dhcp-snooping
+Usage: show ipv6 dhcp-snooping [OPTIONS] COMMAND [ARGS]...
+
+  Show IPv6 DHCP snooping information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  binding     Show IPv6 DHCP snooping binding information
+  statistics  Show IPv6 DHCP snooping statistics information
+@@@ show ipv6 interfaces
+Usage: show ipv6 interfaces [OPTIONS]
+
+  Show interfaces IPv6 address
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show ipv6 prefix-list
+Usage: show ipv6 prefix-list [OPTIONS] [PREFIX_LIST_NAME]
+
+  show ip prefix-list
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show ipv6 protocol
+Usage: show ipv6 protocol [OPTIONS]
+
+  Show IPv6 protocol information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show ipv6 route
+Usage: show ipv6 route [OPTIONS] [IPADDRESS] [vrf <vrf_name>] [...]
+
+  Show IPv6 routing table
+
+Options:
+  -d, --display TEXT    all|frontend
+  -n, --namespace TEXT  Namespace name or all
+  --verbose             Enable verbose output
+  -h, -?, --help        Show this message and exit.
+@@@ show ipv6 static-anycast-gateway
+Usage: show ipv6 static-anycast-gateway [OPTIONS] [INTERFACE_NAME]
+
+  Show sag commands
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show kdump
+Usage: show kdump [OPTIONS] COMMAND [ARGS]...
+
+  Show kdump configuration, status and information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  enabled    Show if kdump is enabled or disabled
+  files      Show kdump kernel core dump files
+  log        Show kdump kernel core dump file kernel log
+  memory     Show kdump memory information
+  num-dumps  Show kdump max number of dump files
+  status     Show kdump status
+@@@ show kdump enabled
+Usage: show kdump enabled [OPTIONS]
+
+  Show if kdump is enabled or disabled
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show kdump files
+Usage: show kdump files [OPTIONS]
+
+  Show kdump kernel core dump files
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show kdump log
+Usage: show kdump log [OPTIONS] RECORD <lines>
+
+  Show kdump kernel core dump file kernel log
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show kdump memory
+Usage: show kdump memory [OPTIONS]
+
+  Show kdump memory information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show kdump num-dumps
+Usage: show kdump num-dumps [OPTIONS]
+
+  Show kdump max number of dump files
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show kdump status
+Usage: show kdump status [OPTIONS]
+
+  Show kdump status
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show knet
+Usage: show knet [OPTIONS] COMMAND [ARGS]...
+
+  Show knet info
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  stats  Show knet pkt statistics
+@@@ show knet stats
+This command applies only to broadcom devices
+@@@ show kubernetes
+Usage: show kubernetes [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  labels
+  server  Server configuration
+@@@ show kubernetes labels
+Usage: show kubernetes labels [OPTIONS]
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show kubernetes server
+Usage: show kubernetes server [OPTIONS] COMMAND [ARGS]...
+
+  Server configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  config  Show kube configuration
+  status  Show kube configuration
+@@@ show ldap
+Usage: show ldap [OPTIONS]
+
+  Show LDAP configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show line
+Usage: show line [OPTIONS]
+
+  Show all console lines and their info include available ttyUSB devices
+  unless specified brief mode
+
+Options:
+  -b, --brief
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show linktrack
+Usage: show linktrack [OPTIONS] COMMAND [ARGS]...
+
+  Show link state tracking information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  group    Show details of the link state tracking group
+  summary  Show summary of all tracking groups
+@@@ show linktrack group
+Usage: show linktrack group [OPTIONS] <name>
+
+  Show details of the link state tracking group
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show linktrack summary
+Usage: show linktrack summary [OPTIONS]
+
+  Show summary of all tracking groups
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show lldp
+Usage: show lldp [OPTIONS] COMMAND [ARGS]...
+
+  LLDP (Link Layer Discovery Protocol) information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  neighbors   Show LLDP neighbors
+  statistics  Show LLDP statistics
+  table       Show LLDP neighbors in tabular format
+@@@ show lldp neighbors
+Usage: show lldp neighbors [OPTIONS] [INTERFACENAME]
+
+  Show LLDP neighbors
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show lldp statistics
+Usage: show lldp statistics [OPTIONS] [INTERFACENAME]
+
+  Show LLDP statistics
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show lldp table
+Usage: show lldp table [OPTIONS]
+
+  Show LLDP neighbors in tabular format
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show locator-led
+Usage: show locator-led [OPTIONS] COMMAND [ARGS]...
+
+  Show Locator LED State
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  chassis  Show Locator Chassis LED State
+@@@ show locator-led chassis
+Usage: show locator-led chassis [OPTIONS]
+
+  Show Locator Chassis LED State
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show logging
+Usage: show logging [OPTIONS] [PROCESS]
+
+  Show system log
+
+Options:
+  -l, --lines TEXT
+  -f, --follow
+  --since TEXT                    Show logs since given date
+  --level [DEBUG|INFO|WARNING|NOTICE|ERR|CRIT]
+                                  Show logs with given severity and higher
+  --verbose                       Enable verbose output
+  -s, --syslog                    Show syslog logs
+  -i, --inmem                     Show in-memory logs
+  -a, --all                       Show both syslog and in-memory logs
+  --severity [DEBUG|INFO|WARNING|NOTICE|ERR|CRIT]
+                                  Show logs with given severity
+  -?, -h, --help                  Show this message and exit.
+@@@ show mac
+Usage: show mac [OPTIONS] COMMAND [ARGS]...
+
+  Show MAC (FDB) entries
+
+Options:
+  -v, --vlan TEXT
+  -p, --port TEXT
+  --verbose        Enable verbose output
+  -h, -?, --help   Show this message and exit.
+
+Commands:
+  aging-time                    Show MAC Aging-Time
+  count                         Show MAC count
+  dampening-disabled-ports      Show MAC Move Dampening Disabled ports
+  dampening-threshold           Show MAC Move Dampening Threshold
+  dampening-threshold-interval  Show MAC Move Dampening Threshold Interval
+@@@ show mac aging-time
+Usage: show mac aging-time [OPTIONS]
+
+  Show MAC Aging-Time
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show mac count
+Usage: show mac count [OPTIONS]
+
+  Show MAC count
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show mac dampening-disabled-ports
+Usage: show mac dampening-disabled-ports [OPTIONS]
+
+  Show MAC Move Dampening Disabled ports
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show mac dampening-threshold
+Usage: show mac dampening-threshold [OPTIONS]
+
+  Show MAC Move Dampening Threshold
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show mac dampening-threshold-interval
+Usage: show mac dampening-threshold-interval [OPTIONS]
+
+  Show MAC Move Dampening Threshold Interval
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show management
+Usage: show management [OPTIONS] COMMAND [ARGS]...
+
+  Show management interface-related information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  interface  Show management interface addresses
+  port       Show management ports
+@@@ show management interface
+Usage: show management interface [OPTIONS]
+
+  Show management interface addresses
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show management port
+Usage: show management port [OPTIONS]
+
+  Show management ports
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show management-interface
+Usage: show management-interface [OPTIONS] COMMAND [ARGS]...
+
+  Show management interface parameters
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  address  Show IP address configured for management interface
+@@@ show management-interface address
+Usage: show management-interface address [OPTIONS]
+
+  Show IP address configured for management interface
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show management_interface
+Usage: show management_interface [OPTIONS] COMMAND [ARGS]...
+
+  Show management interface parameters
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  address  Show IP address configured for management interface
+@@@ show management_interface address
+Usage: show management_interface address [OPTIONS]
+
+  Show IP address configured for management interface
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show mgmt-vrf
+Usage: show mgmt-vrf [OPTIONS] [[routes]] COMMAND [ARGS]...
+
+  Show management VRF attributes
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show mirror-session
+Usage: show mirror-session [OPTIONS] [SESSION_NAME]
+
+  Show existing everflow sessions
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show mmu
+Usage: show mmu [OPTIONS]
+
+  Show mmu configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show muxcable
+Usage: show muxcable [OPTIONS] COMMAND [ARGS]...
+
+  SONiC command line - 'show muxcable' command
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  config  Show muxcable config information
+  status  Show muxcable status information
+@@@ show muxcable config
+Usage: show muxcable config [OPTIONS] [PORT]
+
+  Show muxcable config information
+
+Options:
+  --json          display the output in json format
+  -h, -?, --help  Show this message and exit.
+@@@ show muxcable status
+Usage: show muxcable status [OPTIONS] [PORT]
+
+  Show muxcable status information
+
+Options:
+  --json          display the output in json format
+  -h, -?, --help  Show this message and exit.
+@@@ show nat
+Usage: show nat [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the nat
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  config        Show NAT config related information
+  statistics    Show NAT statistics
+  translations  Show NAT translations
+@@@ show nat config
+Usage: show nat config [OPTIONS] COMMAND [ARGS]...
+
+  Show NAT config related information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  bindings      Show NAT binding configuration
+  globalvalues  Show NAT Global configuration
+  pool          Show NAT Pool configuration
+  static        Show static NAT configuration
+  zones         Show NAT Zone configuration
+@@@ show nat statistics
+Usage: show nat statistics [OPTIONS]
+
+  Show NAT statistics
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show nat translations
+Usage: show nat translations [OPTIONS] COMMAND [ARGS]...
+
+  Show NAT translations
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  count  Show NAT translations count
+@@@ show ndp
+Usage: show ndp [OPTIONS] [IP6ADDRESS]
+
+  Show IPv6 Neighbour table
+
+Options:
+  -if, --iface TEXT  Neigbhors learned on specific L3 interface
+  -vrf, --vrf TEXT   Neigbhors learned on specific VRF
+  --verbose          Enable verbose output
+  -nud, --nud TEXT   State of Neighbor entry
+  -t, --timeout      Neighbor refresh timeout value in secs
+  -?, -h, --help     Show this message and exit.
+@@@ show neigh-suppress
+Usage: show neigh-suppress [OPTIONS] COMMAND [ARGS]...
+
+  show neigh_suppress
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all   Show neigh_suppress all
+  vlan  Show neigh_suppress vlan
+@@@ show neigh-suppress all
+Usage: show neigh-suppress all [OPTIONS]
+
+  Show neigh_suppress all
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show neigh-suppress vlan
+Usage: show neigh-suppress vlan [OPTIONS] <vid>
+
+  Show neigh_suppress vlan
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show ntp
+Usage: show ntp [OPTIONS]
+
+  Show NTP information
+
+Options:
+  --verbose       Enable verbose output
+  --detail        Enable detail output
+  -?, -h, --help  Show this message and exit.
+@@@ show pfc
+Usage: show pfc [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the priority-flow-control (pfc)
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  asymmetric  Show asymmetric pfc
+  counters    Show pfc counters
+  priority    Show pfc priority
+@@@ show pfc asymmetric
+Usage: show pfc asymmetric [OPTIONS] [INTERFACE]
+
+  Show asymmetric pfc
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show pfc counters
+Usage: show pfc counters [OPTIONS]
+
+  Show pfc counters
+
+Options:
+  -d, --display [all]  Show internal interfaces  [default: all]
+  -n, --namespace []   Namespace name or all
+  --verbose            Enable verbose output
+  -?, -h, --help       Show this message and exit.
+@@@ show pfc priority
+Usage: show pfc priority [OPTIONS] [INTERFACE]
+
+  Show pfc priority
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show pfcwd
+Usage: show pfcwd [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the pfc watchdog
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  config  Show pfc watchdog config
+  stats   Show pfc watchdog stats
+@@@ show pfcwd config
+Usage: show pfcwd config [OPTIONS]
+
+  Show pfc watchdog config
+
+Options:
+  -d, --display [all]  Show internal interfaces  [default: all]
+  -n, --namespace []   Namespace name or all
+  --verbose            Enable verbose output
+  -h, -?, --help       Show this message and exit.
+@@@ show pfcwd stats
+Usage: show pfcwd stats [OPTIONS]
+
+  Show pfc watchdog stats
+
+Options:
+  -d, --display [all]  Show internal interfaces  [default: all]
+  -n, --namespace []   Namespace name or all
+  --verbose            Enable verbose output
+  -?, -h, --help       Show this message and exit.
+@@@ show platform
+Usage: show platform [OPTIONS] COMMAND [ARGS]...
+
+  Show platform-specific hardware info
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  fan          Show fan status information
+  firmware     Show firmware information
+  i2c          Show device's I2C information
+  pcieinfo     Show listed PCIe device info
+  psustatus    Show PSU status information
+  psusummary   Show PSU summary information
+  sbstatus     Show system secureboot status information
+  ssdhealth    Show SSD Health information
+  summary      Show hardware platform information
+  syseeprom    Show system EEPROM information
+  temperature  Show device temperature information
+@@@ show platform fan
+Usage: show platform fan [OPTIONS]
+
+  Show fan status information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show platform firmware
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/dist-packages/fwutil/__init__.py", line 2, in <module>
+    from sonic_platform.platform import Platform
+ModuleNotFoundError: No module named 'sonic_platform'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/bin/fwutil", line 5, in <module>
+    from fwutil.main import cli
+  File "/usr/local/lib/python3.9/dist-packages/fwutil/__init__.py", line 5, in <module>
+    raise ImportError("Required module not found: {}".format(str(e)))
+ImportError: Required module not found: No module named 'sonic_platform'
+@@@ show platform i2c
+Usage: show platform i2c [OPTIONS] COMMAND [ARGS]...
+
+  Show device's I2C information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  errors  Show device's I2C errors information
+@@@ show platform pcieinfo
+Usage: show platform pcieinfo [OPTIONS]
+
+  Show listed PCIe device info
+
+Options:
+  --verbose       Enable verbose output
+  -a, --all       Show all PCIe device info
+  -c, --check     Check the listed PCIe device
+  -h, -?, --help  Show this message and exit.
+@@@ show platform psustatus
+Usage: show platform psustatus [OPTIONS]
+
+  Show PSU status information
+
+Options:
+  -i, --index INTEGER  the index of PSU
+  --verbose            Enable verbose output
+  -?, -h, --help       Show this message and exit.
+@@@ show platform psusummary
+Usage: show platform psusummary [OPTIONS]
+
+  Show PSU summary information
+
+Options:
+  -i, --index INTEGER  the index of PSU
+  --verbose            Enable verbose output
+  -?, -h, --help       Show this message and exit.
+@@@ show platform sbstatus
+Usage: show platform sbstatus [OPTIONS]
+
+  Show system secureboot status information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show platform ssdhealth
+Usage: show platform ssdhealth [OPTIONS] [DEVICE]
+
+  Show SSD Health information
+
+Options:
+  --verbose       Enable verbose output
+  --vendor        Enable vendor specific output
+  -?, -h, --help  Show this message and exit.
+@@@ show platform summary
+Usage: show platform summary [OPTIONS]
+
+  Show hardware platform information
+
+Options:
+  --json          JSON output
+  -h, -?, --help  Show this message and exit.
+@@@ show platform syseeprom
+Usage: show platform syseeprom [OPTIONS]
+
+  Show system EEPROM information
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show platform temperature
+Usage: show platform temperature [OPTIONS]
+
+  Show device temperature information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show policer
+Usage: show policer [OPTIONS] [POLICER_NAME]
+
+  Show existing policers
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show policy
+Usage: show policy [OPTIONS] [NAME]
+
+  Show flow based services policies related information
+
+Options:
+  -f, --flow <flow>  Show information only for flow identified by classifier
+  -t, --type <type>  Policy type (qos or monitoring)
+  -?, -h, --help     Show this message and exit.
+@@@ show portgroup
+Usage: show portgroup [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the portgroup
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show priority-group
+Usage: show priority-group [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the PGs
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  persistent-watermark  Show priority-group persistent WM
+  threshold             Show priority group threshold config
+  watermark             Show priority-group user WM
+@@@ show priority-group persistent-watermark
+Usage: show priority-group persistent-watermark [OPTIONS] COMMAND [ARGS]...
+
+  Show priority-group persistent WM
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  headroom  Show persistent headroom WM for pg
+  shared    Show persistent shared WM for pg
+@@@ show priority-group threshold
+Usage: show priority-group threshold [OPTIONS] COMMAND [ARGS]...
+
+  Show priority group threshold config
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  headroom  Show headroom threshold config for pg
+  shared    Show shared threshold config for pg
+@@@ show priority-group watermark
+Usage: show priority-group watermark [OPTIONS] COMMAND [ARGS]...
+
+  Show priority-group user WM
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  headroom  Show user headroom WM for pg
+  shared    Show user shared WM for pg
+@@@ show processes
+Usage: show processes [OPTIONS] COMMAND [ARGS]...
+
+  Display process information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  cpu      Show processes CPU info
+  memory   Show processes memory info
+  summary  Show processes info
+@@@ show processes cpu
+Usage: show processes cpu [OPTIONS]
+
+  Show processes CPU info
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show processes memory
+Usage: show processes memory [OPTIONS]
+
+  Show processes memory info
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show processes summary
+Usage: show processes summary [OPTIONS]
+
+  Show processes info
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show queue
+Usage: show queue [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the queues
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  counters              Show queue counters
+  persistent-watermark  Show persistent WM for queues
+  threshold             Show queue threshold config
+  watermark             Show user WM for queues
+@@@ show queue counters
+Usage: show queue counters [OPTIONS] [INTERFACENAME]
+
+  Show queue counters
+
+Options:
+  -c, --clear
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show queue persistent-watermark
+Usage: show queue persistent-watermark [OPTIONS] COMMAND [ARGS]...
+
+  Show persistent WM for queues
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  CPU        Show persistent WM for CPU queues
+  multicast  Show persistent WM for multicast queues
+  unicast    Show persistent WM for unicast queues
+@@@ show queue threshold
+Usage: show queue threshold [OPTIONS] COMMAND [ARGS]...
+
+  Show queue threshold config
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  CPU        Show threshold config for CPU queues
+  multicast  Show threshold config for multicast queues
+  unicast    Show threshold config for unicast queues
+@@@ show queue watermark
+Usage: show queue watermark [OPTIONS] COMMAND [ARGS]...
+
+  Show user WM for queues
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  CPU        Show user WM for CPU queues
+  multicast  Show user WM for multicast queues
+  unicast    Show user WM for unicast queues
+@@@ show radius
+Usage: show radius [OPTIONS]
+
+  Show RADIUS configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show reboot-cause
+Usage: show reboot-cause [OPTIONS] COMMAND [ARGS]...
+
+  Show cause of most recent reboot
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  history  Show history of reboot-cause
+@@@ show reboot-cause history
+User issued 'reboot' command [User: admin, Time: Fri 25 Sep 2026 07:15:22 AM UTC]
+Usage: show reboot-cause history [OPTIONS]
+
+  Show history of reboot-cause
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show rest-server
+Usage: show rest-server [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  logs  Show REST server log
+@@@ show rest-server logs
+Usage: show rest-server logs [OPTIONS]
+
+  Show REST server log
+
+Options:
+  -l, --lines TEXT
+  -f, --follow
+  --verbose         Enable verbose output
+  -?, -h, --help    Show this message and exit.
+@@@ show route-map
+Usage: show route-map [OPTIONS] [ROUTE_MAP_NAME]
+
+  show route-map
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show runningconfiguration
+Usage: show runningconfiguration [OPTIONS] COMMAND [ARGS]...
+
+  Show current running configuration information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all            Show full running configuration
+  bgp            Show BGP running configuration
+  interfaces     Show interfaces running configuration
+  ntp            Show NTP running configuration
+  snmp           Show SNMP information
+  spanning-tree  Show spanning_tree running configuration
+  syslog         Show syslog running configuration
+@@@ show runningconfiguration all
+Usage: show runningconfiguration all [OPTIONS]
+
+  Show full running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show runningconfiguration bgp
+Usage: show runningconfiguration bgp [OPTIONS]
+
+  Show BGP running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show runningconfiguration interfaces
+Usage: show runningconfiguration interfaces [OPTIONS] [INTERFACENAME]
+
+  Show interfaces running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show runningconfiguration ntp
+Usage: show runningconfiguration ntp [OPTIONS]
+
+  Show NTP running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show runningconfiguration snmp
+Usage: show runningconfiguration snmp [OPTIONS] [SERVER]
+
+  Show SNMP information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show runningconfiguration spanning-tree
+Usage: show runningconfiguration spanning-tree [OPTIONS]
+
+  Show spanning_tree running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show runningconfiguration syslog
+Usage: show runningconfiguration syslog [OPTIONS]
+
+  Show syslog running configuration
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show service-policy
+Usage: show service-policy [OPTIONS] COMMAND [ARGS]...
+
+  Show applied policies information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  interface  Show details by interface name
+  policy     Show details by policies name
+  summary    Show summary of applied flow based services policies
+@@@ show service-policy interface
+Usage: show service-policy interface [OPTIONS] <interface_name>
+
+  Show details by interface name
+
+Options:
+  -t, --type <type>    Policy type (qos or monitoring)
+  -s, --stage <stage>  Stage (in or out)
+  -c, --clear          Clear statistics
+  -?, -h, --help       Show this message and exit.
+@@@ show service-policy policy
+Usage: show service-policy policy [OPTIONS] <policy_name>
+
+  Show details by policies name
+
+Options:
+  -t, --type <type>    Policy type (qos)
+  -s, --stage <stage>  Stage (in or out)
+  -c, --clear          Clear statistics
+  -?, -h, --help       Show this message and exit.
+@@@ show service-policy summary
+Usage: show service-policy summary [OPTIONS]
+
+  Show summary of applied flow based services policies
+
+Options:
+  -i, --interface <interface>  Interface name
+  -t, --type <type>            Policy type (qos or monitoring)
+  -?, -h, --help               Show this message and exit.
+@@@ show services
+Usage: show services [OPTIONS]
+
+  Show all daemon services
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show sflow
+Usage: show sflow [OPTIONS] COMMAND [ARGS]...
+
+  Show sFlow related information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  interface  Show sFlow interface information
+@@@ show sflow interface
+Usage: show sflow interface [OPTIONS]
+
+  Show sFlow interface information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show snmpagentaddress
+Usage: show snmpagentaddress [OPTIONS] COMMAND [ARGS]...
+
+  Show SNMP agent listening IP address configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show snmptrap
+Usage: show snmptrap [OPTIONS] COMMAND [ARGS]...
+
+  Show SNMP agent Trap server configuration
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show spanning_tree
+Usage: show spanning_tree [OPTIONS] COMMAND [ARGS]...
+
+  Show spanning_tree commands
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  bpdu_guard  Show spanning_tree bpdu_guard
+  root_guard  Show spanning_tree root_guard
+  statistics  Show spanning_tree statistics
+  vlan        Show spanning_tree vlan <vlanid> information
+@@@ show spanning_tree bpdu_guard
+Spanning-tree is not configured
+Usage: show spanning_tree bpdu_guard [OPTIONS]
+
+  Show spanning_tree bpdu_guard
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show spanning_tree root_guard
+Spanning-tree is not configured
+Usage: show spanning_tree root_guard [OPTIONS]
+
+  Show spanning_tree root_guard
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show spanning_tree statistics
+Spanning-tree is not configured
+Usage: show spanning_tree statistics [OPTIONS] COMMAND [ARGS]...
+
+  Show spanning_tree statistics
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  vlan  Show spanning_tree statistics vlan
+@@@ show spanning_tree vlan
+Spanning-tree is not configured
+Usage: show spanning_tree vlan [OPTIONS] <vlanid> COMMAND [ARGS]...
+
+  Show spanning_tree vlan <vlanid> information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  interface  Show spanning_tree vlan interface <vlanid> <ifname> information
+@@@ show ssh-server
+Usage: show ssh-server [OPTIONS] COMMAND [ARGS]...
+
+  Show ssh server vrfs
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  vrfs  Show ssh server vrfs
+@@@ show ssh-server vrfs
+Usage: show ssh-server vrfs [OPTIONS]
+
+  Show ssh server vrfs
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show startupconfiguration
+Usage: show startupconfiguration [OPTIONS] COMMAND [ARGS]...
+
+  Show startup configuration information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  bgp  Show BGP startup configuration
+@@@ show startupconfiguration bgp
+Usage: show startupconfiguration bgp [OPTIONS]
+
+  Show BGP startup configuration
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show storm-control
+Usage: show storm-control [OPTIONS] COMMAND [ARGS]...
+
+  show storm-control
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  all        Show storm-control
+  interface  Show storm-control
+@@@ show storm-control all
+Usage: show storm-control all [OPTIONS]
+
+  Show storm-control
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show storm-control interface
+Usage: show storm-control interface [OPTIONS] INTERFACENAME
+
+  Show storm-control
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show subinterfaces
+Usage: show subinterfaces [OPTIONS] COMMAND [ARGS]...
+
+  Show details of the sub port interfaces
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  status  Show sub port interface status information
+@@@ show subinterfaces status
+Usage: show subinterfaces status [OPTIONS] [SUBINTERFACENAME]
+
+  Show sub port interface status information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show switch-resource
+Usage: show switch-resource [OPTIONS] COMMAND [ARGS]...
+
+  Show switch resource data
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  drop-monitor  Show drop_monitor flowscale setting
+@@@ show switch-resource drop-monitor
+Usage: show switch-resource drop-monitor [OPTIONS]
+
+  Show drop_monitor flowscale setting
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show syslog
+Usage: show syslog [OPTIONS] COMMAND [ARGS]...
+
+  Show Syslog server configuration
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  server  Show syslog configDB configuration
+@@@ show syslog server
+Usage: show syslog server [OPTIONS]
+
+  Show syslog configDB configuration
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show system
+Usage: show system [OPTIONS] COMMAND [ARGS]...
+
+  Show system status
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  status  Shows the system ready status
+@@@ show system status
+Usage: show system status [OPTIONS] COMMAND [ARGS]...
+
+  Shows the system ready status
+
+Options:
+  -q, --quiet     quiet mode
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  brief   Shows the brief system ready status
+  detail  Shows the detailed system ready status
+@@@ show system-health
+Usage: show system-health [OPTIONS] COMMAND [ARGS]...
+
+  SONiC command line - 'show system-health' command
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  detail        Show system-health detail information
+  monitor-list  Show system-health monitored services and devices name list
+  summary       Show system-health summary information
+@@@ show system-health detail
+Usage: show system-health detail [OPTIONS]
+
+  Show system-health detail information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show system-health monitor-list
+Usage: show system-health monitor-list [OPTIONS]
+
+  Show system-health monitored services and devices name list
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show system-health summary
+Usage: show system-health summary [OPTIONS]
+
+  Show system-health summary information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show system-memory
+Usage: show system-memory [OPTIONS]
+
+  Show memory information
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show tacacs
+Usage: show tacacs [OPTIONS]
+
+  Show TACACS+ configuration
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show techsupport
+Usage: show techsupport [OPTIONS]
+
+  Gather information for troubleshooting
+
+Options:
+  --since TEXT                  Collect logs and core files since given date
+  -g, --global-timeout INTEGER  Global timeout for techsupport in minutes.
+                                Default 60 mins
+  -c, --cmd-timeout INTEGER     Command timeout for techsupport in minutes.
+                                Default 10 mins
+  --verbose                     Enable verbose output
+  --silent                      Run techsupport in verbose mode
+  --allow-process-stop          Dump additional data which may require system
+                                interruption
+  -h, -?, --help                Show this message and exit.
+@@@ show threshold
+Usage: show threshold [OPTIONS] COMMAND [ARGS]...
+
+  Show threshold breaches
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  breaches  Show threshold breaches
+@@@ show threshold breaches
+Usage: show threshold breaches [OPTIONS] <count>
+
+  Show threshold breaches
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show uptime
+Usage: show uptime [OPTIONS]
+
+  Show system uptime
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show usb
+Usage: show usb [OPTIONS] COMMAND [ARGS]...
+
+  Show usb auto detection configuration and attached devices information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  devices     Show attached usb devices information
+  partitions  Show available usb device partitions information
+  status      Show usb auto detection configuration and mounted usb...
+@@@ show usb devices
+Usage: show usb devices [OPTIONS]
+
+  Show attached usb devices information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show usb partitions
+Usage: show usb partitions [OPTIONS]
+
+  Show available usb device partitions information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show usb status
+Usage: show usb status [OPTIONS]
+
+  Show usb auto detection configuration and mounted usb partitions
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show users
+Usage: show users [OPTIONS]
+
+  Show users
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show version
+Usage: show version [OPTIONS]
+
+  Show version information
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show vlan
+Usage: show vlan [OPTIONS] COMMAND [ARGS]...
+
+  Show VLAN information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  brief   Show all bridge information
+  config
+  count   Show Vlan count
+  id      Show Vlan Information
+@@@ show vlan brief
+Usage: show vlan brief [OPTIONS]
+
+  Show all bridge information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show vlan config
+Usage: show vlan config [OPTIONS]
+
+Options:
+  -s, --redis-unix-socket-path TEXT
+                                  unix socket path for redis connection
+  -h, -?, --help                  Show this message and exit.
+@@@ show vlan count
+Usage: show vlan count [OPTIONS]
+
+  Show Vlan count
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show vlan id
+Usage: show vlan id [OPTIONS] VLANID
+
+  Show Vlan Information
+
+Options:
+  --verbose       Enable verbose output
+  -?, -h, --help  Show this message and exit.
+@@@ show vnet
+Usage: show vnet [OPTIONS] COMMAND [ARGS]...
+
+  Show vnet related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  alias       Show vnet alias to name information
+  brief       Show vnet brief information
+  interfaces  Show vnet interfaces information
+  name        Show vnet name <vnet name> information
+  neighbors   Show vnet neighbors information
+  routes      Show vnet routes related information
+@@@ show vnet alias
+Usage: show vnet alias [OPTIONS] [VNET_ALIAS]
+
+  Show vnet alias to name information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show vnet brief
+Usage: show vnet brief [OPTIONS]
+
+  Show vnet brief information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vnet interfaces
+Usage: show vnet interfaces [OPTIONS]
+
+  Show vnet interfaces information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vnet name
+Usage: show vnet name [OPTIONS] VNET_NAME
+
+  Show vnet name <vnet name> information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vnet neighbors
+Usage: show vnet neighbors [OPTIONS]
+
+  Show vnet neighbors information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vnet routes
+Usage: show vnet routes [OPTIONS] COMMAND [ARGS]...
+
+  Show vnet routes related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  all     Show all vnet routes
+  tunnel  Show vnet tunnel routes
+@@@ show vrf
+Usage: show vrf [OPTIONS] [VRF_NAME]
+
+  Show vrf commands
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.
+@@@ show vrrp
+Usage: show vrrp [OPTIONS] <interface_name> <vrid>
+
+  Show vrrp [interface <ifname> <vrid>] information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vrrp6
+Usage: show vrrp6 [OPTIONS] <interface_name> <vrid>
+
+  Show vrrp [interface <ifname> <vrid>] information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show vxlan
+Usage: show vxlan [OPTIONS] COMMAND [ARGS]...
+
+  Show vxlan related information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  counters    Show VxLAN counters
+  interface   Show VXLAN VTEP Information
+  remotemac   Show MACs pointing to the remote VTEP
+  remotevni   Show Vlans extended to the remote VTEP
+  remotevtep  Show All Remote VTEP Information
+  tunnel      Show All Remote VTEP Information
+  vlanvnimap  Show VLAN VNI Mapping Information
+  vrfvnimap   Show VRF VNI Mapping Information
+@@@ show vxlan counters
+Usage: show vxlan counters [OPTIONS] [TUNNEL]
+
+  Show VxLAN counters
+
+Options:
+  -p, --period TEXT
+  --verbose          Enable verbose output
+  -?, -h, --help     Show this message and exit.
+@@@ show vxlan interface
+Usage: show vxlan interface [OPTIONS]
+
+  Show VXLAN VTEP Information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vxlan remotemac
+Usage: show vxlan remotemac [OPTIONS] REMOTE_VTEP_IP [COUNT]
+
+  Show MACs pointing to the remote VTEP
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vxlan remotevni
+Usage: show vxlan remotevni [OPTIONS] REMOTE_VTEP_IP [COUNT]
+
+  Show Vlans extended to the remote VTEP
+
+Options:
+  -?, -h, --help  Show this message and exit.
+@@@ show vxlan remotevtep
+Usage: show vxlan remotevtep [OPTIONS] [COUNT]
+
+  Show All Remote VTEP Information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vxlan tunnel
+Usage: show vxlan tunnel [OPTIONS] [COUNT]
+
+  Show All Remote VTEP Information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vxlan vlanvnimap
+Usage: show vxlan vlanvnimap [OPTIONS] [COUNT]
+
+  Show VLAN VNI Mapping Information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show vxlan vrfvnimap
+Usage: show vxlan vrfvnimap [OPTIONS]
+
+  Show VRF VNI Mapping Information
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show warm_restart
+Usage: show warm_restart [OPTIONS] COMMAND [ARGS]...
+
+  Show warm restart configuration and state
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  check   Show warm restart check
+  config  Show warm restart config
+  state   Show warm restart state
+  system  Show warm restart system state
+@@@ show warm_restart check
+Usage: show warm_restart check [OPTIONS]
+
+  Show warm restart check
+
+Options:
+  -s, --redis-unix-socket-path TEXT
+                                  unix socket path for redis connection
+  -h, -?, --help                  Show this message and exit.
+@@@ show warm_restart config
+Usage: show warm_restart config [OPTIONS]
+
+  Show warm restart config
+
+Options:
+  -s, --redis-unix-socket-path TEXT
+                                  unix socket path for redis connection
+  -h, -?, --help                  Show this message and exit.
+@@@ show warm_restart state
+Usage: show warm_restart state [OPTIONS]
+
+  Show warm restart state
+
+Options:
+  -s, --redis-unix-socket-path TEXT
+                                  unix socket path for redis connection
+  -?, -h, --help                  Show this message and exit.
+@@@ show warm_restart system
+Usage: show warm_restart system [OPTIONS]
+
+  Show warm restart system state
+
+Options:
+  -s, --redis-unix-socket-path TEXT
+                                  unix socket path for redis connection
+  -?, -h, --help                  Show this message and exit.
+@@@ show watermark
+Usage: show watermark [OPTIONS] COMMAND [ARGS]...
+
+  Show details of watermark
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  interval   Show watermark interval
+  telemetry  Show watermark telemetry info
+@@@ show watermark interval
+Usage: show watermark interval [OPTIONS]
+
+  Show watermark interval
+
+Options:
+  -h, -?, --help  Show this message and exit.
+@@@ show watermark telemetry
+Usage: show watermark telemetry [OPTIONS] COMMAND [ARGS]...
+
+  Show watermark telemetry info
+
+Options:
+  -h, -?, --help  Show this message and exit.
+
+Commands:
+  interval  Show telemetry interval
+@@@ show ztp
+Usage: show ztp [OPTIONS] [[status]]
+
+  Show Zero Touch Provisioning status
+
+Options:
+  --verbose       Enable verbose output
+  -h, -?, --help  Show this message and exit.

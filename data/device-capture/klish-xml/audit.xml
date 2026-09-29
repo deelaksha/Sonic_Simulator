@@ -1,0 +1,110 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <PTYPE name="AUDIT_SHOW_TYPE" method="select" pattern="all(all)" help=""/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <!-- show audit-log -->
+    <COMMAND name="show audit-log" access="secadmin" help="Display audit log" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="stype" help="Display all of audit log" ptype="AUDIT_SHOW_TYPE" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_audit_log_rpc rpc_sonic_auditlog_get_auditlog ${stype} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- clear audit-log -->
+    <COMMAND name="clear audit-log" access="secadmin" help="Clear audit log">
+      <ACTION builtin="clish_pyobj"> sonic_cli_audit_log_rpc rpc_sonic_auditlog_clear_auditlog </ACTION>
+    </COMMAND>
+    <COMMAND name="show auditd-system" access="secadmin" help="Display settings and parameters for auditd, a kernel auditing application"/>
+    <COMMAND name="show auditd-system rules" access="secadmin" help="Display kernel audit rules for the auditd application" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION builtin="clish_pyobj"> sonic_cli_audit_log_rpc rpc_sonic_auditd_system_rules </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Display kernel audit rules for the auditd application. It shows the selected profile 
+                 and the list of rules configured in the kernel for this profile.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show auditd-system rules
+             </USAGE>
+        <EXAMPLE>
+                 sonic# show auditd-system rules
+                 -------------------------------------------------------------------------
+                 Audit rules profile:  basic
+                 -------------------------------------------------------------------------
+                 -w /var/run/utmp -p wa -k session
+                 -w /var/log/btmp -p wa -k session
+                 -w /var/log/wtmp -p wa -k session
+                 sonic#
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show auditd-system log" access="secadmin" help="Display kernel audit log for the auditd application" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="stype" help="Display all of audit log" ptype="AUDIT_SHOW_TYPE" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_audit_log_rpc rpc_sonic_auditd_system_log ${stype} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Display kernel audit log for the auditd application. By default it shows the last 20 
+                 lines of log.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show auditd-system log
+             </USAGE>
+        <EXAMPLE>
+                 sonic# show auditd-system log
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- auditd system-->
+    <COMMAND name="auditd-system" access="secadmin" command_tables="sonic-auditlog:sonic-auditlog/AUDITD_SYSTEM/global" render_command_cb="auditd_global" help="Configure kernel audit settings specific to the auditd application"/>
+    <COMMAND name="auditd-system rules" access="secadmin" help="Configure kernel audit rules specific to the auditd application">
+      <PARAM name="rule-profiles" help="rule-profiles" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="basic" help="Rules to monitor sessions and package updates" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="detail" help="Rules to monitor sessions,packages,users,groups,cron jobs,kernel modules,configuration files" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="custom" help="Install custom rules. User to copy the rules file to config://auditd-custom.rules prior to executing this command" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_auditd_system set_rules ${rule-profiles}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure kernel audit rules specific to the auditd application.
+         The rules are configured as a profile. Each profile defines a set of rules.
+         These rules are configured in the kernel. 
+         Two profiles are available: basic and detail.
+         The detail profile encompasses the basic rules along with additional ones.
+       </DESCRIPTION>
+        <USAGE>
+         sonic# auditd-system rules [basic | detail]
+       </USAGE>
+        <EXAMPLE>
+         sonic# configure terminal
+         sonic(config)# auditd-system rules detail
+       </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no auditd-system" access="secadmin" help="Delete auditd-specific rules"/>
+    <COMMAND name="no auditd-system rules" access="secadmin" help="Delete auditd-specific rules">
+      <ACTION builtin="clish_pyobj">sonic_cli_auditd_system clear_rules None</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Delete all auditd specific rules from the kernel audit system.
+       </DESCRIPTION>
+        <USAGE>
+           sonic(config)# no auditd-system rules
+       </USAGE>
+        <EXAMPLE>
+           sonic(config)# no auditd-system rules      
+       </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

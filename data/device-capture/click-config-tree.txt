@@ -1,0 +1,154 @@
+@@@ config aaa
+Root privileges are required for this operation
+@@@ config acl
+Root privileges are required for this operation
+@@@ config bgp
+Root privileges are required for this operation
+@@@ config buffer
+Root privileges are required for this operation
+@@@ config buffer-pool
+Root privileges are required for this operation
+@@@ config chassis-modules
+Root privileges are required for this operation
+@@@ config classifier
+Root privileges are required for this operation
+@@@ config console
+Root privileges are required for this operation
+@@@ config copp
+Root privileges are required for this operation
+@@@ config core
+Root privileges are required for this operation
+@@@ config custom-assert
+Root privileges are required for this operation
+@@@ config dns
+Root privileges are required for this operation
+@@@ config dropcounters
+Root privileges are required for this operation
+@@@ config erase
+Root privileges are required for this operation
+@@@ config errdisable
+Root privileges are required for this operation
+@@@ config error-handling
+Root privileges are required for this operation
+@@@ config export
+Root privileges are required for this operation
+@@@ config feature
+Root privileges are required for this operation
+@@@ config flow
+Root privileges are required for this operation
+@@@ config hardware
+Root privileges are required for this operation
+@@@ config hostname
+Root privileges are required for this operation
+@@@ config igmp_snooping
+Root privileges are required for this operation
+@@@ config interface
+Root privileges are required for this operation
+@@@ config interface_naming_mode
+Root privileges are required for this operation
+@@@ config ip
+Root privileges are required for this operation
+@@@ config ipv6
+Root privileges are required for this operation
+@@@ config kdump
+Root privileges are required for this operation
+@@@ config kubernetes
+Root privileges are required for this operation
+@@@ config ldap
+Root privileges are required for this operation
+@@@ config linktrack
+Root privileges are required for this operation
+@@@ config load
+Root privileges are required for this operation
+@@@ config load_mgmt_config
+Root privileges are required for this operation
+@@@ config load_minigraph
+Root privileges are required for this operation
+@@@ config loopback
+Root privileges are required for this operation
+@@@ config mac
+Root privileges are required for this operation
+@@@ config management
+Root privileges are required for this operation
+@@@ config mclag
+Root privileges are required for this operation
+@@@ config mirror_session
+Root privileges are required for this operation
+@@@ config muxcable
+Root privileges are required for this operation
+@@@ config nat
+Root privileges are required for this operation
+@@@ config neigh_suppress
+Root privileges are required for this operation
+@@@ config ntp
+Root privileges are required for this operation
+@@@ config pfcwd
+Root privileges are required for this operation
+@@@ config platform
+Root privileges are required for this operation
+@@@ config policy
+Root privileges are required for this operation
+@@@ config portchannel
+Root privileges are required for this operation
+@@@ config portgroup
+Root privileges are required for this operation
+@@@ config priority-group
+Root privileges are required for this operation
+@@@ config profile
+Root privileges are required for this operation
+@@@ config qos
+Root privileges are required for this operation
+@@@ config queue
+Root privileges are required for this operation
+@@@ config radius
+Root privileges are required for this operation
+@@@ config reload
+Root privileges are required for this operation
+@@@ config route
+Root privileges are required for this operation
+@@@ config routing_config_mode
+Root privileges are required for this operation
+@@@ config save
+Root privileges are required for this operation
+@@@ config service-policy
+Root privileges are required for this operation
+@@@ config sflow
+Root privileges are required for this operation
+@@@ config snmpagentaddress
+Root privileges are required for this operation
+@@@ config snmptrap
+Root privileges are required for this operation
+@@@ config spanning_tree
+Root privileges are required for this operation
+@@@ config ssh-server
+Root privileges are required for this operation
+@@@ config subinterface
+Root privileges are required for this operation
+@@@ config switch-resource
+Root privileges are required for this operation
+@@@ config synchronous_mode
+Root privileges are required for this operation
+@@@ config syslog
+Root privileges are required for this operation
+@@@ config system
+Root privileges are required for this operation
+@@@ config tacacs
+Root privileges are required for this operation
+@@@ config tam-drop-monitor
+Root privileges are required for this operation
+@@@ config usb
+Root privileges are required for this operation
+@@@ config validate-config
+Root privileges are required for this operation
+@@@ config vlan
+Root privileges are required for this operation
+@@@ config vrf
+Root privileges are required for this operation
+@@@ config vxlan
+Root privileges are required for this operation
+@@@ config warm_restart
+Root privileges are required for this operation
+@@@ config watermark
+Root privileges are required for this operation
+@@@ config ztp
+Root privileges are required for this operation

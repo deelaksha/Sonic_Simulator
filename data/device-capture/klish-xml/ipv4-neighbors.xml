@@ -1,0 +1,424 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <PTYPE name="NEIGH_TIMEOUT" method="integer" pattern="60..14400" help="value in seconds"/>
+  <PTYPE name="NUM_LOCAL_NEIGH" method="integer" pattern="0..32000" help="number of reserved local neighbors"/>
+  <!--=======================================================-->
+  <!-- show/clear ip arp changes -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <!-- show ip arp <ip-addr> commands -->
+    <COMMAND help="Display ARP commands" name="show ip arp">
+      <PARAM name="vrf" help="Display ARP entries of the given VRF" mode="subcommand" optional="true" ptype="SUBCOMMAND">
+        <PARAM name="vrfname" help="Display ARP entries of the given VRF" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="vrfname" help="Display ARP entries of the given VRF" ptype="VRF_OR_DEFAULT"> </PARAM>
+          <PARAM name="mgmt" help="Display ARP entries of the management VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="all" help="Display ARP entries from all VRFs" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <PARAM name="filter" help="Filtering parameter 'ip' or 'mac-address'" optional="true" mode="switch" order="true" ptype="SUBCOMMAND">
+        <PARAM help="ARP entry for this IP address" name="ip-addr" ptype="IP_ADDR" optional="true"> </PARAM>
+        <PARAM name="mac-address" help="HW address" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM help="48 bit MAC address" name="mac-addr" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="summary" help="Summary of ARP entries" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv4 ip:${ip-addr} mac:${mac-addr} vrf:${vrfname} summary:${summary}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command displays ARP table entries. To filter the
+                 output, specify an interface, port channel, or VLAN, an IP address, a MAC
+                 address, or a combination of more than one value to match.  You can also
+                 display total number of ARP entries using 'summary' option.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show ip arp [interface { Ethernet &lt; port &gt; [summary] | PortChannel &lt; id &gt; [summary] | Vlan &lt; id &gt; [summary] }] [&lt; ipv4-address &gt;] [mac-address &lt; mac &gt;] [summary]
+             </USAGE>
+        <EXAMPLE summary="show ip arp information">
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 192.168.3.6     00:01:02:03:04:05   Vlan100           Ethernet4
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+        <EXAMPLE summary="show ip arp interface information">
+                 sonic# show ip arp interface Vlan 100
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.3.6     00:01:02:03:04:05   Vlan100          Ethernet4
+ 
+                 sonic# show ip arp interface Management 0
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+        <EXAMPLE summary="show ip arp ip information">
+                 sonic# show ip arp 192.168.1.4
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+             </EXAMPLE>
+        <EXAMPLE summary="show ip arp mac-address information">
+                 sonic# show ip arp mac-address 00:01:02:03:ab:cd
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show ip arp interface <intf> [summary] -->
+    <COMMAND help="ARP entries for this interface" name="show ip arp interface">
+      <PARAM name="iftype" help="interface type" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="phy-if-name" help="Select an interface" ptype="PHY_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="vlan-if-name" help="VLAN interface configuration" ptype="VLAN_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="po-if-name" help="PortChannel interface configuration" mode="subcommand" ptype="PO_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="phy-subif-name" help="Select an interface" ptype="PHY_PO_SUB_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="lo-if-name" help="Loopback Interface Configuration" ptype="LOOPBACK_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Management" help="Management Interface commands" ptype="MGMT_INTERFACE">
+          <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Vxlan" help="VXLAN configuration mode" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="vxlan-if-name" help="VTEP Name" ptype="STRING_63">
+            <PARAM help="Summary of ARP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${iftype}" = "Vxlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv4 intf:${iftype}${vxlan-if-name} summary:${summary}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv4 intf:${phy-if-name}${vlan-if-name}${phy-subif-name}${lo-if-name}${po-if-name}${Management} summary:${summary}
+ fi
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- clear ip arp -->
+    <COMMAND help="Clear IPv4 commands" access="netadmin" name="clear ip"> </COMMAND>
+    <!-- clear ip arp interface <intf> -->
+    <COMMAND help="Clear ARP entries for this interface" access="netadmin" name="clear ip arp interface">
+      <PARAM name="interface-switch" help="interface type" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="phy-if-name" help="Clear Ethernet interface ARP entries" ptype="PHY_INTERFACE"> </PARAM>
+        <PARAM name="subif-name" help="Clear Subinterface ARP entries" ptype="PHY_PO_SUB_INTERFACE"> </PARAM>
+        <PARAM name="mgmt-if-name" help="Clear Management interface ARP entries" ptype="MGMT_INTERFACE"> </PARAM>
+        <PARAM name="po-if-name" help="Clear PortChannel interface ARP entries" ptype="PO_INTERFACE"> </PARAM>
+        <PARAM name="vlan-if-name" help="Clear VLAN interface ARP entries" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_sonic_clear_neighbors family:IPv4 intf:${interface-switch} phyIf:${phy-if-name} subIf:${subif-name} mgmtIf:eth0 vlanIf:${vlan-if-name} poIf:${po-if-name}
+ </ACTION>
+    </COMMAND>
+    <!-- clear ip arp <ip> -->
+    <COMMAND help="Clear ARP commands" access="netadmin" name="clear ip arp">
+      <PARAM name="cleararp-subcommands" help="Clear ARP subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="ip-addr" help="IP address for which ARP record needs to be deleted" ptype="IP_ADDR" optional="true"> </PARAM>
+      </PARAM>
+      <PARAM name="vrf" help="Clear ARP entries of the given VRF" mode="subcommand" optional="true" ptype="SUBCOMMAND">
+        <PARAM name="vrfname" help="Clear ARP entries of the given VRF" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="vrfname" help="Clear ARP entries of the given VRF" ptype="VRF_NAME"> </PARAM>
+          <PARAM name="mgmt" help="Clear ARP entries of the management VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="all" help="Clear ARP entries from all VRFs" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_sonic_clear_neighbors family:IPv4 ip:${ip-addr} vrf:${vrfname}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 To delete dynamically learned IPv4 entries from the ARP table, use the clear ip
+                 arp command. To specify the entries to be deleted, enter an interface, port
+                 channel, or VLAN, an IPv4 address, or a combination to match.
+                 Use the show ip arp command to verify that the ARP entries have been deleted.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# clear ip arp [interface {Ethernet &lt; port-number &gt;| PortChannel &lt; number &gt;| Vlan &lt; vlan-id &gt;| Management &lt; port-number &gt;}] [&lt; ipv4-address &gt;]
+             </USAGE>
+        <EXAMPLE summary="clear ip arp information">
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 192.168.3.6     00:01:02:03:04:05   Vlan100           Ethernet4
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ip arp
+                 sonic# show ip arp
+                 sonic#
+              </EXAMPLE>
+        <EXAMPLE summary="clear ip arp interface information">
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 192.168.3.6     00:01:02:03:04:05   Vlan100           Ethernet4
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ip arp interface Vlan 100
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+              </EXAMPLE>
+        <EXAMPLE summary="clear ip arp ip information">
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.1.4     00:01:02:03:44:55   Ethernet8         -
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 192.168.3.6     00:01:02:03:04:05   Vlan100           Ethernet4
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ip arp 192.168.1.4
+                 sonic# show ip arp
+                 ---------------------------------------------------------------------
+                 Address         Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------
+                 192.168.2.4     00:01:02:03:ab:cd   PortChannel200    -
+                 192.168.3.6     00:01:02:03:04:05   Vlan100           Ethernet4
+                 10.11.48.254    00:01:e8:8b:44:71   eth0              -
+                 10.14.8.102     00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- ip arp timeout -->
+    <COMMAND name="ip arp" access="netadmin" help="Configure ARP" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" command_keys="name=Values">
+      <PARAM name="timeout" help="Set ARP timeout value" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="value" help="Timeout in seconds (default - 1800)" ptype="NEIGH_TIMEOUT" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv4_arp_timeout"> </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv4_arp_timeout ${value}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configures time in seconds for ARP cache entry to timeout.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure IPv4 ARP cache entry timeout.
+ 			</USAGE>
+        <EXAMPLE summary="Configure IPv4 ARP timeout">
+ 				sonic-cli(config)# ip arp timeout 200
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip arp timeout -->
+    <COMMAND name="no ip arp" access="netadmin" help="Unconfigure IPv4 ARP" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="timeout" help="Unset ARP timeout value (default - 1800)" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv4_arp_timeout 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigures ARP cache entry timeout value and sets it to Default Value.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure IPv4 ARP cache entry timeout.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure IPv4 ARP timeout">
+ 				sonic-cli(config)# no ip arp timeout
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ip drop-neighbor aging-time -->
+    <COMMAND name="ip drop-neighbor" access="netadmin" help="Configure IPv4 drop-neighbor" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" command_keys="name=Values">
+      <PARAM name="aging-time" help="IPv4 drop-neighbor aging-time in seconds (default - 300)" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="value" help="Aging-time in seconds" ptype="NEIGH_TIMEOUT" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv4_drop_neighbor_aging_time"> </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv4_drop_neighbor_aging ${value}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configures time in seconds for IPv4 drop-neighbor aging.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure IPv4 drop-neighbor aging-time.
+ 			</USAGE>
+        <EXAMPLE summary="Configure IPv4 drop-neighbor aging-time">
+ 				sonic-cli(config)# ip drop-neighbor aging-time 200
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip drop-neighbor aging-time -->
+    <COMMAND name="no ip drop-neighbor" access="netadmin" help="Unconfigure IPv4 drop-neighbor aging-time" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="aging-time" help="Unset IPv4 drop-neighbor aging-time value" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv4_drop_neighbor_aging 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigures IPv4 drop-neighbor aging and sets it to Default Value.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure IPv4 drop-neighbor aging-time.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure IPv4 drop-neighbor aging-time">
+ 				sonic-cli(config)# no ip drop-neighbor aging-time
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ipv6 drop-neighbor aging-time -->
+    <COMMAND name="ipv6 drop-neighbor" access="netadmin" help="Configure IPv6 drop-neighbor" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" command_keys="name=Values">
+      <PARAM name="aging-time" help="IPv6 drop-neighbor aging-time in seconds (default - 300)" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="value" help="Aging-time in seconds" ptype="NEIGH_TIMEOUT" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv6_drop_neighbor_aging_time"> </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv6_drop_neighbor_aging ${value}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configures time in seconds for IPv6 drop-neighbor aging.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure IPv6 drop-neighbor aging-time.
+ 			</USAGE>
+        <EXAMPLE summary="Configure IPv6 drop-neighbor aging-time">
+ 				sonic-cli(config)# ipv6 drop-neighbor aging-time 200
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ipv6 drop-neighbor aging-time -->
+    <COMMAND name="no ipv6 drop-neighbor" access="netadmin" help="Unconfigure IPv6 drop-neighbor aging-time" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="aging-time" help="Unset IPv6 drop-neighbor aging-time value" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv6_drop_neighbor_aging 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigures IPv6 drop-neighbor aging and sets it to Default Value.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure IPv6 drop-neighbor aging-time.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure IPv6 drop-neighbor aging-time">
+ 				sonic-cli(config)# no ipv6 drop-neighbor aging-time
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ip unreach-remote-nbr-block -->
+    <COMMAND name="ip unreach-remote-neighbor-block" access="netadmin" help="Block IPv4 unreachable remote neighbors download to HW" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv4_nbr_block_rem_unreach=true">
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv4_block_remote_unreach_nbr_install
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Block IPv4 unreachable remote neighbors download to Hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to block download of IPv4 unreachable remote neighbor to hardware.
+ 			</USAGE>
+        <EXAMPLE summary="Configure blocking of IPv4 unreachable remote neighbors">
+ 				sonic-cli(config)#ip unreach-remote-nbr-block
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip unreach-remote-neighbor-block" access="netadmin" help="Allow IPv4 unreachable remote neighbors download to HW">
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv4_block_remote_unreach_nbr_install
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Allow IPv4 unreachable remote neighbors download to Hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to allow download of IPv4 unreachable remote neighbor to hardware.
+ 			</USAGE>
+        <EXAMPLE summary="Configure download of IPv4 unreachable remote neighbors">
+ 				sonic-cli(config)#no ip unreach-remote-nbr-block
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 unreach-remote-neighbor-block" access="netadmin" help="Block IPv6 unreachable remote neighbors download to HW" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv6_nbr_block_rem_unreach=true">
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv6_block_remote_unreach_nbr_install
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Block IPv6 unreachable remote neighbors download to Hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to block download of IPv6 unreachable remote neighbor to hardware.
+ 			</USAGE>
+        <EXAMPLE summary="Configure blocking of IPv6 unreachable remote neighbors">
+ 				sonic-cli(config)#ipv6 unreach-remote-nbr-block
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 unreach-remote-neighbor-block" access="netadmin" help="Allow IPv6 unreachable remote neighbors download to HW">
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv6_block_remote_unreach_nbr_install
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Allow IPv6 unreachable remote neighbors download to Hardware.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to allow download of IPv6 unreachable remote neighbor to hardware.
+ 			</USAGE>
+        <EXAMPLE summary="Configure download of IPv6 unreachable remote neighbors">
+ 				sonic-cli(config)#no ip unreach-remote-nbr-block
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ip reserve local-neigh -->
+    <COMMAND name="ip reserve" access="netadmin" help="Configure ip reserve" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" command_keys="name=Values">
+      <PARAM name="local-neigh" help="Set ip reserve local-neigh value (default - 2000)" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="value" help="Number of local neighbors to be reserved" ptype="NUM_LOCAL_NEIGH" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/num_local_neigh"> </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ip_neigh_reserve ${value}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                                 Configures value to reserve host table entries for local hosts.
+                         </DESCRIPTION>
+        <USAGE>
+                                 Use this command to reserve HW host table for local hosts.
+                         </USAGE>
+        <EXAMPLE summary="Configure ip reserve local-neigh">
+                                 sonic-cli(config)# ip reserve local-neigh
+                         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip reserve local-neigh -->
+    <COMMAND name="no ip reserve" access="netadmin" help="Unconfigure ip reserve" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="local-neigh" help="Unset reserved local neighbors value" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ip_neigh_reserve 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                                 Resets the reserved host table size for local hosts to Default Value.
+                         </DESCRIPTION>
+        <USAGE>
+                                 Use this command to reset the reserved entries for local hosts.
+                         </USAGE>
+        <EXAMPLE summary="Unconfigure ip reserve local-neigh">
+                                 sonic-cli(config)# no ip reserve local-neigh
+                         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

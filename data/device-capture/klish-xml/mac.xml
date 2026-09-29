@@ -1,0 +1,303 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--copyright 2019 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="vlan-if-id" dynamic="true">
+    <ACTION>echo -n "${vlan-if-name}" | sed 's/[^0-9]*//g'</ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show mac" help="Display MAC"> </COMMAND>
+    <!--====================show mac address-table command======================-->
+    <COMMAND name="show mac address-table" help="MAC address-table">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="vlan-if-name" help="Display MAC address-table for VLAN" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> if test "${if-subcommands}" = "vlan-if-name"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 vlan ${vlan-if-id}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 show
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac aging-time command======================-->
+    <COMMAND name="show mac address-table aging-time" help="MAC aging-time">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_config_mac_aging_time show_mac_aging_time.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table count command ======================-->
+    <COMMAND name="show mac address-table count" help="Count keyword">
+      <PARAM name="count-subcommands" help="count subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="vlan-if-name" help="Display MAC address-table for VLAN" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> if test "${count-subcommands}" = "vlan-if-name"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_ext_network_instances_network_instance_fdb_state show_mac_count.j2 vlan_count ${vlan-if-id} 
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_ext_network_instances_network_instance_fdb_state show_mac_count.j2 count 
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table address <mac-address> command ======================-->
+    <COMMAND name="show mac address-table address" help="Display MAC address-table address for MAC address">
+      <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 mac-addr ${mac-addr} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table interface <p-id> command ======================-->
+    <COMMAND name="show mac address-table interface" help="Display MAC address-table for interfaces">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+        <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> if test "${if-subcommands}" = "phy-if-name"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 interface ${phy-if-name}
+ elif test "${if-subcommands}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 interface ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 ${__full_line}
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table static commands ======================-->
+    <COMMAND name="show mac address-table static" help="MAC address-table for static commands">
+      <PARAM name="s-subcommands" help="Static subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="address" help="MAC address of static interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="Vlan" help="VLAN ID" ptype="VLAN_INTERFACE" mode="subcommand"> </PARAM>
+        <PARAM name="interface" help="Interface Ethernet or PortChannel" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface-subcommand" help="Static interface subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+            <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${s-subcommands}" = "address"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 static address ${mac-addr}
+ elif test "${s-subcommands}" = "Vlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 static vlan ${Vlan}
+ elif test "${s-subcommands}" = "interface"; then
+ if test "${interface-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 static interface ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 static interface ${phy-if-name}
+ fi
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 static ${__full_line}
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table sticky-mac commands ======================-->
+    <COMMAND name="show mac address-table sticky-mac" help="MAC address-table for sticky-mac">
+      <PARAM name="s-subcommands" help="Stcky-mac subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="address" help="Sticky MAC address" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="Vlan" help="VLAN ID" ptype="VLAN_INTERFACE" mode="subcommand"> </PARAM>
+        <PARAM name="interface" help="Interface Ethernet or PortChannel" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface-subcommand" help="Static interface subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+            <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${s-subcommands}" = "address"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 sticky address ${mac-addr}
+ elif test "${s-subcommands}" = "Vlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 sticky vlan ${Vlan}
+ elif test "${s-subcommands}" = "interface"; then
+ if test "${interface-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 sticky interface ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 sticky interface ${phy-if-name}
+ fi
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 sticky ${__full_line}
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================show mac address-table dynamic commands ======================-->
+    <COMMAND name="show mac address-table dynamic" help="MAC address-table for dynamic commands">
+      <PARAM name="d-subcommands" help="Dynamic subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="address" help="MAC address of dynamic interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="mac-addr" help="48 bit MAC address" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="Vlan" help="VLAN ID" ptype="VLAN_INTERFACE" mode="subcommand"> </PARAM>
+        <PARAM name="interface" help="Dynamic interface Ethernet or PortChannel" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface-subcommand" help="Dynamic interface subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+            <PARAM name="PortChannel" help="Dynamic PortChannel" ptype="PO_INTERFACE"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${d-subcommands}" = "address"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 dynamic address ${mac-addr}
+ elif test "${d-subcommands}" = "Vlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 dynamic vlan ${Vlan}
+ elif test "${d-subcommands}" = "interface"; then
+ if test "${interface-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 dynamic interface ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 dynamic interface ${phy-if-name}
+ fi
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries show_mac.j2 dynamic ${__full_line}
+ fi </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mac dampening" help="Display MAC dampening configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_list_sonic_mac_dampening_sonic_mac_dampening_mac_dampening_mac_dampening_list show_mac_dampening.j2 ${__full_line__} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mac dampening-disabled-ports" help="Display MAC dampening-disabled-ports">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py get_openconfig_mac_dampening_network_instances_network_instance_mac_dampening_state show_mac_dampening.j2 ${__full_line__} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--====================clear mac address-table dynamic <all | vlan | address>======================-->
+    <COMMAND name="clear mac" access="secadmin:netadmin" help="Clear MAC"> </COMMAND>
+    <COMMAND name="clear mac address-table" access="secadmin:netadmin" help="Clear MAC address-table"> </COMMAND>
+    <COMMAND name="clear mac address-table dynamic" access="netadmin" help="Clear MAC address-table for dynamic commands">
+      <PARAM name="d-subcommands" help="Dynamic subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Clear dynamic mac address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="Vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+          <PARAM name="address" help="mac address" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="mac_addr" help="mac address" ptype="MAC_ADDR"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="interface" help="Dynamic interface Ethernet or PortChannel" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface-subcommand" help="Dynamic interface subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="Ethernet" help="Ethernet ID" ptype="PHY_INTERFACE" mode="subcommand"> </PARAM>
+            <PARAM name="PortChannel" help="Dynamic PortChannel" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${d-subcommands}" = "all"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb ALL ALL
+ elif test "${d-subcommands}" = "Vlan"; then
+ if test "${mac_addr}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb VLAN ${Vlan}
+ else 
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb VLAN_MAC ${Vlan} ${mac_addr}
+ fi elif test "${d-subcommands}" = "interface"; then
+ if test "${interface-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb PORT ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb PORT ${Ethernet}
+ fi
+ else
+ builtin="clish_nop"
+ fi </ACTION>
+    </COMMAND>
+    <COMMAND name="clear mac address-table sticky-mac" access="secadmin:netadmin" help="Clear sticky MAC address-table">
+      <PARAM name="sticky-subcommands" help="sticky-mac subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Clear all sticky mac address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="Vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+          <PARAM name="address" help="mac address" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="mac_addr" help="mac address" ptype="MAC_ADDR"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="interface" help="Interface Ethernet or PortChannel" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface-subcommand" help="Interface subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="Ethernet" help="Ethernet ID" ptype="PHY_INTERFACE" mode="subcommand"> </PARAM>
+            <PARAM name="PortChannel" help="Dynamic PortChannel" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${sticky-subcommands}" = "all"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb_sticky ALL ALL
+ elif test "${sticky-subcommands}" = "Vlan"; then
+ if test "${mac_addr}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb_sticky VLAN ${Vlan}
+ else 
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb_sticky VLAN_MAC ${Vlan} ${mac_addr}
+ fi elif test "${sticky-subcommands}" = "interface"; then
+ if test "${interface-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb_sticky PORT ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_sonic_fdb_clear_fdb_sticky PORT ${Ethernet}
+ fi
+ else
+ builtin="clish_nop"
+ fi </ACTION>
+    </COMMAND>
+    <COMMAND name="clear mac dampening-disabled-ports" access="netadmin" help="Clear MAC dampening disabled ports">
+      <PARAM name="damp-subcommands" help="subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="all" help="Clear all mac dampening disabled ports" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="PORT_ID" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"> </PARAM>
+        <PARAM name="PO_ID" help="PortChannel interface" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION> if test "${damp-subcommands}" = "all"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_clear_mac_damp_disabled_ports 
+ elif test "${damp-subcommands}" = "PORT_ID"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_clear_mac_damp_disabled_ports ${PORT_ID}
+ elif test "${damp-subcommands}" = "PO_ID"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py rpc_clear_mac_damp_disabled_ports ${PO_ID}
+ fi </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!--====================mac address-table command======================-->
+  <VIEW name="configure-view">
+    <!--==================== Static MAC configuration======================-->
+    <COMMAND name="mac address-table" access="netadmin" help="MAC address-table configure commands" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-fdb:sonic-fdb/FDB/" render_command_cb="mac_source_if">
+      <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+        <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+          <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+            <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${if-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py add_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries ${mac-address} ${vlan} ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic-cli-mac.py add_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries ${mac-address} ${vlan} ${phy-if-name}
+ fi
+ </ACTION>
+    </COMMAND>
+    <!--====================mac address-table dampening-threshold command=============-->
+    <COMMAND name="mac address-table dampening-threshold" test="-z ${__in_session}" access="netadmin" help="MAC move dampening threshold" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="threshold-value" help="MAC move dampening threshold count" ptype="RANGE_5_100"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py patch_list_sonic_mac_dampening_sonic_mac_dampening_mac_dampening_mac_dampening_list "threshold" ${threshold-value} 
+--&gt; </ACTION>
+    </COMMAND>
+    <COMMAND name="mac address-table dampening-interval" test="-z ${__in_session}" access="netadmin" help="MAC move dampening threshold interval" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="interval-value" help="MAC move dampening interval" ptype="RANGE_5_120"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py patch_list_sonic_mac_dampening_sonic_mac_dampening_mac_dampening_mac_dampening_list "interval" ${interval-value} 
+--&gt; </ACTION>
+    </COMMAND>
+    <!--====================mac address-table aging-time command======================-->
+    <COMMAND name="mac address-table aging-time" access="netadmin" help="MAC aging time" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}">
+      <PARAM name="mac-time" help="MAC aging time in seconds (default - 600). Enter 0 to disable MAC aging" ptype="MAC_AGE_TIMER" dbpath="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/fdb_aging_time"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py add_openconfig_network_instance_network_instances_network_instance_fdb_config_mac_aging_time ${mac-time}
+ </ACTION>
+    </COMMAND>
+    <!--====================Unconfigure mac address-table command======================-->
+    <!--====================Unconfigure Static MAC=====================-->
+    <COMMAND name="no mac address-table" access="netadmin" help="Unconfigure MAC commands" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+        <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py del_openconfig_network_instance_network_instances_network_instance_fdb_mac_table_entries ${mac-address} ${vlan}
+ </ACTION>
+    </COMMAND>
+    <!--============Unconfigure mac address-table dampening-threshold command=============-->
+    <COMMAND name="no mac address-table dampening-threshold" access="netadmin" help="Disable MAC move dampening threshold" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py delete_sonic_mac_dampening_sonic_mac_dampening_mac_dampening_mac_dampening_list_threshold "config" 
+--&gt; </ACTION>
+    </COMMAND>
+    <COMMAND name="no mac address-table dampening-interval" access="netadmin" help="Revert MAC move dampening threshold interval " mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py delete_sonic_mac_dampening_sonic_mac_dampening_mac_dampening_mac_dampening_list_interval "config" 
+--&gt; </ACTION>
+    </COMMAND>
+    <!--============Unconfigure mac address-table aging-time command=====================-->
+    <COMMAND name="no mac address-table aging-time" access="netadmin" help="Unconfigure MAC address table aging-time" mode="subcommand" ptype="SUBCOMMAND">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mac.py delete_openconfig_network_instance_network_instances_network_instance_fdb_config_mac_aging_time
+ </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

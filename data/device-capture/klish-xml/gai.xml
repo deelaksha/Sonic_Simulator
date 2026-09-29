@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2024 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="configure-view">
+    <COMMAND name="gai" access="secadmin" help="GAI configuration"/>
+    <!-- gai attributes -->
+    <COMMAND name="gai preference-ipv4" access="netadmin" help="Configure GAI preference attributes" command_tables="sonic-system-gai:sonic-system-gai/GAI_ATTRIBUTES/global" mode="subcommand" dbpath="sonic-system-gai:sonic-system-gai/GAI_ATTRIBUTES/global/prefer_ipv4=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_gai set_gai_preference True </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Configures gai preference attributes
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# gai preference-ipv4
+                   </USAGE>
+        <EXAMPLE summary="Configure GAI preference attributes">
+                       sonic# configure
+                       sonic(config)# gai preference-ipv4
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no gai -->
+    <COMMAND name="no gai" access="secadmin" help="Remove GAI configuration"/>
+    <!-- no gai preference -->
+    <COMMAND name="no gai preference-ipv4" access="netadmin" help="Remove GAI preference configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_gai set_gai_preference False </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Removes gai preference attributes
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# no gai preference-ipv4
+                   </USAGE>
+        <EXAMPLE summary="Remove GAI preference attributes">
+                       sonic# configure
+                       sonic(config)# no gai preference-ipv4
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

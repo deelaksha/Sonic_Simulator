@@ -1,0 +1,622 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <PTYPE name="RANGE_1025_65535" method="integer" pattern="1025..65535" help=""/>
+  <PTYPE name="RANGE_1_30" method="integer" pattern="1..30" help=""/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show radius-server dynamic-author" help="Display dynamic authorization information." test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das show_das_config</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command displays the dynamic authorization server parameters.
+         </DESCRIPTION>
+        <USAGE>
+            This command displays the dynamic authorization server parameters.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli# show radius-server dynamic-author
+ 
+            Admin Mode..................................... Disabled
+            Port........................................... 7676
+            Auth Type...................................... session-key
+            Global Secret Key.............................. U2FsdGVkX18LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI=
+            Ignore Server Key.............................. Disabled
+            Ignore Session Key............................. Disabled
+            CoA Bounce-Host-Port........................... Accept
+            CoA Disable-Host-Port.......................... Accept
+            VRF............................................ Not Configured
+            Request Timeout................................ 3
+ 
+            --------------------------------------------------------------------
+            Client Address                Secret
+            --------------------------------------------------------------------
+            7.7.7.7                       M2FsdGVkX17LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI=
+            test                          N/A
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show radius-server dynamic-author statistics" help="Display dynamic authorization statistics." mode="subcommand" ptype="SUBCOMMAND" test="${macsec_supported}">
+      <PARAM name="client" help="Display dynamic authorization statistics for DAC." ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="client-type-subcmds" help="Sets the accepted authorization types for dynamic RADIUS clients." ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="all" help="Selects all COA client authentication types. All authentication attributes must match for the authentication to succeed." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="ipaddr_hostname" help="Enter a valid IP address or hostname of a DAC." ptype="HOSTNAME_OR_IPADDR"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das show_das_statistics ${client-type-subcmds} ${ipaddr_hostname}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command displays the DAS global and per client counters.
+         </DESCRIPTION>
+        <USAGE>
+            This command displays the DAS global and per client counters.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli# show radius-server dynamic-author statistics
+ 
+            Number of CoA Requests Received....................... 79
+            Number of CoA ACK Responses Sent...................... 17
+            Number of CoA NAK Responses Sent...................... 77
+            Number of CoA Requests Ignored........................ 78
+            Number of CoA Missing/Unsupported Attribute Requests.. 23
+            Number of CoA Session Context Not Found Requests...... 89
+            Number of CoA Invalid Attribute Value Requests........ 13
+            Number of Administratively Prohibited Requests........ 12
+            sonic-cli#
+ 
+            sonic-cli# show radius-server dynamic-author statistics client all
+ 
+            DAC Address........................................... 1.1.1.1
+            Number of CoA Requests Received....................... 77
+            Number of CoA ACK Responses Sent...................... 88
+            Number of CoA NAK Responses Sent...................... 66
+            Number of CoA Requests Ignored........................ 7
+            Number of CoA Missing/Unsupported Attribute Requests.. 3
+            Number of CoA Session Context Not Found Requests...... 4
+            Number of CoA Invalid Attribute Value Requests........ 2
+            Number of Administratively Prohibited Requests........ 8
+ 
+            DAC Address........................................... test
+            Number of CoA Requests Received....................... 90
+            Number of CoA ACK Responses Sent...................... 32
+            Number of CoA NAK Responses Sent...................... 36
+            Number of CoA Requests Ignored........................ 79
+            Number of CoA Missing/Unsupported Attribute Requests.. 50
+            Number of CoA Session Context Not Found Requests...... 28
+            Number of CoA Invalid Attribute Value Requests........ 39
+            Number of Administratively Prohibited Requests........ 45
+            sonic-cli#
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show running-configuration das -->
+    <COMMAND name="show running-configuration das" help="Displays all DAS running config." test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das show_das_running_config</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command displays the all DAS running config.
+         </DESCRIPTION>
+        <USAGE>
+            This command displays the all DAS running config.
+         </USAGE>
+        <EXAMPLE>
+            sonic# configure terminal
+ 	   sonic(config)# authentication command
+ 	   bounce-port  disable-port
+ 	   sonic(config)# authentication command bounce-port ignore
+ 	   sonic(config)# authentication command disable-port ignore
+ 	   sonic(config)# aaa server radius dynamic-author
+ 	   sonic(config-radius-da)#
+              auth-type        Sets the accepted authorization types for dynamic RADIUS clients.
+              client           Configure DAC.
+              end              Exit to EXEC mode
+              exit             Exit from current mode
+              ignore           Sets the switch to ignore certain authentication parameters from dynamic RADIUS clients.
+              no               Unconfigure dynamic authorization.
+              port             Sets the port on which to listen for requests from authorized dynamic RADIUS clients.
+              request-timeout  Sets the timeout interval for the DAS request packets.
+              server-key       Sets the shared secret to verify client COA requests for this server.
+              vrf              Sets the vrf on which to send the response to the authorized dynamic RADIUS clients.
+ 
+ 	   sonic(config-radius-da)# auth-type any
+ 	   sonic(config-radius-da)# client 1.1.1.1 server-key test
+ 	   sonic(config-radius-da)# ignore server-key
+ 	   sonic(config-radius-da)# ignore session-key
+ 	   sonic(config-radius-da)# port 1212
+ 	   sonic(config-radius-da)# server-key 2.2.2.2
+ 	   sonic(config-radius-da)# request-timeout 10
+ 	   sonic(config-radius-da)# vrf mgmt
+ 
+ 	   sonic(config-radius-da)# do show running-configuration das
+ 	   authentication command bounce-port ignore
+ 	   authentication command disable-port ignore
+ 	   !
+ 	   aaa server radius dynamic-author
+ 	    auth-type any
+ 	    port 1212
+ 	    client 1.1.1.1 server-key U2FsdGVkX1+sVv1uXlOvwG7/17QGWv3GMQfDPizZ6O0= encrypted
+ 	    ignore session-key
+ 	    ignore server-key
+             request-timeout 10
+ 	    server-key U2FsdGVkX19jHWn93adhy6NAG/DzAPYpuhn0UV14Kfw= encrypted
+             vrf mgmt
+ 	   sonic(config-radius-da)#
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear radius-server dynamic-author" access="secadmin" help="Clear radius dynamic authorization statistics." test="${macsec_supported}"/>
+    <COMMAND name="clear radius-server dynamic-author statistics" access="secadmin" help="Display dynamic authorization statistics." mode="subcommand" ptype="SUBCOMMAND" test="${macsec_supported}">
+      <PARAM name="client" help="Clear dynamic authorization statistics for DAC." ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="client-type-subcmds" help="Select the dynamic RADIUS clients type." ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="all" help="To Clear all client statistics." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="ipaddr_hostname" help="Enter a valid IP address or hostname of a DAC." ptype="HOSTNAME_OR_IPADDR"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das rpc_clear_das_statistics ${client-type-subcmds} ${ipaddr_hostname}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command clears radius dynamic authorization global counters and per DAS client counters.
+         </DESCRIPTION>
+        <USAGE>
+            This command clears radius dynamic authorization global counters and per DAS client counters.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli# clear radius-server dynamic-author statistics [ client { all | ipv4 | ipv6 | hostname }]
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- =================== CONFIG DAS =================== -->
+  <VIEW name="configure-view">
+    <COMMAND name="authentication command" access="secadmin" help="Sets the switch to act accordingly for the requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication command bounce-port" access="secadmin" help="Sets the switch to ignore bounce-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication command bounce-port ignore" access="secadmin" help="Sets the switch to ignore bounce-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" command_keys="keyleaf_val=GLOBAL" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/ignore_bounce_port=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_ignore_bounce_port True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore a RADIUS server bounce-host-port command. The bounce-host-port command causes a host to flap the link on an authentication port.
+            The link flap causes DHCP renegotiation from one or more hosts connected to this port.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore a RADIUS server bounce-host-port command.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# authentication command bounce-port ignore
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication command" access="secadmin" help="Sets the switch to act accordingly for the requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication command bounce-port" access="secadmin" help="Sets the switch to ignore bounce-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication command bounce-port ignore" access="secadmin" help="Sets the switch to ignore bounce-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_ignore_bounce_port</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore a RADIUS server bounce-host-port command. The bounce-host-port command causes a host to flap the link on an authentication port.
+            The link flap causes DHCP renegotiation from one or more hosts connected to this port.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore a RADIUS server bounce-host-port command.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# no authentication command bounce-port ignore
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="authentication command disable-port" access="secadmin" help="Sets the switch to ignore disable-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="authentication command disable-port ignore" access="secadmin" help="Sets the switch to ignore requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global={keyleaf_val}" command_keys="keyleaf_val=GLOBAL" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/ignore_disable_port=true" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_ignore_disable_port True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore a RADIUS server disable-host-port command. The disable-host-port command puts the host port to D-Disabled state with reason as "coa disabled".
+            The D-Disabled port with reason as ?coa disabled? can be re-enabled either if the auto recovery cause is enabled for coa after the expiry of the auto recovery timer or manually by the
+            administrator by not shutting down the port.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore a RADIUS server disable-host-port command.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# authentication command disable-port ignore
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no authentication command disable-port" access="secadmin" help="Sets the switch to ignore disable-port requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no authentication command disable-port ignore" access="secadmin" help="Sets the switch to ignore requests from dynamic authorization clients." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_ignore_disable_port</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore a RADIUS server disable-host-port command. The disable-host-port command puts the host port to D-Disabled state with reason as "coa disabled".
+            The D-Disabled port with reason as ?coa disabled? can be re-enabled either if the auto recovery cause is enabled for coa after the expiry of the auto recovery timer or manually by the
+            administrator by not shutting down the port.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore a RADIUS server disable-host-port command.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# no authentication command disable-port ignore
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="aaa server" access="secadmin" help="Configure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="aaa server radius" access="secadmin" help="Configure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="aaa server radius dynamic-author" access="secadmin" help="Configure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" view="configure-das-view" view_keys="global=GLOBAL" view_tables="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global={global}" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_admin_mode" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_das_admin_mode True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command enables DAS functionality and enters dynamic authorization local server configuration mode.
+         </DESCRIPTION>
+        <USAGE>
+            This command enables DAS functionality and enters dynamic authorization local server configuration mode.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli# configure terminal
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no aaa server" access="secadmin" help="Unconfigure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no aaa server radius" access="secadmin" help="Unconfigure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )"/>
+    <COMMAND name="no aaa server radius dynamic-author" access="secadmin" help="Unconfigure dynamic authorization." mode="subcommand" ptype="SUBCOMMAND" test="( ! -z &quot;${macsec_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_das_admin_mode</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command diables DAS functionality on the switch.
+         </DESCRIPTION>
+        <USAGE>
+            This command diables DAS functionality on the switch.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli# configure terminal
+            sonic-cli(config)# no aaa server radius dynamic-author
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-das-view" prompt="${SYSTEM_NAME}(${__config_mode}-radius-da)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <!-- show configuration -->
+    <COMMAND name="show configuration" access="secadmin" help="Display current DAS configuration" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-das</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Displays current DAS configuration
+             </DESCRIPTION>
+        <USAGE>
+               Use this command to DAS display running configurations.
+             </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# show configuration
+            !
+            aaa server radius dynamic-author
+             auth-type session-key
+             port 8989
+             client 7.7.7.7 server-key M2FsdGVkX17LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI= encrypted
+             ignore server-key
+             server-key U2FsdGVkX18LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI= encrypted
+             request-timeout 10
+             vrf mgmt
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="auth-type" access="secadmin" help="Sets the accepted authorization types for dynamic RADIUS clients." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}" command_tables="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global={global}" render_command_cb="das_global_config_table_auth_type">
+      <PARAM name="auth-type-subcmds" help="Sets the accepted authorization types for dynamic RADIUS clients." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all" help="Selects all COA client authentication types. All authentication attributes must match for the authentication to succeed." ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="any" help="Selects any COA client authentication type. Any authentication attribute may match for the authentication to succeed." ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_auth_type"> </PARAM>
+        <PARAM name="session-key" help="Indicates that the session-key must match for authentication to succeed." ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_auth_type"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_das_auth_type ${auth-type-subcmds}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command specifies the type of authorization that the device must use for RADIUS clients. The client must match the configured attributes for authorization.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the accepted authorization types for dynamic RADIUS clients.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# auth-type session-key
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no" access="secadmin" help="Unconfigure dynamic authorization." test="${macsec_supported}"/>
+    <COMMAND name="no auth-type" access="secadmin" help="Reset switch identifier to default" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_das_auth_type</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command resets switch identifier to its default value. The default value is last 16-bits from the system mac address.
+         </DESCRIPTION>
+        <USAGE>
+            This command resets switch identifier to its default value. The default value is last 16-bits from the system mac address.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no auth-type
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="port" access="secadmin" help="Sets the port on which to listen for requests from authorized dynamic RADIUS clients." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="portNumber" help="An integer in the range 1025-65535." ptype="RANGE_1025_65535" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_port"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_das_port ${portNumber}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command specifies the UDP port on which a device listens for RADIUS requests from configured RADIUS clients.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the UDP port on which a device listens for RADIUS requests from configured RADIUS clients.
+            The supported range for the port-number is 1025 to 65535.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# port 8989
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port" access="secadmin" help="Reset enterprise identifier to default" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_das_port</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command resets enterprise identifier to its default value. The default value is last 16-bits from the system mac address
+         </DESCRIPTION>
+        <USAGE>
+            This command resets enterprise identifier to its default value. The default value is last 16-bits from the system mac address
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no port
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="client" access="secadmin" help="Configure DAC." ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-das:sonic-das/DAS_CLIENT_CONFIG_TABLE/DAS_CLIENT_CONFIG_TABLE_LIST/clientaddress={client_address}" command_keys="client_address=*" render_command_cb="das_client_config_table_server_key" test="${macsec_supported}" escape_chars="">
+      <PARAM name="hostname_or_ipaddr" help="Enter a valid IP address or hostname of a DAC." ptype="HOSTNAME_OR_IPADDR">
+        <PARAM name="server-key" help="Sets the shared secret to verify client COA requests for this server." ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="key" help="shared secret (Max Len: 65)" ptype="STRING_WITH_PIPE">
+            <PARAM name="encrypted" help="Key is in encrypted format" ptype="SUBCOMMAND" mode="subcommand" optional="true" hidden="true"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_client_config_table_config_server_key ${hostname_or_ipaddr} ${#key} ${encrypted}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the IP address or IPV6 address or hostname of the AAA server client.
+            It uses the optional **server-key** keyword at the client level.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the IP address or IPV6 address or hostname of the AAA server client.
+            It uses the optional **server-key** keyword at the client level.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# client 1.1.1.1 server-key U2FsdGVkX18LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI= encryted
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no client" access="secadmin" help="Unconfigure DAC." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="hostname_or_ipaddr" help="Enter a valid IP address or hostname of a DAC." ptype="HOSTNAME_OR_IPADDR"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_client_config_table_config_server_key ${hostname_or_ipaddr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command removes the IP address or IPV6 address or hostname of the AAA server client.
+         </DESCRIPTION>
+        <USAGE>
+            This command removes the IP address or IPV6 address or hostname of the AAA server client.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no client 1.1.1.1
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ignore" access="secadmin" help="Sets the switch to ignore certain authentication parameters from dynamic RADIUS clients." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/>
+    <COMMAND name="ignore session-key" access="secadmin" help="Do not attempt to authenticate with the session key." ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/ignore_session_key=true" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_ignore_session_key True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore the session key.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore the session key.
+            This command execution fails when the auth-type set to "session-key" as the authentication can happen only based on the session-key attribute.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# ignore session-key
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ignore" access="secadmin" help="Removes the config which makes switch to ignore certain authentication parameters from dynamic RADIUS clients." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}"/>
+    <COMMAND name="no ignore session-key" access="secadmin" help="Remove specific sampler" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_ignore_session_key</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command removes ignore session-key configuration.
+         </DESCRIPTION>
+        <USAGE>
+            This command removes ignore session-key configuration.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no ignore session-key
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ignore server-key" access="secadmin" help="Do not attmept to authenticate with the server key." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/ignore_server_key=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_ignore_server_key True</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures the device to ignore the server key.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the device to ignore the server key.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# ignore server-key
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ignore server-key" access="secadmin" help="Remove specific sampler" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_ignore_server_key</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command removes ignore server-key configuration.
+         </DESCRIPTION>
+        <USAGE>
+            This command removes ignore server-key configuration.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no ignore server-key
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="server-key" access="secadmin" help="Sets the shared secret to verify client COA requests for this server." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}" command_keys="type=GLOBAL" command_tables="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global={type}" render_command_cb="das_global_config_table_global_server_key" escape_chars="">
+      <PARAM name="key" help="shared secret (Max Len: 65)" ptype="STRING_WITH_PIPE" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/global_server_key">
+        <PARAM name="encrypted" help="Key is in encrypted format" ptype="SUBCOMMAND" mode="subcommand" optional="true" hidden="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_global_server_key ${#key} ${encrypted}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command configures a global shared secret that is used for all dynamic authorization clients that do not have an individual shared secret key configured.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures a global shared secret that is used for all dynamic authorization clients that do not have an individual shared secret key configured.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# server-key U2FsdGVkX18LcQREyGJP/aDuWTi34jJLzdqNy9W5WxI= encryted
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no server-key" access="secadmin" help="Removes the shared secret which used to verify client COA requests for this server." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_global_server_key</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command removes the shared secret which used to verify client COA requests for this server.
+         </DESCRIPTION>
+        <USAGE>
+            This command removes the shared secret which used to verify client COA requests for this server.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no server-key
+            sonic-cli(config-radius-da)#
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="vrf" access="secadmin" help="Sets the vrf on which to send the response to the authorized dynamic RADIUS clients." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_vrf_name=mgmt"/>
+        <PARAM name="vrf-name" help="Name of VRF" ptype="VRF_NAME" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_vrf_name"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_das_vrf_name ${mgmt}${vrf-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command specifies the vrf on which to send the response to the authorized dynamic RADIUS clients.
+         </DESCRIPTION>
+        <USAGE>
+            This command specifies the vrf on which to send the response to the authorized dynamic RADIUS clients.
+            vrf specified here used be pre-created in the switch.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# vrf mgmt
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no vrf" access="secadmin" help="Delete vrf configured for DAS" ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_das_vrf_name</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command deletes the vrf configured for DAS.
+         </DESCRIPTION>
+        <USAGE>
+            This command deletes the vrf configured for DAS.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no vrf
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="request-timeout" access="secadmin" help="Sets the timeout interval for the DAS request packets." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <PARAM name="timeoutInterval" help="An integer in the range 1-30." ptype="RANGE_1_30" dbpath="sonic-das:sonic-das/DAS_GLOBAL_CONFIG_TABLE/DAS_GLOBAL_CONFIG_TABLE_LIST/das_request_timeout"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_das patch_openconfig_das_global_config_table_config_das_request_timeout ${timeoutInterval}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command specifies the time interval after which the request received by the DAS from the DAC will be timed out if there is no response received to the DAS by the registered applications before that interval.
+         </DESCRIPTION>
+        <USAGE>
+            This command configures the time interval after which the request received by the DAS from the DAC will be timed out if there is no response received to the DAS by the registered applications before that interval.
+            The supported range for the request-timeout is 1 to 30.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# request-timeout 5
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no request-timeout" access="secadmin" help="Reset timeout interval to default." ptype="SUBCOMMAND" mode="subcommand" test="${macsec_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_das delete_openconfig_das_global_config_table_config_das_request_timeout</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command resets the time interval after which the request received by the DAS from the DAC will be timed out to the default value. The default value is 3 seconds.
+         </DESCRIPTION>
+        <USAGE>
+            This command resets the time interval after which the request received by the DAS from the DAC will be timed out to the default value. The default value is 3 seconds.
+         </USAGE>
+        <EXAMPLE>
+            sonic-cli(config)# aaa server radius dynamic-author
+            sonic-cli(config-radius-da)# no request-timeout
+ 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

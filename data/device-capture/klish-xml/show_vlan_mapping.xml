@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="is_vlan_mapping_enabled" dynamic="true">
+    <!-- Checks if vlan mapping is allowed on current platform -->
+    <ACTION builtin="clish_pyobj">sonic_cli_if is_vlan_mapping_enable</ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show interface vlan-mappings" help="Display vlan mapping information" test="${is_vlan_mapping_enabled}">
+      <PARAM name="if-subcommands" help="vlan-mapping subcommands" mode="switch" ptype="SUBCOMMAND" optional="true" order="true">
+        <PARAM name="dot1q-tunnel" help="Display dot1q vlan-mappings" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION> if test "${if-subcommands}" = "dot1q-tunnel"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_show_vlan_mapping.py get_vlan_mapping "All" show_vlan_mapping_dot1q.j2 ${__full_line}
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_show_vlan_mapping.py get_vlan_mapping "All" show_vlan_mapping.j2 ${__full_line}
+ fi
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

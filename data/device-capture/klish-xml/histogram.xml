@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show histogram" help="Display histogram information"/>
+    <COMMAND name="show histogram memory" help="Display histogram information" mode="subcommand">
+      <PARAM name="type" help="Type process/docker/system" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="system" help="System memory details" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="docker" help="dockers memory details" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="process" help="processes memory details" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <PARAM name="verbose" help="debug purpose" mode="subcommand" ptype="SUBCOMMAND" optional="true" hidden="true"/>
+      <PARAM name="stime" help="start time in ISO format" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="_stime" help="start time" ptype="TIME_ISO"/>
+      </PARAM>
+      <PARAM name="etime" help="end time in ISO format" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="_etime" help="end time" ptype="TIME_ISO"/>
+      </PARAM>
+      <PARAM name="filter" help="Filter by process/docker name" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="filtername" help="String to filter - process/docker name" ptype="STRING_63"/>
+      </PARAM>
+      <PARAM name="analyze" help="analyze leak" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="_analyze" help="leak" ptype="STRING_63"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_histogram get_openconfig_system_memory_histogram hist.j2 ${type} "stime=${_stime}" "etime=${_etime}" "filter=${filtername}" "analyze=${_analyze}" "verbose=${verbose}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

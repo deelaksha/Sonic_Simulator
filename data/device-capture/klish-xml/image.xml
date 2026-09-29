@@ -1,0 +1,162 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+<!ENTITY USB_URL "usb media directory (usb://filename)">
+<!ENTITY HOME_URL "home directory (home://filename)">
+<!ENTITY HTTP_URL "remote HTTP server (http://hostip/filepath)">
+<!ENTITY HTTPS_URL "remote HTTPS server (https://hostip/filepath)">
+<!ENTITY FTP_URL "remote FTP server (ftp://userid:passwd@hostip/filepath)">
+<!ENTITY SCP_URL "remote SCP server (scp://userid:passwd@hostip/filepath)">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="copy_image_url" dynamic="true">
+    <ACTION> echo -n "${image_ftp_url}${image_home_url}${image_http_url}${image_https_url}${image_scp_url}${image_usb_url}"
+ </ACTION>
+  </VAR>
+  <VAR name="copy_sig_url" dynamic="true">
+    <ACTION> echo -n "${copy_ftp_url}${copy_home_url}${copy_http_url}${copy_https_url}${copy_scp_url}${copy_usb_url}"
+ </ACTION>
+  </VAR>
+  <VAR name="copy_pub_url" dynamic="true">
+    <ACTION> echo -n "${key_ftp_url}${key_home_url}${key_http_url}${key_https_url}${key_scp_url}${key_usb_url}"
+ </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show image" help="Display image information"> </COMMAND>
+    <COMMAND name="show image list" help="List images">
+      <ACTION builtin="clish_pyobj">sonic_cli_img get_openconfig_image_management show_image.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image status" help="Show image installation status">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_image_status show_image_status.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image patch" help="Display patch information"> </COMMAND>
+    <COMMAND name="show image patch status" help="Show patch installation status">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_patch_status show_patch_status.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image patch list" help="Show list of patches installed">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_patch_list show_patch_list.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image patch history" help="Show history of patch installation">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_patch_history show_patch_history.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image firmware" help="Display firmware image information">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_image_firmware show_image_firmware.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show image firmware status" help="Show firmware image staging status">
+      <ACTION builtin="clish_pyobj">sonic_cli_img show_image_firmware_status show_image_firmware_status.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="image" access="admin" help="Image related commands"> </COMMAND>
+    <COMMAND name="image set-default" access="admin" help="Set default boot image">
+      <PARAM name="img-name" help="Image name" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img image_set_default image=${img-name} </ACTION>
+    </COMMAND>
+    <COMMAND name="image install" access="admin" help="Install image">
+      <PARAM name="install_option" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="cancel" help="Cancel image installation" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="img-path" help="Path(file://filepath) or URL(http:// or https://) to image" ptype="STRING"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img image_install install_option=${install_option} image=${img-path} </ACTION>
+    </COMMAND>
+    <COMMAND name="image gpg-key" access="admin" help="Add GPG key">
+      <PARAM name="key-server" help="key server" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="keyserver-url" help="key server URL" ptype="STRING"/>
+        <PARAM name="key-id" help="Key ID" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="key-string" help="key ID string" ptype="STRING"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img image_gpg_install key_server=${keyserver-url} key_id=${key-string} </ACTION>
+    </COMMAND>
+    <COMMAND name="image verify" access="admin" help="Verify image">
+      <PARAM name="img-path" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="image_home_url" help="image file from &HOME_URL;" ptype="HOME_TYPE"/>
+        <PARAM name="image_ftp_url" help="image file from &FTP_URL;" ptype="FTP_TYPE"/>
+        <PARAM name="image_http_url" help="image file file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+        <PARAM name="image_https_url" help="image file from &HTTPS_URL;" ptype="HTTPS_TYPE"/>
+        <PARAM name="image_scp_url" help="image file from &SCP_URL;" ptype="SCP_TYPE"/>
+        <PARAM name="image_usb_url" help="image file from &USB_URL;" ptype="USB_TYPE"/>
+      </PARAM>
+      <PARAM name="verify_option" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="gpg" help="Verify using GPG key" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="signature" help="Signature" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="sig_option" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="copy_home_url" help="Signature file from &HOME_URL;" ptype="HOME_TYPE"/>
+              <PARAM name="copy_ftp_url" help="Signature file from &FTP_URL;" ptype="FTP_TYPE"/>
+              <PARAM name="copy_http_url" help="Signature file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+              <PARAM name="copy_https_url" help="Signature file from &HTTPS_URL;" ptype="HTTPS_TYPE"/>
+              <PARAM name="copy_scp_url" help="Signature file from &SCP_URL;" ptype="SCP_TYPE"/>
+              <PARAM name="copy_usb_url" help="Signature file from &USB_URL;" ptype="USB_TYPE"/>
+            </PARAM>
+            <!-- sig_option ends -->
+          </PARAM>
+          <!-- signature ends -->
+        </PARAM>
+        <!-- GPG ends -->
+        <PARAM name="pki" help="Verify using PKI x509 certificate" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="signature" help="Signature" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="sig_option" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="copy_home_url" help="Signature file from &HOME_URL;" ptype="HOME_TYPE"/>
+              <PARAM name="copy_ftp_url" help="Signature file from &FTP_URL;" ptype="FTP_TYPE"/>
+              <PARAM name="copy_http_url" help="Signature file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+              <PARAM name="copy_https_url" help="Signature file from &HTTPS_URL;" ptype="HTTPS_TYPE"/>
+              <PARAM name="copy_scp_url" help="Signature file from &SCP_URL;" ptype="SCP_TYPE"/>
+              <PARAM name="copy_usb_url" help="Signature file from &USB_URL;" ptype="USB_TYPE"/>
+            </PARAM>
+            <!-- sig_option ends -->
+            <PARAM name="public-key" help="public key" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="pub_option" help="" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="key_home_url" help="x509 certificate file from &HOME_URL;" ptype="HOME_TYPE"/>
+                <PARAM name="key_ftp_url" help="x509 certificate file from &FTP_URL;" ptype="FTP_TYPE"/>
+                <PARAM name="key_http_url" help="x509 certificate file from &HTTP_URL;" ptype="HTTP_TYPE"/>
+                <PARAM name="key_https_url" help="x509 certificate file from &HTTPS_URL;" ptype="HTTPS_TYPE"/>
+                <PARAM name="key_scp_url" help="x509 certificate file from &SCP_URL;" ptype="SCP_TYPE"/>
+                <PARAM name="key_usb_url" help="x509 certificate file from &USB_URL;" ptype="USB_TYPE"/>
+              </PARAM>
+              <!-- pub_option ends -->
+            </PARAM>
+            <!-- public-key ends -->
+          </PARAM>
+          <!-- signature ends -->
+        </PARAM>
+        <!-- PKI ends -->
+      </PARAM>
+      <!-- verify_option ends -->
+      <!-- image path ends -->
+      <ACTION builtin="clish_pyobj">sonic_cli_img image_verify image=${copy_image_url} verify=${verify_option} sig=${copy_sig_url} pub=${copy_pub_url}</ACTION>
+    </COMMAND>
+    <COMMAND name="image firmware" access="admin" help="Firmware image related commands"> </COMMAND>
+    <COMMAND name="image firmware install" access="admin" help="Stage a firmware image for update">
+      <PARAM name="firmware-path" help="Path(file://filepath) or URL(http:// or https://) to image" ptype="STRING"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img firmware_install firmware=${firmware-path} </ACTION>
+    </COMMAND>
+    <COMMAND name="image firmware cancel" access="admin" help="Cancel a pending firmware image update">
+      <ACTION builtin="clish_pyobj">sonic_cli_img firmware_install_cancel </ACTION>
+    </COMMAND>
+    <COMMAND name="image patch" access="admin" help="Patching related commands"> </COMMAND>
+    <COMMAND name="image patch install" access="admin" help="Install patch">
+      <PARAM name="patch-path" help="Path(file://filepath) or URL(http:// or https://) to image" ptype="STRING"> </PARAM>
+      <PARAM name="skip-image-check" help="hidden command. whether or not to validate image signature in patch" ptype="SUBCOMMAND" hidden="true" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img patch_install patch=${patch-path} skip_image_check=${skip-image-check} </ACTION>
+    </COMMAND>
+    <COMMAND name="image patch rollback" access="admin" help="Rollback patch">
+      <PARAM name="patch-tag" help="Name/Tag of the applied patch" ptype="STRING" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img patch_rollback patch=${patch-tag} </ACTION>
+    </COMMAND>
+    <COMMAND name="image remove" access="admin" help="Remove an image " ptype="SUBCOMMAND">
+      <PARAM name="remove_option" help="Remove an image or all unused images." ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all" help="Remove all images which are not current or next" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="image" help="Enter image to remove" ptype="STRING"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_img image_remove remove_option=${remove_option} image=${image} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

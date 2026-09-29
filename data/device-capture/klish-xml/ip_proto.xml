@@ -1,0 +1,139 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!--  Copyright 2023 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ip protocol" access="netadmin" help="Filter routing info exchanged between zebra and protocol" command_keys="name=*" command_tables="sonic-ip-proto:sonic-ip-proto/IPV4_PROTOCOL_RMAP/IPV4_PROTOCOL_RMAP_LIST/name={name}" render_command_cb="ip_proto_rmap_cb">
+      <PARAM name="protoType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="any" help="Any type of route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="bgp" help="Border Gateway Protocol (BGP)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="connected" help="Connected routes (directly attached subnet or host)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="kernel" help="Kernel routes (not installed via the zebra RIB)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ospf" help="Open Shortest Path First (OSPFv2)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="static" help="Statically configured routes" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="table" help="Non-main Kernel Routing Table" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="route-map" help="" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="routemap" help="Route Map name" ptype="STRING"/>
+      </PARAM>
+      <PARAM name="vrf" help="VRF name" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="vrf-name" help="VRF name (prefixed by Vrf)" ptype="STRING_15" default="default"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ip_proto patch_openconfig_routing_policy_policy_ip_ipv4_protocols_protocol ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Filter routing info exchanged between zebra and protocol.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to filter routing info exchanged between zebra and protocol.
+       </USAGE>
+        <EXAMPLE summary="IPv4 protocol route-map command examples">
+         sonic-cli(config)# ip protocol ospf route-map rmap1
+       </EXAMPLE>
+        <FEATURE> IP PROTOCOL </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip protocol" access="netadmin" help="Unconfigure IPv4 protocol for route-map">
+      <PARAM name="protoType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="any" help="Any type of route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="bgp" help="Border Gateway Protocol (BGP)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="connected" help="Connected routes (directly attached subnet or host)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="kernel" help="Kernel routes (not installed via the zebra RIB)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="ospf" help="Open Shortest Path First (OSPFv2)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="static" help="Statically configured routes" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="table" help="Non-main Kernel Routing Table" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="vrf" help="VRF name" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="vrf-name" help="VRF name (prefixed by Vrf)" ptype="STRING_15" default="default"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ip_proto delete_openconfig_routing_policy_policy_ip_ipv4_protocols_protocol ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Unconfigures ip protocol with route-map.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to delete ip protocol with route-map.
+       </USAGE>
+        <EXAMPLE summary="IPv4 protocol route-map command examples">
+         sonic-cli(config)# no ip protocol ospf
+       </EXAMPLE>
+        <FEATURE>  IP PROTOCOL </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 protocol" access="netadmin" help="Filter routing info exchanged between zebra and protocol" command_keys="name=*" command_tables="sonic-ip-proto:sonic-ip-proto/IPV6_PROTOCOL_RMAP/IPV6_PROTOCOL_RMAP_LIST/name={name}" render_command_cb="ipv6_proto_rmap_cb">
+      <PARAM name="protoType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="any" help="Any type of route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="bgp" help="Border Gateway Protocol (BGP)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="connected" help="Connected routes (directly attached subnet or host)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="kernel" help="Kernel routes (not installed via the zebra RIB)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="static" help="Statically configured routes" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="table" help="Non-main Kernel Routing Table" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="route-map" help="" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="routemap" help="Route Map name" ptype="STRING"/>
+      </PARAM>
+      <PARAM name="vrf" help="VRF name" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="vrf-name" help="VRF name (prefixed by Vrf)" ptype="STRING_15" default="default"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ip_proto patch_openconfig_routing_policy_policy_ip_ipv6_protocols_protocol ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Filter routing info exchanged between zebra and protocol.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to filter routing info exchanged between zebra and protocol.
+       </USAGE>
+        <EXAMPLE summary="IPv6 protocol route-map command examples">
+         sonic-cli(config)# ipv6 protocol any route-map rmap1
+       </EXAMPLE>
+        <FEATURE> IP PROTOCOL </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 protocol" access="netadmin" help="Unconfigure IPv6 protocol for route-map">
+      <PARAM name="protoType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="any" help="Any type of route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="bgp" help="Border Gateway Protocol (BGP)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="connected" help="Connected routes (directly attached subnet or host)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="kernel" help="Kernel routes (not installed via the zebra RIB)" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="static" help="Statically configured routes" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="table" help="Non-main Kernel Routing Table" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="vrf" help="VRF name" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="vrf-name" help="VRF name (prefixed by Vrf)" ptype="STRING_15" default="default"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ip_proto delete_openconfig_routing_policy_policy_ip_ipv6_protocols_protocol ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Unconfigures ipv6 protocol with route-map.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to delete ipv6 protocol with route-map.
+       </USAGE>
+        <EXAMPLE summary="IPv6 protocol route-map command examples">
+         sonic-cli(config)# no ipv6 protocol any
+       </EXAMPLE>
+        <FEATURE>  IP PROTOCOL </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- IP Proto show commands -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show running-configuration ip protocol" help="Display IPv4 Protocol configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_ip_proto show_running_config_ip_proto</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration ipv6 protocol" help="Display IPv6 Protocol configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_ip_proto show_running_config_ipv6_proto</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

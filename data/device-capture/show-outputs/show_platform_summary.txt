@@ -1,0 +1,5 @@
+### show platform summary
+Platform: x86_64-kvm_x86_64-r0
+HwSKU: DellEMC-S5248f-P-25G-DPB
+ASIC: vs
+ASIC Count: 1

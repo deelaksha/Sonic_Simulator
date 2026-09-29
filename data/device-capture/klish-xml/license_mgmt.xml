@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+<!ENTITY HOME_URL "home directory - home://filename">
+<!ENTITY HTTP_URL "remote HTTP server - http://hostip/filepath">
+<!ENTITY FTP_URL "remote FTP server - ftp://userid:passwd@hostip/filepath">
+<!ENTITY SCP_URL "remote SCP server - scp://userid:passwd@hostip/filepath">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="license_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj"> sonic_cli_license_mgmt license_support </ACTION>
+  </VAR>
+  <!--=======================================================-->
+  <PTYPE name="INSTALL_FILE" method="regexp_select" ext_pattern="home:/ ftp:/ http:/ scp:/" ext_help="(Install from &HOME_URL;) (Install from &FTP_URL;) (Install from &HTTP_URL;) (Install from &SCP_URL;)" pattern="^(home|ftp|http|scp):\/\/[^|]+" help="File to be installed"/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show license" help="Display license information" test="${license_supported}">
+      <PARAM name="status" help="License status" ptype="SUBCOMMAND" mode="subcommand"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_license_mgmt license_show </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> Displays license information </DESCRIPTION>
+        <USAGE>
+                 sonic# show license status
+         </USAGE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="license" access="admin" help="Perform license operations" test="${license_supported}">
+      <PARAM name="install" help="install options" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="file_url" help="Install file options" ptype="INSTALL_FILE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_license_mgmt license_install filename=${file_url} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> Configures license installation </DESCRIPTION>
+        <USAGE>
+                  sonic# license install {home: | http: | ftp: | scp:}
+         </USAGE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,389 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="ars_feature_is_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">sonic_cli_ars is_ars_feature_supported </ACTION>
+  </VAR>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show route-map" help="Display route map information">
+      <PARAM name="rt-map-name" help="Name of route-map" ptype="STRING_63" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap get_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition show_routemap.j2 ${rt-map-name}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration route-map" help="Display current route map configuration">
+      <PARAM name="rt-map-name" help="Name of route-map" ptype="STRING_63" optional="true">
+        <PARAM name="seq-nu" help="Sequence number" ptype="RANGE_1_65535" optional="true"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-route-map view_keys="route-map-name=${rt-map-name},seq-num=${seq-nu}"</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- route-map <name> {permit|Deny} <seq_nu> -->
+    <COMMAND name="route-map" access="netadmin" help="Configure routing policies" view="configure-route-map-view" viewid="name=${route-map-name};seq_num=${seq-nu}" view_keys="route-map-name=*,seq-num=*" view_tables="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/route_map_name={route-map-name},stmt_name={seq-num}">
+      <PARAM name="route-map-name" help="Name of route-map (Max: 63 characters)" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/route_map_name"/>
+      <PARAM name="action-switch" help="Configure the action to apply on route-map" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="permit" help="Apply permit action" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/route_operation=permit"/>
+        <PARAM name="deny" help="Apply deny action" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/route_operation=deny"/>
+      </PARAM>
+      <PARAM name="seq-nu" help="Sequence number" ptype="RANGE_1_65535" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/stmt_name"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_config_policy_result ${route-map-name} ${seq-nu} ${action-switch}</ACTION>
+    </COMMAND>
+    <!-- no route-map <name> <seq_nu> -->
+    <COMMAND name="no route-map" access="netadmin" help="Remove routing policy map">
+      <PARAM name="route-map-name" help="Name of route-map" ptype="STRING_63"/>
+      <PARAM name="action-switch" help="Configure the action to apply on route-map" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="permit" help="Apply permit action" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="seq-nu" help="Sequence number" ptype="RANGE_1_65535"/>
+        </PARAM>
+        <PARAM name="deny" help="Apply deny action" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="seq-nu" help="Sequence number" ptype="RANGE_1_65535"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_no_route_map action-switch:${action-switch} ${route-map-name} ${seq-nu}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-route-map-view" prompt="${SYSTEM_NAME}(${__config_mode}-route-map)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display route-map configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-route-map view_keys="route-map-name=${name},seq-num=${seq_num}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="set" access="netadmin" help="Set values in destination routing protocol"/>
+    <COMMAND name="set as-path" access="netadmin" help="Transform BGP AS-path attribute" render_command_cb="routemap_set_aspathprepend" command_keys="rtmp-name={route-map-name},seqno={seq-num}" command_tables="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/vrf_name={vrf-name}">
+      <PARAM name="as-opt" mode="switch" ptype="SUBCOMMAND" help="Set AS-path options">
+        <PARAM name="prepend" mode="subcommand" ptype="SUBCOMMAND" help="Prepend to the as-path">
+          <PARAM name="prepend-opt" mode="switch" ptype="SUBCOMMAND" help="Set AS-path prepend options">
+            <PARAM name="as-number_list" help="(,) separated individual AS number list in range 0.1..65535.65535 or 1..4294967295; for example, 2000,3000,2.100" ptype="STR_ASN_LST" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_asn_list"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_set_as_path_prepend_config_asn_list ${name} ${seq_num} ${as-number_list}</ACTION>
+    </COMMAND>
+    <COMMAND name="set community" access="netadmin" help="BGP community attribute" render_command_cb="routemap_set_community">
+      <PARAM name="comm-opt" mode="switch" ptype="SUBCOMMAND" help="Community options">
+        <PARAM name="comm-num1" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+          <PARAM name="comm-num2" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+            <PARAM name="comm-num3" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+              <PARAM name="comm-num4" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+                <PARAM name="comm-num5" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+                  <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+                  <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+                  <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                  <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                  <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+                </PARAM>
+                <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+                <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+                <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+              </PARAM>
+              <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+              <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+              <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+              <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+              <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+            </PARAM>
+            <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+            <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+            <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+            <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+            <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+          </PARAM>
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true">
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="none" mode="subcommand" ptype="SUBCOMMAND" help="Do not send any community attribute" optional="true"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_set_community ${name} ${seq_num} ${comm-num1} ${comm-num2} ${comm-num3} ${comm-num4} ${comm-num5} ${local-as} ${no-advertise} ${no-export} ${no-peer} ${additive} ${none}</ACTION>
+    </COMMAND>
+    <COMMAND name="set extcommunity" access="netadmin" help="BGP extended community attribute" render_command_cb="routemap_set_extcommunity" command_keys="rtmp-name={route-map-name},seqno={seq-num}" command_tables="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/vrf_name={vrf-name}">
+      <PARAM name="extcommunity-opt" mode="switch" ptype="SUBCOMMAND" help="Extcommunity option">
+        <PARAM name="rt" help="Route Target extended community" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="value" help="VPN extended community" ptype="AA_NN_IPADDR_NN"/>
+        </PARAM>
+        <PARAM name="soo" help="Site-of-Origin extended community" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="value" help="VPN extended community" ptype="AA_NN_IPADDR_NN"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_bgp_actions_set_ext_community ${name} ${seq_num} ${extcommunity-opt} ${value} ADD </ACTION>
+    </COMMAND>
+    <COMMAND name="set extcommunity bandwidth" access="netadmin" help="Link bandwidth extended community" command_keys="rtmp-name={route-map-name},seqno={seq-num}" command_tables="sonic-bgp-global:sonic-bgp-global/BGP_GLOBALS/BGP_GLOBALS_LIST/vrf_name={vrf-name}">
+      <PARAM name="bandwidth-opt" mode="switch" ptype="SUBCOMMAND" help="Link Babdwidth option">
+        <PARAM name="num-multipaths" help="Internally computed bandwidth based on number of multipaths (outbound-only)" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+          <PARAM name="transitive-opt" mode="switch" ptype="SUBCOMMAND" default="transitive" help="Transitive option" optional="true">
+            <PARAM name="non-transitive" help="Attribute is set as non-transitive" mode="subcommand" ptype="SUBCOMMAND" value="non-transitive"/>
+            <PARAM name="transitive" help="Attribute is set as transitive" mode="subcommand" ptype="SUBCOMMAND" value="transitive"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="linkbw" help="Cumulative bandwidth of all multipaths (outbound-only)" ptype="RANGE_1_4294967295">
+          <PARAM name="transitive-opt" mode="switch" ptype="SUBCOMMAND" default="transitive" help="Transitive option" optional="true">
+            <PARAM name="non-transitive" help="Attribute is set as non-transitive" mode="subcommand" ptype="SUBCOMMAND" value="non-transitive"/>
+            <PARAM name="transitive" help="Attribute is set as transitive" mode="subcommand" ptype="SUBCOMMAND" value="transitive"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_bgp_actions_set_ext_community ${name} ${seq_num} ${bandwidth-opt} ${linkbw} ${transitive-opt} REPLACE </ACTION>
+    </COMMAND>
+    <COMMAND name="set comm-list" access="netadmin" help="Set BGP community list (for deletion)">
+      <PARAM name="comm_nm" help="Community-list name" ptype="STRING" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_community_delete_ref">
+        <PARAM name="delete" mode="subcommand" ptype="SUBCOMMAND" help="Delete matching communities"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_bgp_actions_set_community_delete ${name} ${seq_num} ${comm_nm} </ACTION>
+    </COMMAND>
+    <!-- <COMMAND name="set metric" help="Metric value for destination routing protocol"> <PARAM name="source_param" help="update-source param" mode="switch" ptype="SUBCOMMAND"> <PARAM name="met" help="Metric value (0-4294967295)" ptype="RANGE_0_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_med"/> </PARAM> <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_med ${name} ${seq_num} ${met} </ACTION> </COMMAND> -->
+    <COMMAND name="set metric" access="netadmin" help="Set metric value action for the routing policy" render_command_cb="routemap_set_metric">
+      <PARAM name="set_metric_type" help="Set metric action" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="metric" help="Set, add, subtract metric value" ptype="NUM32_WITH_SIGN"/>
+        <PARAM name="rtt" help="Set round trip time as metric" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="+rtt" help="Add round trip time to metric" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="-rtt" help="Subtract round trip time from metric" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_metric_action_config_set_metric ${name} ${seq_num} ${set_metric_type} ${metric} </ACTION>
+    </COMMAND>
+    <COMMAND name="set ars-object" access="netadmin" help="Adaptive Routing and Switching object information" test="${ars_feature_is_supported}">
+      <PARAM name="ars-object" help="Adaptive Routing and Switching Object name" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="arsobject" help="ARS object name" ptype="STRING_15" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_ars_object"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_ars_object ${name} ${seq_num} ${arsobject} </ACTION>
+    </COMMAND>
+    <COMMAND name="set ip" access="netadmin" help="IPv4 information"/>
+    <COMMAND name="set ip next-hop" access="netadmin" help="IPv4 information">
+      <PARAM name="next-hop" help="Next hop address" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="native" help="Set native or underlay nexthop" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_next_hop_native=true"/>
+        <PARAM name="ip-addr" help="IP address of next hop" ptype="IP_ADDR" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_next_hop"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_next_hop ${name} ${seq_num} ipv4 ${next-hop} ${ip-addr}</ACTION>
+    </COMMAND>
+    <COMMAND name="set ipv6" access="netadmin" help="IPv6 information"/>
+    <COMMAND name="set ipv6 next-hop" access="netadmin" help="IPv6 next-hop address">
+      <PARAM name="next-hop" help="IPv6 next-hop address" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="prefer-global" help="Prefer global over link-local if both exist" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_ipv6_next_hop_prefer_global=true"/>
+        <PARAM name="native" help="Set native or underlay nexthop" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_ipv6_next_hop_native=true"/>
+        <PARAM name="global" help="IPv6 global address" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ip-addr" help="IPv6 address of next hop" ptype="IPV6_ADDR" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_ipv6_next_hop_global"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_next_hop ${name} ${seq_num} ipv6 ${next-hop} ${ip-addr}</ACTION>
+    </COMMAND>
+    <COMMAND name="set local-preference" access="netadmin" help="BGP local preference path attribute">
+      <PARAM name="pvalue" help="Preference value" ptype="RANGE_0_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_local_pref"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_local_pref ${name} ${seq_num} ${pvalue}</ACTION>
+    </COMMAND>
+    <COMMAND name="set origin" access="netadmin" help="BGP origin code">
+      <PARAM name="origopt" mode="switch" ptype="SUBCOMMAND" help="Origin option">
+        <PARAM name="egp" mode="subcommand" ptype="SUBCOMMAND" help="Remote EGP" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_origin=EGP"/>
+        <PARAM name="igp" mode="subcommand" ptype="SUBCOMMAND" help="Local IGP" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_origin=IGP"/>
+        <PARAM name="incomplete" mode="subcommand" ptype="SUBCOMMAND" help="Unknown heritage" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_origin=INCOMPLETE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_route_origin ${name} ${seq_num} ${origopt}</ACTION>
+    </COMMAND>
+    <COMMAND name="set weight" access="netadmin" help="BGP weight for routing table">
+      <PARAM name="weigh_value" help="Weight value" ptype="RANGE_0_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_weight"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_weight ${name} ${seq_num} ${weigh_value} </ACTION>
+    </COMMAND>
+    <COMMAND name="set tag" help="Tag value for routing protocol">
+      <PARAM name="tvalue" help="Tag value" ptype="RANGE_1_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/set_tag"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_tag ${name} ${seq_num} ${tvalue} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set" access="netadmin" help="Set values in destination routing protocol"/>
+    <COMMAND name="no set as-path" access="netadmin" help="Transform BGP AS-path attribute">
+      <PARAM name="as-opt" mode="switch" ptype="SUBCOMMAND" help="Set AS-path options">
+        <PARAM name="prepend" mode="subcommand" ptype="SUBCOMMAND" help="Prepend to the as-path"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_set_as_path_prepend_config_asn_list ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no set community" access="netadmin" help="BGP community attribute">
+      <PARAM name="comm-opt" mode="switch" ptype="SUBCOMMAND" help="Community options" optional="true">
+        <PARAM name="comm-num1" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+          <PARAM name="comm-num2" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+            <PARAM name="comm-num3" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+              <PARAM name="comm-num4" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+                <PARAM name="comm-num5" help="Community number aa:nn format 0..65535:0..65535" ptype="AA_NN" optional="true">
+                  <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+                  <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+                  <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                  <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                  <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+                </PARAM>
+                <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+                <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+                <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+                <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+              </PARAM>
+              <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+              <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+              <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+              <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+              <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+            </PARAM>
+            <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+            <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+            <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+            <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+            <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+          </PARAM>
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true">
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="no-peer" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true">
+          <PARAM name="local-as" mode="subcommand" ptype="SUBCOMMAND" help="Do not send outside local AS (well-known community)" optional="true"/>
+          <PARAM name="no-advertise" mode="subcommand" ptype="SUBCOMMAND" help="Do not advertise to any peer (well-known community)" optional="true"/>
+          <PARAM name="no-export" mode="subcommand" ptype="SUBCOMMAND" help="Do not export to next AS (well-known community)" optional="true"/>
+          <PARAM name="additive" mode="subcommand" ptype="SUBCOMMAND" help="Add to existing community" optional="true"/>
+        </PARAM>
+        <PARAM name="none" mode="subcommand" ptype="SUBCOMMAND" help="Do not send any community attribute" optional="true"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_no_set_community ${name} ${seq_num} ${comm-num1} ${comm-num2} ${comm-num3} ${comm-num4} ${comm-num5} ${local-as} ${no-advertise} ${no-export} ${no-peer} ${additive}</ACTION>
+    </COMMAND>
+    <COMMAND name="no set extcommunity" access="netadmin" help="BGP extended community attribute">
+      <PARAM name="extcommunity-opt" mode="switch" ptype="SUBCOMMAND" help="Extcommunity option" optional="true">
+        <PARAM name="rt" help="Route Target extended community" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="value" help="VPN extended community" ptype="AA_NN_IPADDR_NN"/>
+        </PARAM>
+        <PARAM name="soo" help="Site-of-Origin extended community" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="value" help="VPN extended community" ptype="AA_NN_IPADDR_NN"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_no_set_extcommunity ${name} ${seq_num} ${extcommunity-opt} ${value}</ACTION>
+    </COMMAND>
+    <COMMAND name="no set extcommunity bandwidth" access="netadmin" help="BGP extended community attribute">
+      <PARAM name="bandwidth-opt" mode="switch" ptype="SUBCOMMAND" help="Link Babdwidth option">
+        <PARAM name="num-multipaths" help="Internally computed bandwidth based on number of multipaths (outbound-only)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="transitive-opt" mode="switch" ptype="SUBCOMMAND" default="transitive" help="Transitive option" optional="true">
+            <PARAM name="non-transitive" help="Attribute is set as non-transitive" mode="subcommand" ptype="SUBCOMMAND" value="non-transitive"/>
+            <PARAM name="transitive" help="Attribute is set as transitive" mode="subcommand" ptype="SUBCOMMAND" value="transitive"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="linkbw" help="Cumulative bandwidth of all multipaths (outbound-only)" ptype="RANGE_1_4294967295">
+          <PARAM name="transitive-opt" mode="switch" ptype="SUBCOMMAND" default="transitive" help="Transitive option" optional="true">
+            <PARAM name="non-transitive" help="Attribute is set as non-transitive" mode="subcommand" ptype="SUBCOMMAND" value="non-transitive"/>
+            <PARAM name="transitive" help="Attribute is set as transitive" mode="subcommand" ptype="SUBCOMMAND" value="transitive"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_no_set_extcommunity ${name} ${seq_num} ${bandwidth-opt} ${linkbw} ${transitive-opt} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set comm-list" access="netadmin" help="Set BGP community list (for deletion)">
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap PyParse_no_set_community_delete ${name} ${seq_num} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set ip" access="netadmin" help="IPv6 information"/>
+    <COMMAND name="no set ip next-hop" access="netadmin" help="IPv4 information">
+      <PARAM name="next-hop" help="IPv4 next-hop address" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="native" help="Remove native or underlay nexthop" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="ip-addr" help="IP address of next hop" ptype="IP_ADDR"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_next_hop ${name} ${seq_num} ipv4 ${next-hop} ${ip-addr} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set ipv6" access="netadmin" help="IPv6 information"/>
+    <COMMAND name="no set ipv6 next-hop" access="netadmin" help="IPv6 next-hop address">
+      <PARAM name="next-hop" help="IPv6 next-hop address" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="prefer-global" help="Prefer global over link-local if both exist" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="native" help="Remove native or underlay nexthop" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="global" help="IPv6 global address" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="ip-addr" help="IPv6 address of next hop" ptype="IPV6_ADDR"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_next_hop ${name} ${seq_num} ipv6 ${next-hop} ${ip-addr}</ACTION>
+    </COMMAND>
+    <COMMAND name="no set local-preference" access="netadmin" help="BGP local preference path attribute">
+      <PARAM name="pvalue" help="Preference value" ptype="RANGE_0_4294967295" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_local_pref ${name} ${seq_num} ${pvalue}</ACTION>
+    </COMMAND>
+    <!-- <COMMAND name="no set metric" help="Metric value for destination routing protocol"> <PARAM name="pvalue" help="Metric value (0-4294967295)" ptype="RANGE_0_4294967295" optional="true"/> <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_med ${name} ${seq_num} ${pvalue}</ACTION> </COMMAND> -->
+    <COMMAND name="no set metric" access="netadmin" help="Set metric value action for the routing policy">
+      <PARAM name="set_metric_type" help="Set metric action" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="metric" help="Set, add, subtract metric value" ptype="NUM32_WITH_SIGN"/>
+        <PARAM name="rtt" help="Set round trip time as metric" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="+rtt" help="Add round trip time to metric" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="-rtt" help="Subtract round trip time from metric" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_metric_action_config_set_metric ${name} ${seq_num} ${set_metric_type} ${metric} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set ars-object" access="netadmin" help="Remove Adaptive Routing Switching object binding" test="${ars_feature_is_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_ars_object ${name} ${seq_num} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set origin" access="netadmin" help="BGP origin code">
+      <PARAM name="origopt" mode="switch" ptype="SUBCOMMAND" help="Origin option" optional="true">
+        <PARAM name="egp" mode="subcommand" ptype="SUBCOMMAND" help="Remote EGP"/>
+        <PARAM name="igp" mode="subcommand" ptype="SUBCOMMAND" help="Local IGP"/>
+        <PARAM name="incomplete" mode="subcommand" ptype="SUBCOMMAND" help="Unknown heritage"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_route_origin ${name} ${seq_num} ${origopt}</ACTION>
+    </COMMAND>
+    <COMMAND name="no set weight" access="netadmin" help="BGP weight for routing table">
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_weight ${name} ${seq_num} </ACTION>
+    </COMMAND>
+    <COMMAND name="no set tag" help="Tag value for routing protocol">
+      <ACTION builtin="clish_nop"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_routemap delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_actions_bgp_actions_config_set_tag ${name} ${seq_num} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

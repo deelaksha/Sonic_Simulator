@@ -1,0 +1,164 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2023 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="configure-view">
+    <!-- login attributes -->
+    <COMMAND name="login" access="secadmin" data_and_render_cb="login_config" help="Login configuration"/>
+    <!-- login concurrent-session -->
+    <COMMAND name="login concurrent-session" access="secadmin" help="Configure concurrent session settings">
+      <!-- login concurrent-session limit -->
+      <PARAM name="limit" help="Maximum number of concurrent sessions per user" mode="subcommand" ptype="SUBCOMMAND">
+        <PARAM name="connection-limit" help="Maximum number of concurrent sessions per user (Default: Unlimited)" ptype="RANGE_1_12"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_login set_concurrent_session_limit limit=${connection-limit} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Configures login concurrent session limit
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(config)# login concurrent-session limit 2
+                  </USAGE>
+        <EXAMPLE summary="Login concurrent session limit">
+                      sonic# configure
+                      sonic(config)# login concurrent-session limit 2
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- login session timeout -->
+    <COMMAND name="login exec-timeout" access="secadmin" help="Configure login exec session timeout" mode="subcommand">
+      <PARAM name="exec-timeout-value" help="CLI session timeout value (in seconds) (Default = 600)" ptype="RANGE_0_3600"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_login set_login_session_timeout exec_timeout=${exec-timeout-value} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Configures login session timeout
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# login exec-timeout 60
+                   </USAGE>
+        <EXAMPLE summary="Login session timeout">
+                       sonic# configure
+                       sonic(config)# login exec-timeout 60
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- login lockout -->
+    <COMMAND name="login lockout" access="secadmin" help="Configure login lockout attributes">
+      <PARAM name="lockout sub commands" help="Lockout sub commands" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="console-exempt" help="Configure console exempt to disable account lockout to console logins" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="max-retries" help="Maximum number of failed authentication attempts before locking out the user" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="max retry limit" help="Max retry limit (Default = 3)" ptype="RANGE_0_16"/>
+        </PARAM>
+        <PARAM name="period" help="Period for which the user is locked out in minutes" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="lockout period" help="Lockout period in minutes (Default = 0)" ptype="RANGE_0_43200"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_login set_login_lockout_attrs max_retry_limit=${max retry limit} lockout_period=${lockout period} lockout_restriction=${lockout sub commands} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Configures login lockout attributes
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# login lockout max-retries 10
+                   </USAGE>
+        <EXAMPLE summary="Login password attributes and lockout attributes">
+                       sonic# configure
+                       sonic(config)# login lockout max-retries 10
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="login password-attribute" access="secadmin" help="Password attribute configuration">
+      <PARAM name="login sub-commands" help="Login subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="character-restriction" help="Configure character restrictions for password" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="Char restrictions subcommands" help="Char restrictions subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="lower" help="Minimum number of lower case characters required" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="lower case limit" help="Lower case characters (Default = 0)" ptype="RANGE_0_31"> </PARAM>
+            </PARAM>
+            <PARAM name="numeric" help="Minimum number of numeric characters required" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="Numerals limit" help="Minimum numeric characters (Default = 0)" ptype="RANGE_0_31"/>
+            </PARAM>
+            <PARAM name="special-char" help="Minimum number of special characters required" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="Special Characters limit" help="Special characters limit (Default = 0)" ptype="RANGE_0_31"/>
+            </PARAM>
+            <PARAM name="upper" help="Minimum number of upper case characters required" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="Upper case limit" help="Upper case characters (Default = 0)" ptype="RANGE_0_31"/>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-length" help="Minimum number of required alpha-numeric characters" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="min-len" help="Minimum length (Default = 8)" ptype="RANGE_6_32"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_login set_login_passwd_attrs lower_limit=${lower case limit} upper_limit=${Upper case limit} spl_char_limit=${Special Characters limit} numeric_limit=${Numerals limit} min_len=${min-len} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Configures login password attribute
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# login password-attribute character-restriction lower 3
+                       sonic(config)# login password-attribute character-restriction upper 4
+                   </USAGE>
+        <EXAMPLE summary="Login password attribute">
+                       sonic# configure
+                       sonic(config)# login password-attribute character-restriction lower 3
+                       sonic(config)# login password-attribute character-restriction upper 4
+                       sonic(config)# login password-attribute min-length 10
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no login -->
+    <COMMAND name="no login" access="secadmin" help="Remove Login configuration"/>
+    <!-- no login concurrent-session -->
+    <COMMAND name="no login concurrent-session" access="secadmin" help="Remove concurrent-session configuration">
+      <!-- no login concurrent-session limit -->
+      <PARAM name="limit" help="Remove concurrent-session limit configuration" mode="subcommand" ptype="SUBCOMMAND"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_login delete_concurrent_session_limit </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      Remove concurrent-session limit configuration
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic(config)# no login concurrent-session limit
+                  </USAGE>
+        <EXAMPLE>
+                      sonic# configure
+                      sonic(config)# no login concurrent-session limit
+                  </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no login session timeout -->
+    <COMMAND name="no login exec-timeout" access="secadmin" help="Reset timeout value (to default), 600 seconds" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_login delete_login_session_timeout </ACTION>
+    </COMMAND>
+    <!-- no login lockout -->
+    <COMMAND name="no login lockout" access="secadmin" help="Remove login lockout configuration">
+      <PARAM name="lockout sub commands" help="lockout sub commands" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="console-exempt" help="Remove login lockout console exempt conifguration" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="max-retries" help="Remove restriction on maximum number of failed authentication attempts" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="period" help="Remove lockout period configuration" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_login delete_login_lockout_restrictions lockout_restriction=${lockout sub commands} </ACTION>
+    </COMMAND>
+    <!-- no login password-attribute -->
+    <COMMAND name="no login password-attribute" access="secadmin" help="Remove password-attribute configuration">
+      <PARAM name="character-restriction" help="Remove character restrictions for password" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="char restrictions sub commands" help="char restrictions sub commands" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="upper" help="Remove restriction on minimum number of upper case characters required" ptype="SUBCOMMAND" mode="subcommand"/>
+          <PARAM name="lower" help="Remove restriction on minimum number of lower case characters required" ptype="SUBCOMMAND" mode="subcommand"/>
+          <PARAM name="special-char" help="Remove restriction on minimum number of special characters required" ptype="SUBCOMMAND" mode="subcommand"/>
+          <PARAM name="numeric" help="Remove restriction on minimum number of numeric characters required" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_login delete_login_passwd_char_restrictions delete_restriction=${char restrictions sub commands} </ACTION>
+    </COMMAND>
+    <COMMAND name="no login password-attribute min-length" access="secadmin" help="Remove minimum length restriction for password" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_login delete_login_passwd_length_restrictions </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

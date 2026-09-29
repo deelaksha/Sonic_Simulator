@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer components {
+  .btn {
+    @apply rounded-md border border-edge bg-panel-2 px-2.5 py-1.5 text-left text-sm text-[#e6edf3] transition-colors hover:border-accent-2 hover:bg-panel-3;
+  }
+  .btn-primary {
+    @apply rounded-md border border-accent/60 bg-accent/15 px-2.5 py-1.5 text-left text-sm font-semibold text-accent-2 transition-colors hover:bg-accent/25;
+  }
+  .panel-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-[#8b98a5];
+  }
+}
+
+html,
+body {
+  height: 100%;
+  background: #0b0e14;
+  color: #e6edf3;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin scrollbars to match the tool aesthetic */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3242 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3242;
+  border-radius: 4px;
+}
+
+/* React Flow dark overrides */
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #0b0e14;
+}
+.react-flow__edge.active-edge .react-flow__edge-path {
+  stroke: #22d3ee;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.8));
+}
+
+/* Inspector table row highlights */
+@keyframes rowFlash {
+  from {
+    background: rgba(34, 211, 238, 0.4);
+  }
+  to {
+    background: transparent;
+  }
+}
+.row-new td {
+  animation: rowFlash 1.8s ease-out;
+}
+.row-new td:first-child {
+  box-shadow: inset 2px 0 0 #22d3ee;
+}
+.row-match td {
+  background: rgba(34, 197, 94, 0.12);
+}
+
+/* Terminal block cursor */
+@keyframes termBlink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.term-cursor {
+  animation: termBlink 1.05s step-end infinite;
+  border-radius: 1px;
+}
