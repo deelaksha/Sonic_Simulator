@@ -1,0 +1,330 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema https://raw.githubusercontent.com/project-arlo/sonic-mgmt-framework/master/src/CLI/clitree/scripts/sonic-clish.xsd">
+  <!-- ${notty} will evaluate to empty in interactive tty and 'y' otherwise -->
+  <VAR name="notty" dynamic="false">
+    <ACTION>python3 -c 'if not ${__isatty}: print("y")'</ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="configure session" access="netadmin:secadmin" help="Start a configuration session" view="configure-view">
+      <ACTION builtin="clish_start_session">sessionctl enter</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Creates or resumes a configuration session. It takes the shell to a config terminal
+           like mode, where all the config commands are available. This mode can be identified
+           through the shell prompt prefix "config-s". All configuration changes done from this
+           mode will not be saved to the running config immediately. They will be cached in the
+           management REST server until the session is committed or aborted.
+         </DESCRIPTION>
+        <USAGE>
+           * Only one configuration session can be open at any given time
+           * Only Users with administrator role can use this command
+           * Cannot resume configuration session created by other users
+           * Use `commit` command to save all changes done in the session to running config
+           * Use `abort` command to discard all changes done in the session
+           * Use `exit` or `end` command to navigate out of the session mode without
+             committing/aborting it. Can be resumed later through `configure session` command
+         </USAGE>
+        <EXAMPLE summary="Creating a new session">
+           sonic# configure session
+           % Started new session
+           sonic(config-s)#
+           sonic(config-s)# exit
+           % Exited session
+           sonic#
+         </EXAMPLE>
+        <EXAMPLE summary="Resuming a session">
+           sonic# configure session
+           % Resumed session
+           sonic(config-s)#
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="abort" help="Abort this configuration session" test="${__in_session}">
+      <PARAM name="no-prompt" hidden="true" optional="true" help="Do not ask confirmation" ptype="SUBCOMMAND" mode="subcommand"/>
+      <ACTION builtin="clish_exit_session">sessionctl abort no_prompt=${no-prompt}${notty}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command terminates current configuration session by discarding all the
+           cached configuration changes made in the session. Prompts for confirmation.
+         </DESCRIPTION>
+        <EXAMPLE summary="Aborting a session">
+           sonic# configure session
+           % Resumed session
+           sonic(config-s)# abort
+           WARNING: this operation will discard all changes done in this configuration session
+           Do you want to continue? [Y/N] y
+           % Aborted session
+           sonic#
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="commit" help="Commit this configuration session" test="${__in_session}">
+      <ACTION builtin="clish_exit_session">sessionctl commit label=${label_val} timeout=${timeout_val}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Saves all cached configuration changes made in the session into config_db
+           and terminates the session.
+         </DESCRIPTION>
+        <EXAMPLE summary="Commit without a label">
+           sonic(config-s)# commit
+           % Committed session with checkpoint 1659637024-4
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="commit label" help="Commit this configuration session with label" test="${__in_session}">
+      <PARAM name="label_val" help="Label String" ptype="STRING_72"/>
+      <ACTION builtin="clish_exit_session">sessionctl commit label=${label_val}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Saves all cached configuration changes made in the session into config_db
+           and terminates the session. 
+         </DESCRIPTION>
+        <EXAMPLE summary="Commit with a label">
+           sonic(config-s)# commit label mgmt_acl_cleanup
+           % Committed session with checkpoint 1659637024-5
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="commit timeout" help="Commit this configuration session with confirm timeout" test="${__in_session}">
+      <PARAM name="timeout_val" help="Commit confirm timeout" ptype="RANGE_30_3600"/>
+      <ACTION builtin="clish_exit_session">sessionctl commit timeout=${timeout_val}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Saves all cached configuration changes made in the session into config_db
+           with a timeout. If a commit confirm is not executed before the timer timesout
+           the config rollback will be done.
+         </DESCRIPTION>
+        <EXAMPLE summary="Commit with a timeout">
+           sonic(config-s)# commit timeout 300
+           % Committed session with timeout
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="commit timeout-rollback" help="Commit this configuration session with commit confirm, Non-disruptive rollback occurs upon timer expiry" test="${__in_session}">
+      <PARAM name="timeout_val" help="Commit confirm" ptype="RANGE_30_3600"/>
+      <ACTION builtin="clish_exit_session">sessionctl commit timeout=${timeout_val} rollback</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Saves all cached configuration changes made in the session into config_db
+           with a timeout. If a commit confirm is not executed before the timer timesout
+           the config rollback will be done.
+         </DESCRIPTION>
+        <EXAMPLE summary="Commit with a timeout">
+           sonic(config-s)# commit timeout-rollback 300
+           % Committed session with timeout
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="commit confirm" help="Confirm this configuration session" test="${__in_session}">
+      <PARAM name="label" help="Commit Checkpoint Label" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="label_val" help="Label String" ptype="STRING_72"/>
+      </PARAM>
+      <ACTION builtin="clish_exit_session">sessionctl commitconfirm label=${label_val}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Confirm the saved configuration within the timeout specified with the commit.
+           It can be done with or without a label.
+         </DESCRIPTION>
+        <EXAMPLE summary="Commit confirm without a label">
+           sonic(config-s)# commit confirm
+           % Committed session with checkpoint 1659637024-4
+         </EXAMPLE>
+        <EXAMPLE summary="Commit confirm label mgmt_acl_cleanup">
+           sonic(config-s)# commit label mgmt_acl_cleanup
+           % Committed session with checkpoint 1659637024-5
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!--============= show commands =============-->
+    <COMMAND name="show" help="Display candidate configuration information" test="${__in_session}"> </COMMAND>
+    <COMMAND name="show session-config" help="Display unified config from candidate config and running config" test="${__in_session}">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config dummy</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays cached configuration changes made in the session and applied
+           configurations from running-configuration together.
+         </DESCRIPTION>
+        <EXAMPLE summary="Display cached and applied configurations">
+           sonic(config-s)# show session-config
+           !
+           ip load-share hash ipv4 ipv4-src-ip
+           ip load-share hash ipv4 ipv4-dst-ip
+           ip load-share hash ipv4 ipv4-ip-proto
+           ip load-share hash ipv4 ipv4-l4-src-port
+           ...
+           ...
+            class class-oob-ipv6-multicast priority 1005
+             police cir 256000
+            !
+            class class-oob-ip-multicast priority 1000
+             police cir 256000
+            !
+           sonic(config-s)#
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show session-config diff" help="Display difference between candidate config and running config" test="${__in_session}">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config get_session_config_diff running-config candidate-config</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays difference between candidate-configuration and running-configuration.
+         </DESCRIPTION>
+        <EXAMPLE summary="Display difference between candidate config and running config">
+           sonic(config-s)# show session-config diff
+           --- running-config
+           +++ candidate-config
+ 
+           ip access-list acl1
+           - seq 1 permit tcp any any
+           + seq 5 permit udp host 12.11.13.12 any
+ 
+           +interface Vlan11
+           + mtu 4563
+ 
+           -interface Vlan101
+           - mtu 3452
+ 
+           interface Ethernet0
+           - mtu 5776
+           + mtu 9100
+           - ip address 101.3.4.1/24
+           + ip address 3.4.2.3/24
+ 
+           sonic(config-s)#
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!--============= exec commands =============-->
+  <VIEW name="enable-view">
+    <COMMAND name="show config" help="Display config session, checkpoint etc"/>
+    <COMMAND name="show config session" help="Display config session">
+      <PARAM name="details" help="Display config session details" ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+      <ACTION builtin="clish_pyobj">sessionctl status name=* detailed=${details}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays state information of config sessions that are in progress.
+           Only one session is allowed in this release. Multiple sessions may be allowed in future.
+           
+           If `details` option is not given, a brief summary of the sessions is shown in a
+           tablular format. Output includes coulumns session name, state, age (time elapsed
+           since it was created) and user who created the session.
+           More detailed information is shown in paragraph format when `details` option is given.
+         </DESCRIPTION>
+        <EXAMPLE summary="View brief summary of config sessions">
+           sonic# show config session
+           Name                State     Age        User
+           ------------------- --------- ---------- ----------
+            --                 Inactive  00:39:41   admin
+         </EXAMPLE>
+        <EXAMPLE summary="View all details of config sessions">
+           sonic# show config session details
+           Session Name     : --
+           Session Token    : 1660971655-6
+           Session State    : Active (PID 23598)
+           Created by       : admin
+           Created at       : 2022-08-20 10:30:55+0530
+           Last Resumed at  :
+           Last Exited at   : 2022-08-20 10:57:27+0530
+           Last Activity at : 2022-08-20 10:57:27+0530
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show config session diff" help="Display difference between running config and session config">
+      <ACTION builtin="clish_pyobj">sessionctl config_diff name=*</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays difference between running-configuration and session configuration.
+           This is equivalent of running `show session-config diff` from configure session mode.
+         </DESCRIPTION>
+        <EXAMPLE>
+           sonic# show config session diff
+           --- running-config
+           +++ candidate-config
+ 
+            ip access-list acl1
+           - seq 1 permit tcp any any
+           + seq 5 permit udp host 12.11.13.12 any
+ 
+           +interface Vlan11
+           + mtu 4563
+ 
+           -interface Vlan101
+           - mtu 3452
+ 
+            interface Ethernet0
+           - mtu 5776
+           + mtu 9100
+           - ip address 101.3.4.1/24
+           + ip address 3.4.2.3/24
+           sonic(config-s)#
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show config checkpoints" help="Display checkpoints information">
+      <PARAM name="cp" help="Display checkpoints information" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="brief" help="Display all checkpoints history in brief" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="details" help="Display all checkpoints history in detail" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="label_val" help="Checkpoint id/label String" ptype="STRING_72">
+          <PARAM name="details" help="Display details of the given Checkpoint id/label" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sessionctl show_checkpoints op=${cp} name=${label_val} template=show_checkpoint.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Display config commit checkpoints information</DESCRIPTION>
+        <EXAMPLE summary="View brief summary of all the checkpoints created">
+           sonic-cli# show config checkpoints brief
+           ID            Timestamp                 Label
+           ------------  ------------------------  ---------------------
+           1665061954-1  2022-10-01 16:30:35+0530  cp1
+           1665062032-2  2022-10-02 09:46:18+0530  --
+           1665062154-3  2022-10-03 11:22:43+0530  cp2
+           1665062196-4  2022-10-03 13:28:08+0530  cp3
+           1665062223-5  2022-10-03 17:36:24+0530  --
+         </EXAMPLE>
+        <EXAMPLE summary="View all details of the specific checkpoint">
+           sonic-cli# show config checkpoints 1665062223-5 details
+           ID         : 1665062223-5
+           Label      : --
+           Timestamp  : 2022-10-03 17:36:24+0530
+           User       : admin
+           Origin     : Commit
+           Dump File  : /etc/sonic/checkpoints/1665062223-5.cp.json
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear config" help="Config session" access="admin" test="-z ${__in_session}"/>
+    <COMMAND name="clear config session" help="Force abort config session" access="admin" test="-z ${__in_session}">
+      <PARAM name="no-prompt" hidden="true" optional="true" help="Do not ask confirmation" ptype="SUBCOMMAND" mode="subcommand"/>
+      <ACTION builtin="clish_pyobj">sessionctl kill name=* no_prompt=${no-prompt}${notty}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Force abort the config session without entering it.
+           Allows admin users to cleanup the sessions ceated by someone else.
+         </DESCRIPTION>
+        <EXAMPLE>
+           sonic# clear config session
+           WARNING: this operation will discard all changes done in config session
+           Do you want to continue? [Y/N] y
+           % Aborted unnamed session
+           sonic#
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

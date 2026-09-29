@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show system vlan" help="Display reserved vlan information">
+      <PARAM name="reserved" help="Reserve 128 vlans" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vlan reserved_vlan_show 
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!-- Config mode -->
+  <VIEW name="configure-view">
+    <COMMAND name="system" access="netadmin" help="System level configuration"> </COMMAND>
+    <COMMAND name="no system" access="netadmin" help="System level configuration"> </COMMAND>
+    <COMMAND name="system vlan" access="netadmin" help="Reserve contiguous 128 vlans" command_tables="sonic-vlan:sonic-vlan/RESERVED_VLAN/RESERVED_VLAN_LIST/name={vlan_name}" command_keys="vlan_name=*" render_command_cb="reserve_vlan_show">
+      <PARAM name="vlan-id" help="Starting vlan id of 128 vlans which needs to be reserved" ptype="VLAN_ID" dbpath="/restconf/data/openconfig-vlan-ext:reserve-vlans/reserve-vlan={vlan-name}/vlan-name">
+        <PARAM name="reserve" help="Reserve 128 vlans" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vlan reserved_vlan ${vlan-id}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            Reserve contiguous 128 vlans 
+         </DESCRIPTION>
+        <EXAMPLE>
+             sonic(config)# system vlan 600 reserve
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no system vlan" access="netadmin" help="Remove the reserved vlan config">
+      <PARAM name="vlan-id" help="Starting vlan id of 128 reserved vlans which needs to be deleted" ptype="VLAN_ID">
+        <PARAM name="reserve" help="Delete 128 reserve vlans" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_vlan delete_reserved_vlan ${vlan-id}
+ </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

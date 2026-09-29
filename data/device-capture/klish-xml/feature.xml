@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema https://raw.githubusercontent.com/project-arlo/sonic-mgmt-framework/master/src/CLI/clitree/scripts/sonic-clish.xsd">
+  <!-- ========================================================================= Define feature check variables here. Examples: <VAR name="abc_supported" dynamic="true"> <ACTION builtin="clish_pyobj">feature supported ABC</ACTION> </VAR> <VAR name="yxz_not_supported" dynamic="true"> <ACTION builtin="clish_pyobj">feature not_supported XYZ</ACTION> </VAR> =========================================================================-->
+  <VAR name="macsec_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature component macsec</ACTION>
+  </VAR>
+  <VAR name="gnmi_telemetry_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature component telemetry</ACTION>
+  </VAR>
+  <VAR name="pac_key_profile_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported REDIRECT_ACL</ACTION>
+  </VAR>
+  <VAR name="igmp_snooping_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported FEATURE_L2_MCAST</ACTION>
+  </VAR>
+  <VAR name="ipv4_pimssm_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported FEATURE_IPV4_PIMSSM</ACTION>
+  </VAR>
+  <VAR name="mclag_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported FEATURE_MCLAG</ACTION>
+  </VAR>
+</CLISH_MODULE>

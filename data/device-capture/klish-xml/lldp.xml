@@ -1,0 +1,612 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show lldp" help="Display LLDP information"/>
+    <COMMAND name="show lldp table" help="Display LLDP table information">
+      <ACTION builtin="clish_pyobj"> sonic_cli_lldp get_openconfig_lldp_lldp_interfaces lldp_show.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Shows LLDP neigbhor information in brief
+             </DESCRIPTION>
+        <USAGE>
+                 This command is useful to view the LLDP neighbor information in brief
+             </USAGE>
+        <EXAMPLE summary="Shows LLDP neigbhor information in brief">
+                 sonic-cli# show lldp table
+                 ------------------------------------------------------------------------------------------------------
+                 LocalPort           RemoteDevice        RemotePortID        Capability           RemotePortDescr
+                 -------------------------------------------------------------------------------------------------------
+                 Ethernet64          Leaf9               hundredGigE53       BR                  Ethernet64
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show lldp neighbor" help="Display LLDP neighbor information">
+      <PARAM name="ifname" help="Interface name" ptype="PHY_INTERFACE" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_lldp get_openconfig_lldp_lldp_interfaces lldp_neighbor_show.j2 ${ifname}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Shows LLDP neigbhor information in detail
+         </DESCRIPTION>
+        <USAGE>
+             This command is useful to view the LLDP neighbor information in detail
+         </USAGE>
+        <EXAMPLE summary="Shows LLDP neigbhor information in detail">
+         sonic-cli# show lldp neighbor
+         -----------------------------------------------------------
+         LLDP Neighbors
+         -----------------------------------------------------------
+         Interface:   Ethernet64,via: LLDP
+         Chassis:
+             ChassisID:    80:a2:35:26:48:5e
+             SysName:      Leaf9
+             SysDescr:     Debian GNU/Linux 9 (stretch) Linux 4.9.0-11-2-amd64 #1 SMP Debian 4.9.189-3+deb9u2 (2019-11-11) x86_64
+             MgmtIP:       10.59.132.165
+             MgmtIP:       10.59.132.165
+             Capability:   MAC_BRIDGE, ON
+             Capability:   ROUTER, ON
+         Port
+             PortID:       hundredGigE53
+             PortDescr:    Ethernet64
+         -----------------------------------------------------------
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show lldp statistics" help="Display LLDP statistics information">
+      <PARAM name="ifname" help="Interface name" ptype="PHY_INTERFACE" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_lldp get_openconfig_lldp_lldp_interfaces lldp_stats.j2 ${ifname}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Shows LLDP statistics information 
+         </DESCRIPTION>
+        <USAGE>
+             This command is useful to view the LLDP statistics information
+         </USAGE>
+        <EXAMPLE summary="Shows LLDP statistics information">
+         sonic-cli# show lldp statistics
+         LLDP Statistics
+         ---------------------------------
+         Interface: Ethernet0
+             Transmitted      : 10
+             Received         : 12
+             Discarded        : 1
+             Unrecognized TLV : 0
+             Ageout           : 0
+         ---------------------------------
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : Global LLDP config commands-->
+  <PTYPE name="LLDP_HELLO_TIME_TYPE" method="integer" pattern="5..254" help=""/>
+  <PTYPE name="LLDP_MULTIPLIER_TYPE" method="integer" pattern="1..10" help=""/>
+  <PTYPE name="LLDP_MODE_TYPE" method="select" pattern="receive transmit" help="Mode type"/>
+  <PTYPE name="LLDP_TLV_TYPE" method="select" pattern="management-address system-capabilities" help="TLV type"/>
+  <PTYPE name="LLDP_MED_TLV_TYPE" method="select" pattern="network-policy power-management" help="MED TLV type"/>
+  <PTYPE name="LLDP_MAX_TLV_COUNT_RANGE" method="integer" pattern="1..128" help=""/>
+  <VIEW name="configure-view">
+    <COMMAND name="lldp enable" access="netadmin" help="Enable LLDP at global level">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp enable_lldp_global</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Enable LLDP at global level
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to enable LLDP globally
+ 			</USAGE>
+        <EXAMPLE summary="Enable LLDP at global level">
+ 				sonic-cli(config)# lldp enable
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp enable" access="netadmin" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL" dbpath="sonic-lldp:sonic-lldp/LLDP/GLOBAL/enabled=false" help="Disable LLDP at global level">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp disable_lldp_global false</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Disable LLDP at global level.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to disable LLDP globally.
+ 			</USAGE>
+        <EXAMPLE summary="Disable LLDP at global level">
+ 				sonic-cli(config)# no lldp enable
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp" help="LLDP configuration subcommands" access="netadmin" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL" render_command_cb="lldp_global">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_lldp set_mode ${mode}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP frame Receiption and Transmission mode.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure LLDP frame Receiption and Transmission mode.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP mode">
+ 				sonic-cli(config)# lldp receive
+ 						or
+ 				sonic-cli(config)# lldp transmit
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp" access="netadmin" help="LLDP configuration subcommands">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_lldp del_mode</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP mode.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure LLDP mode.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP mode">
+ 				sonic-cli(config)# no lldp receive
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp timer" access="netadmin" help="Configure LLDP hello time value in seconds (5 to 254 sec)" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL">
+      <PARAM name="hello-time" help="Hello time value (5 to 254 sec)" ptype="LLDP_HELLO_TIME_TYPE" dbpath="sonic-lldp:sonic-lldp/LLDP/GLOBAL/hello_time"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_hello_time ${hello-time}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP hello time. It is the time interval at which periodic hellos are exchanged.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to set LLDP hello time. Default hello time is 30 seconds.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP hello time">
+ 				sonic-cli(config)# lldp timer 10
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp timer" access="netadmin" help="Unconfigure LLDP hello time value ">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_hello_time</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP hello time.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to set LLDP hello time to Default value.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP hello time">
+ 				sonic-cli(config)# no lldp timer
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp multiplier" access="netadmin" help="Configure LLDP multiplier value (1 to 10)" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL">
+      <PARAM name="multiplier" help="Multiplier value (1 to 10)" ptype="LLDP_MULTIPLIER_TYPE" dbpath="sonic-lldp:sonic-lldp/LLDP/GLOBAL/multiplier"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_multiplier ${multiplier}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP multiplier value that is used to determine the
+ 				timeout interval (i.e. hello-time x multiplier value) after
+ 				which LLDP neighbor entry is deleted
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to set LLDP multiplier value. Default value is 4.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP multiplier">
+ 				sonic-cli(config)# lldp multiplier 6
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp multiplier" access="netadmin" help="Unconfigure LLDP multiplier value ">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_multiplier</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP multiplier value.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to set LLDP multiplier value to Default value.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP multiplier value">
+ 				sonic-cli(config)# no lldp multiplier
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp system-name" access="netadmin" help="Configure LLDP system name" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL">
+      <PARAM name="system_name" help="System name" ptype="STRING" dbpath="sonic-lldp:sonic-lldp/LLDP/GLOBAL/system_name"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_system_name ${system_name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP System name.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure LLDP system name.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP system name">
+ 				sonic-cli(config)# lldp system-name "BroadcomSonic"
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp system-name" access="netadmin" help="Unconfigure LLDP system name">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_system_name</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP system name.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure LLDP system name.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP system name">
+ 				sonic-cli(config)# no lldp system-name
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp system-description" access="netadmin" help="Configure LLDP system description" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL">
+      <PARAM name="system_description" help="System description" ptype="LINE" dbpath="sonic-lldp:sonic-lldp/LLDP/GLOBAL/system_description"> </PARAM>
+      <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/openconfig-lldp:lldp/config/system-description body={"openconfig-lldp:system-description":"${system_description}"}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP System description.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure LLDP system description.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP system description">
+ 				sonic-cli(config)# lldp system-description "Broadcom Sonic"
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp system-description" access="netadmin" help="Unconfigure LLDP system description">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_system_description</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP system description.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure LLDP system description.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP system description">
+ 				sonic-cli(config)# no lldp system-description
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp tlv-select" access="netadmin" help="Enable LLDP TLVs to be advertised">
+      <PARAM name="tlv" help="TLV to be advertised" ptype="LLDP_TLV_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_tlv ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Enable sending of TLVs in LLDP frames.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure LLDP TLVs to be advertised
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP TLV">
+ 				sonic-cli(config)# lldp tlv-select system-capabilities
+ 				sonic-cli(config)# lldp tlv-select management-address
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp tlv-select" access="netadmin" help="Disable LLDP TLVs to be advertised" command_tables="sonic-lldp:sonic-lldp/LLDP/GLOBAL" render_command_cb="lldp_tlv_select">
+      <PARAM name="tlv" help="TLV to be advertised" ptype="LLDP_TLV_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_tlv ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Disable sending of TLVs in LLDP frames.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure LLDP TLVs to be advertised
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP TLV">
+ 				sonic-cli(config)# no lldp tlv-select system-capabilities
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : interface -->
+  <VIEW name="configure-if-view">
+    <COMMAND name="lldp" access="netadmin" help="LLDP interface configuration subcommands" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_mode">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_intf_mode ${iface} ${mode}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure LLDP frame Receiption and Transmission mode at interface level.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure LLDP frame Receiption and Transmission mode at interface level.
+ 			</USAGE>
+        <EXAMPLE summary="Configure LLDP mode">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# lldp receive
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp" access="netadmin" help="LLDP interface configuration subcommands">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_intf_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure LLDP mode at interface level.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure LLDP mode at interface level.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure LLDP mode">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# no lldp receive
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp enable" access="netadmin" help="Enable LLDP at interface level">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp enable_lldp_intf ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Enable LLDP at interface level
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to enable LLDP at interface level
+ 			</USAGE>
+        <EXAMPLE summary="Enable LLDP at interface level">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# lldp enable
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp enable" access="netadmin" help="Disable LLDP at interface level" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/enabled=false">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp disable_lldp_intf ${iface} false</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Disable LLDP at interface level.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to disable LLDP at interface level.
+ 			</USAGE>
+        <EXAMPLE summary="Disable LLDP at interface level">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# no lldp enable
+ 			</EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="network-policy" access="netadmin" help="Configures network policy profile for the interface" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}">
+      <PARAM name="number" help="Network policy profile number" ptype="RANGE_1_128" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/network_policy"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_intf_np ${iface} ${number}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configure network policy profile for an interface.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure the network policy profile for an interface.
+ 			</USAGE>
+        <EXAMPLE summary="Configures network policy profile for the interface">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# network-policy 1 
+ 			</EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no network-policy" access="netadmin" help="Unconfigures network policy profile for the interface">
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_intf_np ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigure network policy profile for an interface.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to unconfigure the network policy profile for an interface.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigures network policy profile for the interface">
+ 				sonic-cli(config)# interface Ethernet 0
+ 				sonic-cli(conf-if-Ethernet0)# no network-policy 
+ 			</EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp tlv-set" access="netadmin" help="Configures IPv4/IPv6 management address" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}">
+      <PARAM name="management-address" help="Management address that will be used to advertise" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ipv4-ipv6-subcmd" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="ipv4" help="IPv4 management address" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="address" help="IPv4 address" ptype="IP_ADDR" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/mgmt_ipv4"> </PARAM>
+          </PARAM>
+          <PARAM name="ipv6" help="IPv6 management address" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="address" help="IPv6 address" ptype="IPV6_ADDR" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/mgmt_ipv6"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_intf_mgmt_ip ${iface} ${ipv4-ipv6-subcmd} ${address}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Configure an IPv4 or IPv6 management address that will be used to advertise by LLDP on an interface.
+             </DESCRIPTION>
+        <USAGE>
+                 Use this command to configure an IPv4 or IPv6 management address that will be used to advertise by LLDP on an interface.
+             </USAGE>
+        <EXAMPLE summary="Configures IPv4/IPv6 management address">
+                 sonic-cli(config)# interface Ethernet 0
+                 sonic-cli(conf-if-Ethernet0)# lldp tlv-set management-address ipv4 10.1.1.1 
+             </EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp tlv-set" access="netadmin" help="Unconfigures IPv4/IPv6 management address">
+      <PARAM name="management-address" help="Management address" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ipv4-ipv6-subcmd" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="ipv4" help="IPv4 management address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="ipv6" help="IPv6 management address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_intf_mgmt_ip ${iface} ${ipv4-ipv6-subcmd}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Unconfigure an IPv4 or IPv6 management address set on an interface.
+             </DESCRIPTION>
+        <USAGE>
+                 Use this command to unconfigure an IPv4 or IPv6 management address set on an interface.
+             </USAGE>
+        <EXAMPLE summary="Unconfigures IPv4/IPv6 management address">
+                 sonic-cli(config)# interface Ethernet 0
+                 sonic-cli(conf-if-Ethernet0)# no lldp tlv-set management-address ipv4
+             </EXAMPLE>
+        <FEATURE> LLDP </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp med-tlv-select" access="netadmin" help="Enables LLDP-MED TLV advertisement">
+      <PARAM name="tlv" help="MED TLV" ptype="LLDP_MED_TLV_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_intf_med_tlv ${iface} ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Enables LLDP-MED TLV advertisement.
+             </DESCRIPTION>
+        <USAGE>
+                 Use this command to select which LLDP-MED TLVs to be advertised.
+             </USAGE>
+        <EXAMPLE summary="Enables LLDP-MED TLV advertisement">
+                 sonic-cli(config)# interface Ethernet 0
+                 sonic-cli(conf-if-Ethernet0)# lldp med-tlv-select network-policy
+             </EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp med-tlv-select" access="netadmin" help="Disables LLDP-MED TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_med_tlv_select">
+      <PARAM name="tlv" help="MED TLV" ptype="LLDP_MED_TLV_TYPE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_intf_med_tlv ${iface} ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Disables LLDP-MED TLV advertisement.
+             </DESCRIPTION>
+        <USAGE>
+                 Use this command to select which LLDP-MED TLVs NOT to be advertised.
+             </USAGE>
+        <EXAMPLE summary="Disables LLDP-MED TLV advertisement">
+                 sonic-cli(config)# interface Ethernet 0
+                 sonic-cli(conf-if-Ethernet0)# no lldp med-tlv-select network-policy
+             </EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp tlv-select" access="netadmin" help="Enables LLDP TLV advertisement">
+      <PARAM name="tlv" help="Enables TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="power-management" help="802.3 TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port-vlan-id" help="802.1 PORT VLAN ID TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vlan-name" help="802.1 VLAN NAME TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="link-aggregation" help="802.1 Link Aggregation TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="max-frame-size" help="802.3 Maximum Frame size TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_intf_dot1_dot3_tlv ${iface} ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		 Enables LLDP 802.1/802.3 TLV advertisement.
+             </DESCRIPTION>
+        <USAGE>
+ 		 Use this command to select which LLDP 802.1/802.3 TLVs to be advertised.
+             </USAGE>
+        <EXAMPLE summary="Enables LLDP 802.1/3 TLV advertisement">
+ 		sonic-cli(config)# interface Ethernet 0
+ 		sonic-cli(conf-if-Ethernet0)# lldp tlv-select link-aggregation
+ 		sonic-cli(conf-if-Ethernet0)# lldp tlv-select max-frame-size
+ 		sonic-cli(conf-if-Ethernet0)# lldp tlv-select port-vlan-id
+ 		sonic-cli(conf-if-Ethernet0)# lldp tlv-select power-management
+                 sonic-cli(conf-if-Ethernet0)# lldp tlv-select vlan-name 
+             </EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp tlv-select" access="netadmin" help="Disables LLDP TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_tlv_select">
+      <PARAM name="tlv" help="Disables TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="power-management" help="802.3 TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port-vlan-id" help="802.1 PORT VLAN ID TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vlan-name" help="802.1 VLAN NAME TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="link-aggregation" help="802.1 Link Aggregation TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="max-frame-size" help="802.3 Maximum Frame size TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_intf_dot1_dot3_tlv ${iface} ${tlv}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		 Disables LLDP 802.1/802.3 TLV advertisement.
+             </DESCRIPTION>
+        <USAGE>
+ 	         Use this command to select which LLDP 802.1/802.3 TLVs NOT to be advertised.
+             </USAGE>
+        <EXAMPLE summary="Disables LLDP 802.1/802.3 TLV advertisement">
+ 		sonic-cli(config)# interface Ethernet 0
+                 sonic-cli(conf-if-Ethernet0)# no lldp tlv-select link-aggregation
+ 		sonic-cli(conf-if-Ethernet0)# no lldp tlv-select max-frame-size
+ 		sonic-cli(conf-if-Ethernet0)# no lldp tlv-select port-vlan-id
+ 		sonic-cli(conf-if-Ethernet0)# no lldp tlv-select power-management
+                 sonic-cli(conf-if-Ethernet0)# no lldp tlv-select vlan-name 
+             </EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="lldp vlan-name-tlv" access="netadmin" help="Configures vlan-list for vlan-name TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_vlan_name_tlv">
+      <PARAM name="vlan-info" help="Configures vlan-list for vlan-name TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="allowed" help="Configure allowed VLAN IDs on an interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="Vlan" help="Select vlan range option" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="vlan-range" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_RANGE"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="max-tlv-count" help="maximum number of VLAN Name TLVs that can be transmitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="tlv-count" help="The maximum number of VLAN Name TLVs that can be transmitted - default 10" ptype="LLDP_MAX_TLV_COUNT_RANGE"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp set_lldp_vlan_name ${iface} ${vlan-info} ${vlan-range} ${tlv-count} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Configure a vlan-list to be used for vlan-name TLV advertisement by LLDP on an interface.
+ 		</DESCRIPTION>
+        <USAGE>
+ 			Use this command to configure a vlan list that will be used to advertise vlan-name TLV by LLDP on an interface.
+ 		</USAGE>
+        <EXAMPLE summary="Configures vlan-list for vlan-name TLV advertisement">
+ 			sonic-cli(config)# interface Ethernet 0
+ 			sonic-cli(conf-if-Ethernet0)# lldp vlan-name-tlv allowed Vlan 10,20-25
+ 			sonic-cli(conf-if-Ethernet0)# lldp vlan-name-tlv max-tlv-count 5
+ 		</EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no lldp vlan-name-tlv" access="netadmin" help="Unconfigures vlan-list for vlan-name TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}">
+      <PARAM name="vlan-info" help="Unconfigures vlan-list for vlan-name TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="allowed" help="Unconfigure allowed VLAN IDs on an interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="Vlan" help="Select vlan range option" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="vlan-range" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_RANGE"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="max-tlv-count" help="Configure the maximum number of VLAN Name TLVs that can be transmitted" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_lldp del_lldp_vlan_name ${iface} ${vlan-info} ${vlan-range} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		Unconfigure a vlan-list to be used for vlan-name TLV advertisement by LLDP on an interface.
+ 	  </DESCRIPTION>
+        <USAGE>
+ 	        Use this command to unconfigure a vlan list that will be used to advertise vlan-name TLV by LLDP on an interface.
+ 	  </USAGE>
+        <EXAMPLE summary="Unconfigures vlan-list for vlan-name TLV advertisement">
+ 		sonic-cli(config)# interface Ethernet 0
+ 		sonic-cli(conf-if-Ethernet0)# no lldp vlan-name-tlv allowed Vlan 10,20-25
+ 		sonic-cli(conf-if-Ethernet0)# no lldp vlan-name-tlv max-tlv-count
+ 	  </EXAMPLE>
+        <FEATURE> LLDP-MED </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,10 @@
+### show ipv6 interface
+Interface    IPv6 address/mask           Master    Admin/Oper    BGP Neighbor    Neighbor IP    Flags
+-----------  --------------------------  --------  ------------  --------------  -------------  -------
+Ethernet0    2001::6/64                  Vrfibgp   up/up         N/A             N/A
+             fe80::5078:ff:fed3:697d/64
+docker0      fd00::1/80                            up/down       N/A             N/A
+             fe80::1/64
+eth0         fe80::5078:ff:fed3:6970/64            up/up         N/A             N/A
+             fe80::5054:ff:fe8e:1e4b/64
+lo           ::1/128                               up/up         N/A             N/A

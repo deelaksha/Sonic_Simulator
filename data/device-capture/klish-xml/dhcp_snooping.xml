@@ -1,0 +1,430 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <!--=======================================================-->
+  <!-- show ip dhcp snooping -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND help="Show DHCP Snooping IPv4 global configuration" name="show ip dhcp"/>
+    <COMMAND help="Show DHCP Snooping IPv4 global configuration" name="show ip dhcp snooping">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping global_config show_ip_dhcp_snooping.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays general information about ipv4 DHCP Snooping
+         </DESCRIPTION>
+        <USAGE>
+           show ip dhcp snooping
+         </USAGE>
+        <EXAMPLE summary="Sample output">
+           console#show ip dhcp snooping
+ 
+ 	  DHCP snooping is Enabled
+ 	  DHCP snooping source MAC verification is disabled
+ 	  DHCP snooping is enabled on the following VLANs: 10,20
+ 
+ 	  Interface   Trusted 
+ 	  ----------- ----------
+ 	  Ethernet1   Yes
+           console#
+         </EXAMPLE>
+        <FEATURE> DHCP Snooping </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCPv4 Snooping binding database" name="show ip dhcp snooping binding">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_binding_db show_ip_dhcp_snooping_binding.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCPv4 Snooping statistics" name="show ip dhcp snooping statistics">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_statistics show_ip_dhcp_snooping_statistics.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCPv4 Snooping deatiled statistics" name="show ip dhcp snooping statistics detail">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_statistics_detail show_ip_dhcp_snooping_statistics_detail.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCP Snooping IPv6 global configuration" name="show ipv6 dhcp"/>
+    <COMMAND help="Show DHCP Snooping IPv6 global configuration" name="show ipv6 dhcp snooping">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_global_config show_ipv6_dhcp_snooping.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCP Snooping IPv6 binding database" name="show ipv6 dhcp snooping binding">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_binding_db show_ipv6_dhcp_snooping_binding.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCPv6 Snooping statistics" name="show ipv6 dhcp snooping statistics">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_statistics show_ipv6_dhcp_snooping_statistics.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Show DHCPv6 Snooping statistics" name="show ipv6 dhcp snooping statistics detail">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_statistics_detail show_ipv6_dhcp_snooping_statistics_detail.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear ip dhcp" access="netadmin" help="Clear IP DHCP Snooping related configuration"> </COMMAND>
+    <COMMAND name="clear ip dhcp snooping" access="netadmin" help="Clear IP DHCP Snooping related configuration"> </COMMAND>
+    <COMMAND name="clear ip dhcp snooping binding" access="netadmin" help="Clear all or a specific dynamic DHCP Snooping binding entries">
+      <PARAM name="ip-address" help="IP address" ptype="IP_ADDR" optional="true">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_binding_clear ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear ip dhcp snooping statistics" access="netadmin" help="Clear Ip DHCP Snooping statistics">
+      <PARAM name="iface" help="Interface" ptype="PHY_PO_INTERFACE"/>
+      <ACTION builtin="clish_restcl"> oper=POST url=/restconf/operations/openconfig-dhcp-snooping-rpc:clear-dhcp-snooping-statistics body={"openconfig-dhcp-snooping-rpc:input":{"interface":"${iface}"}} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear ip dhcp snooping statistics detail" access="netadmin" help="Clear Ip DHCP Snooping statistics details">
+      <ACTION builtin="clish_restcl"> oper=POST url=/restconf/operations/openconfig-dhcp-snooping-rpc:clear-dhcp-snooping-statistics-detail body={"openconfig-dhcp-snooping-rpc:input":{}} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear ipv6 dhcp" access="netadmin" help="Clear IPv6 DHCP Snooping related configuration"> </COMMAND>
+    <COMMAND name="clear ipv6 dhcp snooping" access="netadmin" help="Clear IPv6 DHCP Snooping related configuration"> </COMMAND>
+    <COMMAND name="clear ipv6 dhcp snooping binding" access="netadmin" help="Clear all or a specific IPv6 DHCP Snooping binding entry(s)">
+      <PARAM name="ip-address" help="IP address" ptype="IPV6_ADDR" optional="true">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_binding_clear ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear ipv6 dhcp snooping statistics" access="netadmin" help="Clear IPV6 DHCP Snooping statistics">
+      <PARAM name="iface" help="Interface" ptype="PHY_PO_INTERFACE"/>
+      <ACTION builtin="clish_restcl"> oper=POST url=/restconf/operations/openconfig-dhcp-snooping-rpc:clear-dhcpv6-snooping-statistics body={"openconfig-dhcp-snooping-rpc:input":{"interface":"${iface}"}} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear ipv6 dhcp snooping statistics detail" access="netadmin" help="Clear Ipv6 DHCP Snooping statistics details">
+      <ACTION builtin="clish_restcl"> oper=POST url=/restconf/operations/openconfig-dhcp-snooping-rpc:clear-dhcpv6-snooping-statistics-detail body={"openconfig-dhcp-snooping-rpc:input":{}} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="ip dhcp" access="netadmin" help="Enable DHCPv4 snooping globally"/>
+    <COMMAND name="ip dhcp snooping" access="netadmin" help="Enable DHCPv4 snooping globally" command_tables="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/name={vlan_name}" command_keys="vlan_name=*" render_command_cb="dhcp_snooping_show">
+      <PARAM name="vlan-range" help="Enable DHCPv4 snooping on a range of vlan(s); for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_dhcp_snooping v4_dhcp_snooping ${vlan-range} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Enable DHCPv4 snooping globally or on selected vlans
+         </DESCRIPTION>
+        <USAGE>
+           [no] ip dhcp snooping [Vlan vlan-id]
+         </USAGE>
+        <EXAMPLE summary="Enable DHCPv4 snooping">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ip dhcp snooping
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv4 snooping">
+           sonic-cli# configure terminal
+           sonic-cli(config)# no ip dhcp snooping
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Enable DHCPv4 snooping on Vlan">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ip dhcp snooping Vlan 2
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv4 snopping on Vlan">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ip dhcp snooping Vlan 2
+           sonic-cli(config)#
+         </EXAMPLE>
+        <FEATURE> DHCP Snooping </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip dhcp snooping verify" access="netadmin" help="DHCPv4 snooping verification"/>
+    <COMMAND name="ip dhcp snooping verify mac-address" access="netadmin" help="DHCPv4 snooping mac verification" command_keys="id=GLOBAL" command_tables="sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING/DHCP_SNOOPING_LIST/id=GLOBAL" dbpath="sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING/DHCP_SNOOPING_LIST/dhcpv4_verify_mac_address=enable">
+      <ACTION builtin="clish_restcl"> oper=PATCH url=/restconf/data/openconfig-dhcp-snooping:dhcp-snooping/config/dhcpv4-verify-mac-address body={"openconfig-dhcp-snooping:dhcpv4-verify-mac-address": true} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Enable DHCPv4 snooping mac verification
+         </DESCRIPTION>
+        <USAGE>
+           [no] ip dhcp snooping verify mac-address
+         </USAGE>
+        <EXAMPLE summary="Enable DHCPv4 snooping mac verification">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ip dhcp snooping verify mac-address
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv4 snooping mac verification">
+           sonic-cli# configure terminal
+           sonic-cli(config)# no ip dhcp snooping verify mac-address
+           sonic-cli(config)#
+         </EXAMPLE>
+        <FEATURE> DHCP Snooping </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip dhcp" access="netadmin" help="Disable DHCPv4 snooping "/>
+    <COMMAND name="no ip dhcp snooping" access="netadmin" help="Disable DHCPv4 snooping globally">
+      <PARAM name="vlan-range" help="Disable DHCPv4 snooping on a range of vlan(s); for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_dhcp_snooping v4_dhcp_snooping ${vlan-range} no</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp snooping verify" access="netadmin" help="Disable DHCPv4 snooping mac-address verification"/>
+    <COMMAND name="no ip dhcp snooping verify mac-address" access="netadmin" help="Disable DHCPv4 snooping mac-address verification">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-dhcp-snooping:dhcp-snooping/config/dhcpv4-verify-mac-address </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp snooping binding" access="netadmin" help="Delete a static DHCPv4 snooping binding entry">
+      <PARAM name="ip-address" help="IP address" ptype="IP_ADDR">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${if-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_dhcp_snooping.py v4_binding_entry_delete ${ip-address} ${mac-address} ${vlan} ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_dhcp_snooping.py v4_binding_entry_delete ${ip-address} ${mac-address} ${vlan} ${phy-if-name}
+ fi
+ </ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp" access="netadmin" help="Enable DHCPv6 snooping globally"/>
+    <COMMAND name="ipv6 dhcp snooping" access="netadmin" help="Enable DHCPv6 snooping globally">
+      <PARAM name="vlan-range" help="Enable DHCPv6 snooping on a range of vlan(s); for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_dhcp_snooping v6_dhcp_snooping ${vlan-range} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Enable DHCPv6 snooping globally or on selected vlans
+         </DESCRIPTION>
+        <USAGE>
+           [no] ipv6 dhcp snooping [Vlan vlan-id]
+         </USAGE>
+        <EXAMPLE summary="Enable DHCPv6 snooping">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ipv6 dhcp snooping
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv6 snooping">
+           sonic-cli# configure terminal
+           sonic-cli(config)# no ipv6 dhcp snooping
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Enable DHCPv6 snooping on vlan">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ipv6 dhcp snooping Vlan 2
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv6 snooping on vlan">
+           sonic-cli# configure terminal
+           sonic-cli(config)# no ipv6 dhcp snooping Vlan 2
+           sonic-cli(config)#
+         </EXAMPLE>
+        <FEATURE> DHCP Snooping </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp snooping verify" access="netadmin" help="DHCPv6 snooping verification"/>
+    <COMMAND name="ipv6 dhcp snooping verify mac-address" access="netadmin" help="Enable DHCPv6 snooping mac verification" command_keys="id=GLOBAL" command_tables="sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING/DHCP_SNOOPING_LIST/id=GLOBAL" dbpath="sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING/DHCP_SNOOPING_LIST/dhcpv6_verify_mac_address=enable">
+      <ACTION builtin="clish_restcl"> oper=PATCH url=/restconf/data/openconfig-dhcp-snooping:dhcp-snooping/config/dhcpv6-verify-mac-address body={"openconfig-dhcp-snooping:dhcpv6-verify-mac-address": true} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Enable DHCPv6 snooping mac verification
+         </DESCRIPTION>
+        <USAGE>
+           [no] ipv6 dhcp snooping verify mac-address
+         </USAGE>
+        <EXAMPLE summary="Enable DHCPv6 snooping mac verification">
+           sonic-cli# configure terminal
+           sonic-cli(config)# ipv6 dhcp snooping verify mac-address
+           sonic-cli(config)#
+         </EXAMPLE>
+        <EXAMPLE summary="Disable DHCPv6 snooping mac verification">
+           sonic-cli# configure terminal
+           sonic-cli(config)# no ipv6 dhcp snooping verify mac-address
+           sonic-cli(config)#
+         </EXAMPLE>
+        <FEATURE> DHCP Snooping </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping" access="netadmin" help="Disable DHCPv6 snooping globally">
+      <PARAM name="vlan-range" help="Disable DHCPv6 snooping on a range of vlan(s); for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_dhcp_snooping v6_dhcp_snooping ${vlan-range} no</ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp snooping verify" access="netadmin" help="Disable DHCPv6 snooping mac-address verification"/>
+    <COMMAND name="no ipv6 dhcp snooping verify mac-address" access="netadmin" help="Disable DHCPv6 snooping mac-address verification">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-dhcp-snooping:dhcp-snooping/config/dhcpv6-verify-mac-address </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp snooping binding" access="netadmin" help="Delete a static DHCPv6 snooping binding entry">
+      <PARAM name="ip-address" help="IP address" ptype="IPV6_ADDR">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${if-subcommand}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_dhcp_snooping.py v6_binding_entry_delete ${ip-address} ${mac-address} ${vlan} ${PortChannel}
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_dhcp_snooping.py v6_binding_entry_delete ${ip-address} ${mac-address} ${vlan} ${phy-if-name}
+ fi
+ </ACTION>
+    </COMMAND>
+    <COMMAND name="ip source" access="netadmin" help="Configure DHCPv4 snooping binding entries"/>
+    <COMMAND name="ip source binding" access="netadmin" help="Create a static DHCPv4 snooping binding entry" command_tables="sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING_STATIC_BINDING/" render_command_cb="dhcp_snooping_static_show">
+      <PARAM name="ip-address" help="IP address" ptype="IP_ADDR" dbpath="/restconf/data/sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING_STATIC_BINDING/DHCP_SNOOPING_STATIC_BINDING_LIST/ipaddr">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR" dbpath="/restconf/data/sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING_STATIC_BINDING/DHCP_SNOOPING_STATIC_BINDING_LIST/mac">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE" dbpath="/restconf/data/sonic-dhcp-snooping:sonic-dhcp-snooping/DHCP_SNOOPING_STATIC_BINDING/DHCP_SNOOPING_STATIC_BINDING_LIST/vlan">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_binding_sonic_entry_add ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 source" access="netadmin" help="Configure DHCPv6 snooping binding entries"/>
+    <COMMAND name="ipv6 source binding" access="netadmin" help="Create a static DHCPv6 snooping binding entry">
+      <PARAM name="ip-address" help="IPv6 address" ptype="IPV6_ADDR">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_binding_sonic_entry_add ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip source" access="netadmin" help="Unconfigure DHCPv4 snooping binding entries"/>
+    <COMMAND name="no ip source binding" access="netadmin" help="Delete a static DHCPv4 snooping binding entry">
+      <PARAM name="ip-address" help="IP address" ptype="IP_ADDR">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_binding_sonic_entry_delete ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 source" access="netadmin" help="Unconfigure DHCPv6 snooping binding entries"/>
+    <COMMAND name="no ipv6 source binding" access="netadmin" help="Delete a static DHCPv6 snooping binding entry">
+      <PARAM name="ip-address" help="IPv6 address" ptype="IPV6_ADDR">
+        <PARAM name="mac-address" help="MAC address" ptype="MAC_ADDR">
+          <PARAM name="vlan" help="VLAN ID" mode="subcommand" ptype="VLAN_INTERFACE">
+            <PARAM name="if-subcommand" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-if-name" help="Ethernet ID" ptype="PHY_INTERFACE"> </PARAM>
+              <PARAM name="PortChannel" help="PortChannel ID" ptype="PO_INTERFACE" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_binding_sonic_entry_delete ${__params} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-view">
+    <COMMAND name="ip dhcp" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv4 snooping on interface(s)" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/dhcpv4_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping trust" access="netadmin" help="Disable DHCPv4 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${iface} no</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv6 snooping on interface(s)" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/dhcpv6_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping trust" access="netadmin" help="Disable DHCPv6 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${iface} no</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-lag-view">
+    <COMMAND name="ip dhcp" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv4 snooping on interface(s)" command_keys="key=GLOBAL" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/keyleaf=${key}" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/dhcpv4_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${po_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping trust" access="netadmin" help="Disable DHCPv4 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${po_name} no</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv6 snooping on interface(s)" command_keys="key=GLOBAL" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/keyleaf=${key}" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/dhcpv6_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${po_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping trust" access="netadmin" help="Disable DHCPv6 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${po_name} no</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="ip dhcp" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv4 snooping on interface(s)" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/dhcpv4_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping trust" access="netadmin" help="Disable DHCPv4 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${iface} no</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv6 snooping on interface(s)" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/dhcpv6_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${iface}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping trust" access="netadmin" help="Disable DHCPv6 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${iface} no</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-po-range-view">
+    <COMMAND name="ip dhcp" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping" access="netadmin" help="Enable DHCPv4 snooping"/>
+    <COMMAND name="ip dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv4 snooping on interface(s)" command_keys="key=GLOBAL" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/keyleaf=${key}" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/dhcpv4_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${po_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip dhcp" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping" access="netadmin" help="Disable DHCPv4 snooping"/>
+    <COMMAND name="no ip dhcp snooping trust" access="netadmin" help="Disable DHCPv4 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v4_dhcp_snooping_trust ${po_name} no</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 dhcp" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping" access="netadmin" help="Enable DHCPv6 snooping"/>
+    <COMMAND name="ipv6 dhcp snooping trust" access="netadmin" help="Mark Trust mode for DHCPv6 snooping on interface(s)" command_keys="key=GLOBAL" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/keyleaf=${key}" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/dhcpv6_snooping_trust=enable">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${po_name}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 dhcp" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping" access="netadmin" help="Disable DHCPv6 snooping"/>
+    <COMMAND name="no ipv6 dhcp snooping trust" access="netadmin" help="Disable DHCPv6 snooping Trust mode on interface(s)">
+      <ACTION builtin="clish_pyobj">sonic_cli_dhcp_snooping v6_dhcp_snooping_trust ${po_name} no</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

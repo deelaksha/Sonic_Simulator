@@ -1,0 +1,13 @@
+### show vlan
+Usage: show vlan [OPTIONS] COMMAND [ARGS]...
+
+  Show VLAN information
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  brief   Show all bridge information
+  config
+  count   Show Vlan count
+  id      Show Vlan Information

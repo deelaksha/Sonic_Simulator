@@ -1,0 +1,2238 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!--  Copyright 2023 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="ars_feature_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">sonic_cli_ars is_ars_feature_supported </ACTION>
+  </VAR>
+  <!--========================================================================-->
+  <!-- Adaptive Routing and Switching mode config commands -->
+  <!--========================================================================-->
+  <!--=======================================================-->
+  <!-- ARS Profile commands -->
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ars" access="netadmin" help="Enter ARS mode" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="ars profile" access="netadmin" help="Configure ARS profile" test="${ars_feature_supported}" view="configure-ars-profile-view" viewid="name=${name}" view_keys="name=*" view_tables="sonic-ars:sonic-ars/ARS_PROFILE/ARS_PROFILE_LIST/name={name}" render_command_cb="ars_profile_cb">
+      <PARAM name="name" help="ARS Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures ARS profile.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure an ARS profile. User should specify profile name.
+         Upon successful configuration CLI mode will be changed to config-ars-profile.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# ars profile profile1
+         sonic-cli(config-ars-profile)#
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars profile" access="netadmin" help="Unconfigure ARS profile" test="${ars_feature_supported}">
+      <PARAM name="name" help="ARS Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Unconfigures ARS profile.
+         </DESCRIPTION>
+        <USAGE>
+           Use this command unconfigure an ARS profile. User should specify profile name.
+         </USAGE>
+        <EXAMPLE summary="">
+           sonic-cli(config)# no ars profile profile1
+         </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars" access="netadmin" help="Delete ARS Configurations" test="${ars_feature_supported}"> </COMMAND>
+  </VIEW>
+  <VIEW name="configure-ars-profile-view" prompt="${SYSTEM_NAME}(${__config_mode}-ars-profile)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current ARS profile configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ars-profile view_keys="name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Displays current ARS profile configuration
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to display running configurations within current ARS profile.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config-ars-profile)# show configuration
+         !
+         ars profile
+          sampling-interval 10
+          port-load past-weight 10
+          port-load future-weight 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--=================== Algorithm ================-->
+    <COMMAND name="algorithm" access="netadmin" help="Configure algorithm for quality measure computation">
+      <PARAM name="EWMA" help="Exponential Weighted Moving Average" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_algo ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures algorithm value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure algorithm value for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures algorithm value.">
+         sonic-cli(config-ars-profile)# algorithm EWMA
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no algorithm" access="netadmin" help="UnConfigure algorithm">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_algo ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures algorithm value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure algorithm value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures algorithm value.">
+         sonic-cli(config-ars-profile)# no algorithm
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Sampling Interval ================-->
+    <COMMAND name="sampling-interval" access="netadmin" help="Configure data sampling interval in microseconds for quality measure computation">
+      <PARAM name="samplingtype" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="samplingInterval" help="Sampling interval in microseconds" ptype="RANGE_1_255"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_sampling_intvl ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures sampling interval value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure sampling interval value for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures sampling interval value.">
+         sonic-cli(config-ars-profile)# sampling-interval 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no sampling-interval" access="netadmin" help="UnConfigure data sampling interval">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_sampling_intvl ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures sampling interval value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure sampling interval value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures sampling interval value.">
+         sonic-cli(config-ars-profile)# no sampling-interval
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Random Seed ================-->
+    <COMMAND name="random-seed" access="netadmin" help="Configure Random seed for adaptive routing and switching">
+      <PARAM name="randomseed" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="randomSeed" help="Random seed value" ptype="RANGE_0_16777214"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_random_seed ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures Random seed value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure Random seed value for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures Random seed value.">
+         sonic-cli(config-ars-profile)# random-seed 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no random-seed" access="netadmin" help="UnConfigure Random seed">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_random_seed ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures Random seed value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure Random seed value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures Random seed value.">
+         sonic-cli(config-ars-profile)# no random-seed
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Past ================-->
+    <COMMAND name="port-load-past" access="netadmin" help="Enable past port load, the average egress bytes measured on a port">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_past ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable past port load as the quality parameter.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable past port load as the quality parameter.
+       </USAGE>
+        <EXAMPLE summary="Enable past port load.">
+         sonic-cli(config-ars-profile)# port-load-past
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-past" access="netadmin" help="UnConfigure past port load">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_past ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures past port load.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable past port load.
+       </USAGE>
+        <EXAMPLE summary="Disables past port load.">
+         sonic-cli(config-ars-profile)# no port-load-past
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Past Weight ================-->
+    <COMMAND name="port-load-past-weight" access="netadmin" help="Configure port load past weight attribute, used in EWMA calculations">
+      <PARAM name="portloadpastweight" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="portLoadPastWeight" help="port Load Past Weight value" ptype="RANGE_1_16"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_past_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure weight attribute, used in EWMA calculations.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure port load past weight.
+       </USAGE>
+        <EXAMPLE summary="Configures port load past weight value.">
+         sonic-cli(config-ars-profile)# port-load-past-weight 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-past-weight" access="netadmin" help="UnConfigure port load past weight">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_port_load_past_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures port load past weight value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure port load past weight value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures port load past weight.">
+         sonic-cli(config-ars-profile)# no port-load-past-weight
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Future ================-->
+    <COMMAND name="port-load-future" access="netadmin" help="Enable future port load, the average queued bytes measured on a port">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_future ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable future port load as the quality parameter.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable future port load as the quality parameter.
+       </USAGE>
+        <EXAMPLE summary="Enable future port load.">
+         sonic-cli(config-ars-profile)# port-load-future
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-future" access="netadmin" help="UnConfigure future port load">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_future ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures algorithm value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure algorithm value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures algorithm value.">
+         sonic-cli(config-ars-profile)# no port-load-past
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Future Weight ================-->
+    <COMMAND name="port-load-future-weight" access="netadmin" help="Configure port load future weight attribute, used in EWMA calculations">
+      <PARAM name="portloadfutureweight" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="portLoadFutureWeight" help="port Load Future Weight value" ptype="RANGE_1_16"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_future_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure weight attribute, used in EWMA calculations.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure port load future weight.
+       </USAGE>
+        <EXAMPLE summary="Configures port load future weight value.">
+         sonic-cli(config-ars-profile)# port-load-future-weight 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-future-weight" access="netadmin" help="UnConfigure port load future weight">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_port_load_future_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures port load future weight value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure port load future weight value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures port load future weight.">
+         sonic-cli(config-ars-profile)# no port-load-future-weight
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Current ================-->
+    <COMMAND name="port-load-current" access="netadmin" help="Set port load to current sampled value, when sampled value is less than the average">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_current ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Set port load to current sampled value, when sampled value is less than the average.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to set port load to current sampled value, when sampled value is less than the average.
+       </USAGE>
+        <EXAMPLE summary="Enable current port load.">
+         sonic-cli(config-ars-profile)# port-load-current
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-current" access="netadmin" help="UnConfigure current port load">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_current ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures algorithm value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure algorithm value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures algorithm value.">
+         sonic-cli(config-ars-profile)# no port-load-current
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Port Load Exponent ================-->
+    <COMMAND name="port-load-exponent" access="netadmin" help="Configure port load exponent value">
+      <PARAM name="portloadexponent" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="portLoadExponent" help="port Load Exponent value" ptype="RANGE_1_16"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_port_load_exponent ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure port load exponent attribute, used in EWMA calculations.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure port load exponent.
+       </USAGE>
+        <EXAMPLE summary="Configures port load exponent value.">
+         sonic-cli(config-ars-profile)# port-load-exponent 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no port-load-exponent" access="netadmin" help="UnConfigure port load exponent">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_port_load_exponent ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures port load exponent value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure port load exponent value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures port load exponent.">
+         sonic-cli(config-ars-profile)# no port-load-exponent
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 0 min ================-->
+    <COMMAND name="quant-band-0-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 0" hidden="true">
+      <PARAM name="quantband0min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand0Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 0 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 0 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 0 value.">
+         sonic-cli(config-ars-profile)# quant-band-0-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-0-min" access="netadmin" help="UnConfigure quant band 0 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 0 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 0 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 0 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-0-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 0 max ================-->
+    <COMMAND name="quant-band-0-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 0" hidden="true">
+      <PARAM name="quantband0max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand0Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 0 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 0 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 0 value.">
+         sonic-cli(config-ars-profile)# quant-band-0-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-0-max" access="netadmin" help="UnConfigure quant band 0 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 0 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 0 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 0 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-0-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 1 min ================-->
+    <COMMAND name="quant-band-1-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 1" hidden="true">
+      <PARAM name="quantband1min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand1Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 1 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 1 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 1 value.">
+         sonic-cli(config-ars-profile)# quant-band-1-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-1-min" access="netadmin" help="UnConfigure quant band 1 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 1 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 1 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 1 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-1-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 1 max ================-->
+    <COMMAND name="quant-band-1-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 1" hidden="true">
+      <PARAM name="quantband1max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand1Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 1 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 1 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 1 value.">
+         sonic-cli(config-ars-profile)# quant-band-1-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-1-max" access="netadmin" help="UnConfigure quant band 1 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 1 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 1 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 1 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-1-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 2 min ================-->
+    <COMMAND name="quant-band-2-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 2" hidden="true">
+      <PARAM name="quantband2min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand2Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 2 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 2 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 2 value.">
+         sonic-cli(config-ars-profile)# quant-band-2-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-2-min" access="netadmin" help="UnConfigure quant band 2 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 2 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 2 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 2 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-2-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 2 max ================-->
+    <COMMAND name="quant-band-2-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 2" hidden="true">
+      <PARAM name="quantband2max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand2Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 2 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 2 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 2 value.">
+         sonic-cli(config-ars-profile)# quant-band-2-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-2-max" access="netadmin" help="UnConfigure quant band 2 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 2 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 2 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 2 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-2-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 3 min ================-->
+    <COMMAND name="quant-band-3-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 3" hidden="true">
+      <PARAM name="quantband3min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand3Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 3 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 3 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 3 value.">
+         sonic-cli(config-ars-profile)# quant-band-3-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-3-min" access="netadmin" help="UnConfigure quant band 3 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 3 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 3 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 3 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-3-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 3 max ================-->
+    <COMMAND name="quant-band-3-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 3" hidden="true">
+      <PARAM name="quantband3max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand3Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 3 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 3 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 3 value.">
+         sonic-cli(config-ars-profile)# quant-band-3-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-3-max" access="netadmin" help="UnConfigure quant band 3 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 3 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 3 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 3 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-3-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 4 min ================-->
+    <COMMAND name="quant-band-4-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 4" hidden="true">
+      <PARAM name="quantband4min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand4Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 4 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 4 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 4 value.">
+         sonic-cli(config-ars-profile)# quant-band-4-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-4-min" access="netadmin" help="UnConfigure quant band 4 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 4 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 4 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 4 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-4-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 4 max ================-->
+    <COMMAND name="quant-band-4-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 4" hidden="true">
+      <PARAM name="quantband4max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand4Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 4 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 4 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 4 value.">
+         sonic-cli(config-ars-profile)# quant-band-4-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-4-max" access="netadmin" help="UnConfigure quant band 4 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 4 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 4 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 4 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-4-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 5 min ================-->
+    <COMMAND name="quant-band-5-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 5" hidden="true">
+      <PARAM name="quantband5min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand5Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 5 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 5 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 5 value.">
+         sonic-cli(config-ars-profile)# quant-band-5-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-5-min" access="netadmin" help="UnConfigure quant band 5 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 5 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 5 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 5 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-5-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 5 max ================-->
+    <COMMAND name="quant-band-5-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 5" hidden="true">
+      <PARAM name="quantband5max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand5Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 5 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 5 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 5 value.">
+         sonic-cli(config-ars-profile)# quant-band-5-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-5-max" access="netadmin" help="UnConfigure quant band 5 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 5 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 5 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 5 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-5-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 6 min ================-->
+    <COMMAND name="quant-band-6-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 6" hidden="true">
+      <PARAM name="quantband6min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand6Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 6 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 6 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 6 value.">
+         sonic-cli(config-ars-profile)# quant-band-6-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-6-min" access="netadmin" help="UnConfigure quant band 6 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 6 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 6 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 6 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-6-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 6 max ================-->
+    <COMMAND name="quant-band-6-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 6" hidden="true">
+      <PARAM name="quantband6max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand6Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 6 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 6 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 6 value.">
+         sonic-cli(config-ars-profile)# quant-band-6-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-6-max" access="netadmin" help="UnConfigure quant band 6 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 6 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 6 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 6 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-6-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 7 min ================-->
+    <COMMAND name="quant-band-7-min" access="netadmin" help="Configure minimum threshold used for quantization process in Mbps for band 7" hidden="true">
+      <PARAM name="quantband7min" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand7Min" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band minimum threshold for band 7 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band minimum threshold for band 7 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band minimum threshold for band 7 value.">
+         sonic-cli(config-ars-profile)# quant-band-7-min 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-7-min" access="netadmin" help="UnConfigure quant band 7 minimum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 7 minimum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 7 minimum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 7 minimum.">
+         sonic-cli(config-ars-profile)# no quant-band-7-min
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Quant band 7 max ================-->
+    <COMMAND name="quant-band-7-max" access="netadmin" help="Configure maximum threshold used for quantization process in Mbps for band 7" hidden="true">
+      <PARAM name="quantband7max" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="quantBand7Max" help="threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_config_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configure quant band maximum threshold for band 7 in Mbps.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quant band maximum threshold for band 7 in Mbps.
+       </USAGE>
+        <EXAMPLE summary="Configures quant band maximum threshold for band 7 value.">
+         sonic-cli(config-ars-profile)# quant-band-7-max 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no quant-band-7-max" access="netadmin" help="UnConfigure quant band 7 maximum value" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_quant_band ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quant band 7 maximum value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quant band 7 maximum value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quant band 7 maximum.">
+         sonic-cli(config-ars-profile)# no quant-band-7-max
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Past Min Val ================-->
+    <COMMAND name="load-past-min-val" access="netadmin" help="Configure minimum past load threshold value for the quantization process">
+      <PARAM name="loadpastminval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadPastMinVal" help="minimum past load threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_past_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures minimum past load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure minimum past load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures minimum past load threshold value.">
+         sonic-cli(config-ars-profile)# load-past-min-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-past-min-val" access="netadmin" help="UnConfigure minimum past load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_past_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures minimum past load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure minimum past load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures minimum past load threshold value.">
+         sonic-cli(config-ars-profile)# no load-past-min-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Past Max Val ================-->
+    <COMMAND name="load-past-max-val" access="netadmin" help="Configure maximum past load threshold value for the quantization process">
+      <PARAM name="loadpastmaxval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadPastMaxVal" help="maximum past load threshold value" ptype="RANGE_0_10000"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_past_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures maximum past load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure maximum past load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures maximum past load threshold value.">
+         sonic-cli(config-ars-profile)# load-past-max-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-past-max-val" access="netadmin" help="UnConfigure maximum past load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_past_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures maximum past load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure maximum past load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures maximum past load threshold value.">
+         sonic-cli(config-ars-profile)# no load-past-max-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Future Min Val ================-->
+    <COMMAND name="load-future-min-val" access="netadmin" help="Configure minimum future load threshold value for the quantization process">
+      <PARAM name="loadfutureminval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadFutureMinVal" help="minimum future load threshold value" ptype="RANGE_0_266338303"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_future_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures minimum future load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure minimum future load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures minimum future load threshold value.">
+         sonic-cli(config-ars-profile)# load-future-min-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-future-min-val" access="netadmin" help="UnConfigure minimum future load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_future_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures minimum future load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure minimum future load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures minimum future load threshold value.">
+         sonic-cli(config-ars-profile)# no load-future-min-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Future Max Val ================-->
+    <COMMAND name="load-future-max-val" access="netadmin" help="Configure maximum future load threshold value for the quantization process">
+      <PARAM name="loadfuturemaxval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadFutureMaxVal" help="maximum future load threshold value" ptype="RANGE_0_266338303"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_future_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures maximum future load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure maximum future load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures maximum future load threshold value.">
+         sonic-cli(config-ars-profile)# load-future-max-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-future-max-val" access="netadmin" help="UnConfigure maximum future load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_future_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures maximum future load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure maximum future load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures maximum future load threshold value.">
+         sonic-cli(config-ars-profile)# no load-future-max-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Current Min Val ================-->
+    <COMMAND name="load-current-min-val" access="netadmin" help="Configure minimum current load threshold value for the quantization process">
+      <PARAM name="loadcurrentminval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadCurrentMinVal" help="minimum current load threshold value" ptype="RANGE_0_133169151"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_current_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures minimum current load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure minimum current load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures minimum current load threshold value.">
+         sonic-cli(config-ars-profile)# load-current-min-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-current-min-val" access="netadmin" help="UnConfigure minimum current load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_current_min_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures minimum current load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure minimum current load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures minimum current load threshold value.">
+         sonic-cli(config-ars-profile)# no load-current-min-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Current Max Val ================-->
+    <COMMAND name="load-current-max-val" access="netadmin" help="Configure maximum current load threshold value for the quantization process">
+      <PARAM name="loadcurrentmaxval" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadCurrentMaxVal" help="maximum current load threshold value" ptype="RANGE_0_133169151"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_current_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures maximum current load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure maximum current load threshold value.
+       </USAGE>
+        <EXAMPLE summary="Configures maximum current load threshold value.">
+         sonic-cli(config-ars-profile)# load-current-max-val 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-current-max-val" access="netadmin" help="UnConfigure maximum current load threshold value">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_profile_load_current_max_val ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures maximum current load threshold value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure maximum current load threshold value.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures maximum current load threshold value.">
+         sonic-cli(config-ars-object)# no load-current-max-val
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- ARS profile bind commands -->
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ars bind" access="netadmin" help="ARS bind profile" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="ars bind profile" access="netadmin" help="Bind ARS profile" test="${ars_feature_supported}" command_keys="name=*" command_tables="sonic-ars:sonic-ars/ARS_SWITCH_BIND/ARS_SWITCH_BIND_LIST/name=switch" render_command_cb="ars_profile_bind_cb">
+      <PARAM name="profile" help="ARS Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_bind SWITCH ${profile} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Bind ARS profile to switch.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to bind an ARS profile to switch. User should specify profile name.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# ars bind profile profile1
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars bind profile" access="netadmin" help="Unbind ARS profile" test="${ars_feature_supported}" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_profile_bind 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Unbind ARS profile from switch.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to unbind an ARS profile from switch. User should specify profile name.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# no ars bind profile 
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars bind" access="netadmin" help="ARS unbind profile" test="${ars_feature_supported}"> </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- ARS Port Profile commands -->
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ars port-profile" access="netadmin" help="Configure ARS Port Profile" test="${ars_feature_supported}" view="configure-ars-port-profile-view" viewid="name=${name}" view_keys="name=*" view_tables="sonic-ars:sonic-ars/ARS_PORT_PROFILE/ARS_PORT_PROFILE_LIST/name={name}" render_command_cb="ars_port_profile_cb">
+      <PARAM name="name" help="ARS Port Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures ARS Port Profile.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure an ARS port profile. User should specify the profile name.
+         Upon successful configuration CLI mode will be changed to config-ars-port-profile.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# ars port-profile pp1
+         sonic-cli(config-ars-port-profile)#
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars port-profile" access="netadmin" help="Unconfigure ARS Port Profile" test="${ars_feature_supported}">
+      <PARAM name="name" help="ARS Port Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Unconfigures ARS Port Profile.
+         </DESCRIPTION>
+        <USAGE>
+           Use this command to unconfigure an ARS port profile. User should specify port profile name.
+         </USAGE>
+        <EXAMPLE summary="">
+           sonic-cli(config)# no ars port-profile pp1
+         </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-ars-port-profile-view" prompt="${SYSTEM_NAME}(${__config_mode}-ars-port-profile)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current ARS port-profile configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ars-port-profile view_keys="name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Displays current ARS port-profile configuration
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to display running configurations within current ARS port-profile.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config-ars-port-profile)# show configuration
+         !
+         ars port-profile
+          load-scaling-factor 20
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--=================== Load Scaling Factor ================-->
+    <COMMAND name="load-scaling-factor" access="netadmin" help="Configure port load scaling factor.">
+      <PARAM name="loadscalingfactor" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="0" help="Port load factor for internal calculation" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="1" help="Port load factor for port speed 10G" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="2.5" help="Port load factor for port speed 25G." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="4" help="Port load factor for port speed 40G." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="5" help="Port load factor for port speed 50G." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="10" help="Port load factor for port speed 100G." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="20" help="Port load factor for port speed 200G." ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="40" help="Port load factor for port speed 400G" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="80" help="Port load factor for port speed 800G" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_config_load_scaling_factor ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures port load scaling factor value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure port load scaling factor value for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures port load scaling factor value.">
+         sonic-cli(config-ars-port-profile)# load-scaling-factor 20
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-scaling-factor" access="netadmin" help="UnConfigure Load Scaling Factor">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_load_scaling_factor ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures port load scaling factor value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure port load scaling factor value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures load scaling factor value.">
+         sonic-cli(config-ars-port-profile)# no load-scaling-factor
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="enable" access="netadmin" help="Enable ARS for the port">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable ARS for the port.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable ARS for the port.
+       </USAGE>
+        <EXAMPLE summary="Enable ARS for the port.">
+         sonic-cli(config-ars-profile)# enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no enable" access="netadmin" help="Disable ARS for the port">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable ARS for the port.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable ARS for the port.
+       </USAGE>
+        <EXAMPLE summary="Disables ARS for the port.">
+         sonic-cli(config-ars-profile)# no enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="load-past-enable" access="netadmin" help="Enable historical or past port load quality measure in switch pipeline." hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_load_past_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable historical or past port load quality measure in switch pipeline.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable port past load.
+       </USAGE>
+        <EXAMPLE summary="Enable port past load.">
+         sonic-cli(config-ars-profile)# load-past-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-past-enable" access="netadmin" help="Disable past port load quality measure" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_load_past_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable port past load.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable port past load.
+       </USAGE>
+        <EXAMPLE summary="Disables port past load.">
+         sonic-cli(config-ars-profile)# no load-past-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="load-future-enable" access="netadmin" help="Enable future load quality measure in switch pipeline." hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_load_future_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable future load quality measure in switch pipeline.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable future load quality measure in switch pipeline.
+       </USAGE>
+        <EXAMPLE summary="Enable port future load.">
+         sonic-cli(config-ars-profile)# load-future-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-future-enable" access="netadmin" help="Disable future load quality measure in switch pipeline." hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_load_future_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable future load quality measure in switch pipeline.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable future load quality measure in switch pipeline.
+       </USAGE>
+        <EXAMPLE summary="Disables port future load.">
+         sonic-cli(config-ars-profile)# no load-future-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="alt-path" access="netadmin" help="Enable port as part of alternate path." hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_alt_path ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable port as part of alternate path.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable port as part of alternate path.
+       </USAGE>
+        <EXAMPLE summary="Enable port as part of alternate path.">
+         sonic-cli(config-ars-profile)# alt-path
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no alt-path" access="netadmin" help="Disable future load quality measure in switch pipeline." hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_alt_path ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable future load quality measure in switch pipeline.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable future load quality measure in switch pipeline.
+       </USAGE>
+        <EXAMPLE summary="Disables port as part of alternate path.">
+         sonic-cli(config-ars-profile)# no alt-path
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Load Current Min Val ================-->
+    <COMMAND name="load-past-weight" access="netadmin" help="Assign weight in percent for past port load quality measure in switch pipeline.">
+      <PARAM name="loadpastweight" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadPastWeight" help="Past port load weight in percent. Aggregate of past and future load weights should be less than or equal to 100." ptype="RANGE_0_100"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_config_load_past_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures weight in percent for past port load quality measure.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure weight in percent for past port load quality.
+       </USAGE>
+        <EXAMPLE summary="Configures weight in percent for past port load quality.">
+         sonic-cli(config-ars-profile)# load-past-weight 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-past-weight" access="netadmin" help="UnConfigure load past weight">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_config_load_past_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures load past weight.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure load past weight.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures load past weight.">
+         sonic-cli(config-ars-object)# no load-past-weight
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="load-future-weight" access="netadmin" help="Assign weight in percent for future port load quality measure in switch pipeline.">
+      <PARAM name="loadfutureweight" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="loadFutureWeight" help="Future port load weight in percent. Aggregate of past and future load weights should be less than or equal to 100." ptype="RANGE_0_100"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_config_load_future_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures weight in percent for future port load quality measure.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure weight in percent for future port load quality.
+       </USAGE>
+        <EXAMPLE summary="Configures weight in percent for future port load quality.">
+         sonic-cli(config-ars-profile)# load-future-weight 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no load-future-weight" access="netadmin" help="UnConfigure load future weight">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_config_load_future_weight ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures load future weight.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure load future weight.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures load future weight.">
+         sonic-cli(config-ars-object)# no load-future-weight
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- ARS port-profile bind commands -->
+  <!--=======================================================-->
+  <VIEW name="configure-if-view">
+    <COMMAND name="ars" access="netadmin" help="ARS port configuration" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="ars bind" access="netadmin" help="Bind ARS port-profile" test="${ars_feature_supported}" command_keys="name=*" command_tables="sonic-ars:sonic-ars/ARS_PORT_BIND/ARS_PORT_BIND_LIST/name={iface}" render_command_cb="ars_port_profile_bind_cb">
+      <PARAM name="portprofile" help="ARS Port Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_bind ${iface} ${portprofile} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Bind ARS port-profile to the port.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to bind an ARS port-profile to the port. User should specify port-profile name.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config-if-Ethernet32)# ars bind pp1
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars" access="netadmin" help="ARS port unconfiguration" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="no ars bind" access="netadmin" help="Unbind ARS port-profile" test="${ars_feature_supported}" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_bind ${iface} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Unbind ARS port-profile from the port.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to unbind an ARS port-profile from port.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# no ars bind 
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- Config Interface RANGE-MODE -->
+  <!--=======================================================-->
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="ars" access="netadmin" help="Adaptive Routing and Switching port range configuration" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="ars bind" access="netadmin" help="Bind ARS port profile" test="${ars_feature_supported}">
+      <PARAM name="portprofile" help="ARS Port Profile name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars config_ars_port_range iflist=${iflist} patch_ars_port_range_profile_bind ${portprofile}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ars bind" access="netadmin" help="Unbind ARS port profile" test="${ars_feature_supported}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_ars_port_range iflist=${iflist} delete_ars_port_range_profile_bind</ACTION>
+    </COMMAND>
+    <COMMAND name="no ars" access="netadmin" help="Adaptive Routing and Switching port range unconfiguration" test="${ars_feature_supported}"> </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- ARS Object commands -->
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ars object" access="netadmin" help="Configure ARS Object" test="${ars_feature_supported}" view="configure-ars-object-view" viewid="name=${name}" view_keys="name=*" view_tables="sonic-ars:sonic-ars/ARS_OBJECT/ARS_OBJECT_LIST/name={name}" render_command_cb="ars_object_cb">
+      <PARAM name="name" help="ARS Object name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures ARS object.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure an ARS object. User should specify object name.
+         Upon successful configuration CLI mode will be changed to config-ars-object.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config)# ars object object1
+         sonic-cli(config-ars-object)#
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ars object" access="netadmin" help="Unconfigure ARS object" test="${ars_feature_supported}">
+      <PARAM name="name" help="ARS object name" ptype="STRING_15"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject ${name} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Unconfigures ARS object.
+         </DESCRIPTION>
+        <USAGE>
+           Use this command unconfigure an ARS object. User should specify object name.
+         </USAGE>
+        <EXAMPLE summary="">
+           sonic-cli(config)# no ars object object1
+         </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-ars-object-view" prompt="${SYSTEM_NAME}(${__config_mode}-ars-object)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current ARS object configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ars-object view_keys="name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Displays current ARS object configuration
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to display running configurations within current ARS object.
+       </USAGE>
+        <EXAMPLE summary="">
+         sonic-cli(config-ars-object)# show configuration
+         !
+         ars object
+          idle-time 20
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--=================== Idle Time ================-->
+    <COMMAND name="idle-time" access="netadmin" help="Configure Idle duration to classify a flow-let in a macro flow in microseconds">
+      <PARAM name="idletime" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="idleTime" help="Idle duration in microseconds" ptype="RANGE_16_32767"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_idle_time ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures idle time value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure idle time value for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures idle time value.">
+         sonic-cli(config-ars-object)# idle-time 20
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no idle-time" access="netadmin" help="UnConfigure Idle duration">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_idle_time ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures idle time value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure idle time value for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures idle time value.">
+         sonic-cli(config-ars-object)# no idle-time
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Max Flows ================-->
+    <COMMAND name="max-flows" access="netadmin" help="Configure Maximum number of flow states, maintained per ARS object">
+      <PARAM name="maxflowType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="maxflowvalue" help="Maximum number of flow states" ptype="RANGE_1_32768"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_max_flows ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures max flows type.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure max flows type for ARS.
+       </USAGE>
+        <EXAMPLE summary="Configures max flows type.">
+         sonic-cli(config-ars-object)# max-flows 1024
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no max-flows" access="netadmin" help="UnConfigure max flows">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_max_flows ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures max flows value.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure max flows type for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures max flows type.">
+         sonic-cli(config-ars-object)# no max-flows
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== mode ================-->
+    <COMMAND name="mode" access="netadmin" help="Configure ARS path (re)assignment mode">
+      <PARAM name="modeType" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="flowlet-quality" help="Per flow-let quality based path (re)assignment" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="flowlet-random" help="Per flow-let random path (re)assignment" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="packet-quality" help="Per packet quality based path (re)assignment" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="packet-random" help="Per packet random path (re)assignment" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="fixed" help="Fixed path assignment" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_mode ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures ARS path (re)assignment mode.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure ARS path (re)assignment mode.
+       </USAGE>
+        <EXAMPLE summary="Configures ARS path (re)assignment mode.">
+         sonic-cli(config-ars-object)# mode flowlet-quality
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mode" access="netadmin" help="UnConfigure ARS mode">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_mode ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures ARS mode.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure mode for ARS.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures ARS mode.">
+         sonic-cli(config-ars-object)# no mode
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== monitoring enable ================-->
+    <COMMAND name="mon-enable" access="netadmin" help="Enable ARS monitoring" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_mon_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable ARS monitoring.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable ARS monitoring.
+       </USAGE>
+        <EXAMPLE summary="Enable ARS monitoring.">
+         sonic-cli(config-ars-object)# mon-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no mon-enable" access="netadmin" help="Disable ARS monitoring" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_mon_enable ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable ARS monitoring.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable ARS monitoring.
+       </USAGE>
+        <EXAMPLE summary="Disables ARS monitoring.">
+         sonic-cli(config-ars-object)# no mon-enable
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Sample Packet ================-->
+    <COMMAND name="sample-packet" access="netadmin" help="Enable ARS Sample packet session" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_sample_packet ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable ARS Sample packet session.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable ARS Sample packet session.
+       </USAGE>
+        <EXAMPLE summary="Enable ARS Sample packet session.">
+         sonic-cli(config-ars-object)# sample-packet
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no sample-packet" access="netadmin" help="Disable ARS monitoring" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_sample_packet ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable ARS Sample packet session.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable ARS Sample packet session.
+       </USAGE>
+        <EXAMPLE summary="Disables ARS Sample packet session.">
+         sonic-cli(config-ars-object)# no sample-packet
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Primary Path Quality Threshold ================-->
+    <COMMAND name="primary-path-quality-threshold" access="netadmin" help="Configure quality threshold for least cost ARS paths" hidden="true">
+      <PARAM name="primarypathqualitythreshold" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="primaryPathQualityThreshold" help="Quality threshold for least cost ARS paths" ptype="RANGE_0_65535"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_primarypathqualitythreshold ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures quality threshold for least cost ARS paths.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure quality threshold for least cost ARS paths.
+       </USAGE>
+        <EXAMPLE summary="Configures quality threshold for least cost ARS paths.">
+         sonic-cli(config-ars-object)# primary-path-quality-threshold 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no primary-path-quality-threshold" access="netadmin" help="UnConfigure quality threshold for least cost ARS paths" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_primarypathqualitythreshold ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures quality threshold for least cost ARS paths.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure quality threshold for least cost ARS paths.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures quality threshold for least cost ARS paths.">
+         sonic-cli(config-ars-object)# no primary-path-quality-threshold
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Alt Path ================-->
+    <COMMAND name="alt-path" access="netadmin" help="Enable NHG member as part of alternate path set" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_alt_path ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Enable NHG member as part of alternate path set.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to enable NHG member as part of alternate path set.
+       </USAGE>
+        <EXAMPLE summary="Enable NHG member as part of alternate path set.">
+         sonic-cli(config-ars-object)# alt-path
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no alt-path" access="netadmin" help="Disable ARS monitoring" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_alt_path ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Disable NHG member as part of alternate path set.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to disable NHG member as part of alternate path set.
+       </USAGE>
+        <EXAMPLE summary="Disables NHG member as part of alternate path set.">
+         sonic-cli(config-ars-object)# no alt-path
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Alt Path Cost ================-->
+    <COMMAND name="alt-path-cost" access="netadmin" help="Configure cost of switching over to non least cost ARS paths" hidden="true">
+      <PARAM name="altpathcost" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="altPathCost" help="Cost of switching over to non least cost ARS paths" ptype="RANGE_0_4294967295"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_altpathcost ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures cost of switching over to non least cost ARS paths.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure cost of switching over to non least cost ARS paths.
+       </USAGE>
+        <EXAMPLE summary="Configures cost of switching over to non least cost ARS paths.">
+         sonic-cli(config-ars-object)# alt-path-cost 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no alt-path-cost" access="netadmin" help="UnConfigure Alt path cost" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_altpathcost ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures cost of switching over to non least cost ARS paths.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure cost of switching over to non least cost ARS paths.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures cost of switching over to non least cost ARS paths.">
+         sonic-cli(config-ars-object)# no alt-path-cost
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Alt Path Bias ================-->
+    <COMMAND name="alt-path-bias" access="netadmin" help="Configure the bias in favor of alternate path" hidden="true">
+      <PARAM name="altpathbias" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="altPathBias" help="Bias in favor of alternate path" ptype="RANGE_0_4294967295"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_altpathbias ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures bias in favor of alternate path.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure bias in favor of alternate path.
+       </USAGE>
+        <EXAMPLE summary="Configures bias in favor of alternate path.">
+         sonic-cli(config-ars-object)# alt-path-bias 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no alt-path-bias" access="netadmin" help="UnConfigure alt path bias" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_altpathbias ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures bias in favor of alternate path.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure bias in favor of alternate path.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures bias in favor of alternate path.">
+         sonic-cli(config-ars-object)# no alt-path-bias
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Max Primary Members ================-->
+    <COMMAND name="max-primary-members" access="netadmin" help="Configure maximum number of primary members per ARS group" hidden="true">
+      <PARAM name="maxprimarymembers" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="maxPrimaryMembers" help="Maximum number of primary members per ARS group" ptype="RANGE_0_4294967295"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_maxprimarymembers ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures maximum number of primary members per ARS group.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure maximum number of primary members per ARS group.
+       </USAGE>
+        <EXAMPLE summary="Configures maximum number of primary members per ARS group.">
+         sonic-cli(config-ars-object)# max-primary-members 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no max-primary-members" access="netadmin" help="UnConfigure maximum number of primary members per ARS group" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_maxprimarymembers ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures maximum number of primary members per ARS group.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure maximum number of primary members per ARS group.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures maximum number of primary members per ARS group.">
+         sonic-cli(config-ars-object)# no max-primary-members
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <!--=================== Max Alt Members ================-->
+    <COMMAND name="max-alt-members" access="netadmin" help="Configure maximum number of alternate members per ARS group" hidden="true">
+      <PARAM name="maxaltmembers" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="maxPrimaryMembers" help="Maximum number of alternate members per ARS group" ptype="RANGE_0_4294967295"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars patch_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_config_maxaltmembers ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         Configures maximum number of alternate members per ARS group.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to configure maximum number of alternate members per ARS group.
+       </USAGE>
+        <EXAMPLE summary="Configures maximum number of alternate members per ARS group.">
+         sonic-cli(config-ars-object)# max-alt-members 10
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no max-alt-members" access="netadmin" help="UnConfigure maximum number of alt members per ARS group" hidden="true">
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars delete_openconfig_system_ext_system_adaptive_routing_switching_ars_object_arsobject_maxaltmembers ${name} ${__full_line} 
+</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         UnConfigures maximum number of alternate members per ARS group.
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to Unconfigure maximum number of alternate members per ARS group.
+       </USAGE>
+        <EXAMPLE summary="UnConfigures maximum number of alternate members per ARS group.">
+         sonic-cli(config-ars-object)# no max-alt-members
+       </EXAMPLE>
+        <FEATURE> ARS </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- ARS show and stats commands -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show running-configuration ars" help="Display all ARS configurations" test="${ars_feature_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_ars show_running_config_ars all</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars" help="Display Adaptive Routing and Switching Show commands" test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="show ars profile" help="Display ARS profile" test="${ars_feature_supported}">
+      <PARAM name="profileName" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="profilename" help="ARS profile name" ptype="STRING_15"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_profile show_ars_profile.j2 ${profilename} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display ARS profile.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display ARS Profile">
+ 			sonic#show ars profile default   
+       ARS Profile Attributes Info:
+ 
+       Profile Name: default  
+       ARS algorithm used for quality computation: EWMA    
+       Sampling interval of data for quality measure computation: 16 microsecond(s)     
+       Random seed: 0    
+       Past port load as the quality parameter: Enabled     
+       Past port load weight: 15   
+       Future port load as the quality parameter: Enabled    
+       Future port load weight: 15     
+       Current port load calculation: enabled   
+       Exponential port load value: 2   
+       Minimum and Maximum threshold used for band 0 quantization: 0 and 0   
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars port-profile" help="Display ARS port profile" test="${ars_feature_supported}">
+      <PARAM name="profileName" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="profilename" help="ARS port profile name" ptype="STRING_15"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_port_profile_portprofile show_ars_port_profile.j2 ${profilename} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display ARS port profile.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display ARS Port Profile">
+ 			sonic#show ars port-profile default   
+       Port Attributes Info:
+  
+         Port Profile Name: default
+         ARS for a port is: Disabled  
+         Port load scaling factor: 0    
+         Port Past load is: Disabled  
+         Port Future load is: Disabled  
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars object" help="Display ARS object" test="${ars_feature_supported}">
+      <PARAM name="objectName" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="objectname" help="ARS Object name" ptype="STRING_15"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_object_object show_ars_object.j2 ${objectname} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display ARS object.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display ARS Object">
+ 			sonic#show ars object default   
+       ARS Object Attributes Info:     
+ 
+         ARS Object Name: default      
+         Idle duration to classify a flow-let in a macro flow: 16 microsecond(s)     
+         Maximum flow size: 1K bytes     
+         ARS path (re)assignment mode: Per flow-let quality based     
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars bind" help="Display ARS Binding Information" test="${ars_feature_supported}">
+      <PARAM name="bindinfo" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="profile" help="ARS Profile" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="port-profile" help="ARS Port Profile" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="object" help="ARS Object" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_bind_info show_ars_binding.j2 ${bindinfo} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display ARS Binding Info.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display ARS Binding Info">
+       sonic#show ars bind   
+        ARS Profile binding Info (Switch Name : Profile Name):
+          SWITCH: profile1
+  
+         Port Profile binding Info (Port Profile Name : Interfaces):
+          pp1 : Ethernet32, Ethernet40
+          pp2 : Ethernet36
+  
+        ARS Object binding Info (Routemap, Seq.No : Object Name):
+          rmap1, 2 : object1
+  
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars nhg-statistics" help="Display NHG ARS Statistics Information" test="${ars_feature_supported}">
+      <PARAM name="nhgID" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="nhgid" help="Next Hop Group ID" ptype="RANGE_0_4294967295"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_nhg_stats_info show_ars_nhg_statistics.j2 ${nhgid} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display NHG ARS Binding Info.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display NHG ARS Binding Info">
+       sonic#show ars nhg-statistics
+       NHG Statistics Info:
+ 
+         NHG ID: 1
+         Number of packet drops: 0
+         Number of next hop reassignments: 0
+         Number of port reassignments: 0
+ 
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ars port-quality" help="Display ARS Port Quality Information" test="${ars_feature_supported}">
+      <PARAM name="iftype" help="Interface type" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_ars get_openconfig_system_ext_system_adaptive_routing_switching_ars_port_quality_info show_ars_port_quality.j2 ${Ethernet} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Display ARS Port Quality Info.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Display ARS Port Quality Info">
+       sonic#show ars port-quality
+       DLB Quality on egress ports:
+ 
+       PortName   Quality [0-7]
+       ------------------------
+       Eth4      	7
+       Eth2      	7
+       Eth3      	5
+ 
+ 		</EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear ars" help="Clear ARS statistics." test="${ars_feature_supported}"> </COMMAND>
+    <COMMAND name="clear ars nhg-statistics" help="Clear ARS NHG statistics." test="${ars_feature_supported}">
+      <PARAM name="nhgID" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="nhgid" help="Next Hop Group ID" ptype="RANGE_0_4294967295"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-ars-statistics rpc_ars_clear_nhg_statistics ${nhgid} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 			Clear ARS NHG Statistics.
+ 		</DESCRIPTION>
+        <EXAMPLE summary="Clear ARS NHG Statistics">
+       sonic#clear ars nhg-statistics
+     </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

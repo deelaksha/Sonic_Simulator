@@ -1,0 +1,499 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="show_watermark_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature component tam</ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show queue" help="Display queue information">
+      <PARAM name="queue-subcommands" help="queue subcommands" mode="switch" ptype="SUBCOMMAND">
+        <!-- show queue counters -->
+        <PARAM name="counters" help="Counters for all interface, all queues" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface" help="Counters for interface queues" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE">
+                <PARAM name="queue" help="Counters for interface queue" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="queue-id" help="Queue id: 0, 1, .. etc" ptype="RANGE_0_20"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="CPU" help="Counters for CPU interface queues" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="queue" help="Counters for CPU interface queue" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="queue-id" help="Queue id: 0, 1, .. etc" ptype="RANGE_0_47"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="wred-ecn" help="WRED-ECN counters for interface queues" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="counters" help="WRED-ECN counters for interface queues" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="watermark" help="Watermark for all interface queues" ptype="SUBCOMMAND" mode="subcommand" test="${show_watermark_supported}">
+          <PARAM name="watermark-subcommands" help="queue type or percentage subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            <PARAM name="percentage" help="Watermark in percentage for all interface queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="percentage-subcommands" help="queue type subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="persistent-watermark" help="Persistent-Watermark for all interface queues" ptype="SUBCOMMAND" mode="subcommand" test="${show_watermark_supported}">
+          <PARAM name="watermark-subcommands" help="queue type or percentage subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            <PARAM name="percentage" help="Persistent Watermark in percentage for all interface queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="percentage-subcommands" help="queue type subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${queue-subcommands}" = "counters"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_queue_counters.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ if test "${queue-id}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_all_queue_counters.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues_queue_state ${phy-intf-name} ${queue-id} 
+ fi
+ else
+ if test "${queue-id}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_all_queue_counters.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues_queue_state CPU ${queue-id} 
+ fi
+ fi
+ fi
+ elif test "${queue-subcommands}" = "wred-ecn"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_queue_wred_ecn_counters.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_all_queue_wred_ecn_counters.j2
+ fi
+ elif test "${queue-subcommands}" = "watermark"; then
+ if test "${watermark-subcommands}" = "percentage"; then
+ if test "${percentage-subcommands}" = "unicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_uc_watermark_percent.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_uc_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_uc_watermark_percent.j2
+ fi
+ fi
+ elif test "${percentage-subcommands}" = "multicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_mc_watermark_percent.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_mc_watermark_percent.j2
+ fi
+ fi
+ elif test "${percentage-subcommands}" = "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_cpu_watermark_percent.j2
+ fi
+ else
+ if test "${watermark-subcommands}" = "unicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_uc_watermark.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_uc_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_uc_watermark.j2
+ fi
+ fi
+ elif test "${watermark-subcommands}" = "multicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_mc_watermark.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_mc_watermark.j2
+ fi
+ fi
+ elif test "${watermark-subcommands}" = "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_cpu_watermark.j2
+ fi
+ fi
+ elif test "${queue-subcommands}" = "persistent-watermark"; then
+ if test "${watermark-subcommands}" = "percentage"; then
+ if test "${percentage-subcommands}" = "unicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_uc_persistent_watermark_percent.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_uc_persistent_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_uc_persistent_watermark_percent.j2
+ fi
+ fi
+ elif test "${percentage-subcommands}" = "multicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_mc_persistent_watermark_percent.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_mc_persistent_watermark_percent.j2
+ fi
+ fi
+ elif test "${percentage-subcommands}" = "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_cpu_persistent_watermark_percent.j2
+ fi
+ else
+ if test "${watermark-subcommands}" = "unicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_uc_persistent_watermark.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_uc_persistent_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_uc_persistent_watermark.j2
+ fi
+ fi
+ elif test "${watermark-subcommands}" = "multicast"; then
+ if test "${intf-type-subcommands}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_mc_persistent_watermark.j2
+ else
+ if test "${intf-type-subcommands}" != "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues ${phy-intf-name} show_qos_interface_mc_persistent_watermark.j2
+ fi
+ fi
+ elif test "${watermark-subcommands}" = "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_output_queues CPU show_qos_interface_cpu_persistent_watermark.j2
+ fi
+ fi
+ fi
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command displays queue counters, WRED ECN counters, watermarks, persistent-watermarks and breaches etc.
+          </DESCRIPTION>
+        <USAGE>
+            Use this command to display queue counters, WRED ECN counters, watermarks, persistent-watermarks and breches etc.
+            There are various CLI options available to display infomration for queue, interface and all interfaces.
+            - show queue counters (interface Ethernet|CPU [ifname] (queue [id]))
+              This command will display all queue counters
+            - show queue (watermark|persitent-watermark) (unicast| multicast|CPU) (interface Ethernet [ifname]))
+              This command will display all queue watermarks
+            - show queue wred-ecn counters (interface Ethernet [ifname])
+              This command will display all queue WRED ECN counters
+          </USAGE>
+        <EXAMPLE summary="Below are some of the sample outputs of show queue command">
+          sonic# show queue counters
+          -------------------------------------------------------------------
+          Port        TxQ  Counter/pkts   Counter/bytes  Drop/pkts   Drop/bytes
+          -------------------------------------------------------------------
+          Ethernet0   UC0  0              0              0           0
+          Ethernet0   UC1  0              0              0           0
+          Ethernet0   UC2  0              0              0           0
+          Ethernet0   UC3  0              0              0           0
+          Ethernet0   UC4  0              0              0           0
+          Ethernet0   UC5  0              0              0           0
+          Ethernet0   UC6  0              0              0           0
+          Ethernet0   UC7  0              0              0           0
+          Ethernet0   MC8  0              0              0           0
+          Ethernet0   MC9  0              0              0           0
+          Ethernet0   MC10 0              0              0           0
+          Ethernet0   MC11 0              0              0           0
+          Ethernet0   MC12 0              0              0           0
+          Ethernet0   MC13 0              0              0           0
+          Ethernet0   MC14 0              0              0           0
+          Ethernet0   MC15 0              0              0           0
+ 
+          sonic# show queue watermark unicast
+          Egress queue watermark per unicast queue:
+          -------------------------------------------------------------------
+          Port        UC0  UC1  UC2  UC3  UC4  UC5  UC6  UC7
+          -------------------------------------------------------------------
+          Ethernet0   0    0    0    0    0    0    0    0
+          Ethernet4   0    0    0    0    0    0    0    0
+          Ethernet8   0    0    0    0    0    0    0    0
+          Ethernet12  0    0    0    0    0    0    0    0
+          Ethernet16  0    0    0    0    0    0    0    0
+          Ethernet20  0    0    0    0    0    0    0    0
+          Ethernet24  0    0    0    0    0    0    0    0
+         
+          sonic# show queue persistent-watermark multicast
+          Egress queue persistent watermark per multicast queue:
+          -------------------------------------------------------------------
+          Port        MC8  MC9  MC10 MC11 MC12 MC13 MC14 MC15
+          -------------------------------------------------------------------
+          Ethernet0   0    0    0    0    0    0    0    0
+          Ethernet4   0    0    0    0    0    0    0    0
+          Ethernet8   0    0    0    0    0    0    0    0
+          Ethernet12  0    0    0    0    0    0    0    0
+          Ethernet16  0    0    0    0    0    0    0    0
+          Ethernet20  0    0    0    0    0    0    0    0
+          Ethernet24  0    0    0    0    0    0    0    0
+          Ethernet28  0    0    0    0    0    0    0    0
+ 
+          sonic# show queue wred-ecn counters interface Eth1/56
+          --------------------------------------------------------------------
+          TxQ WRED Drops/Pkts ECN Marked/Pkts ECN Marked/Bytes
+          --------------------------------------------------------------------
+          UC0              0             0               0
+          UC1              0             0               0
+          UC2              0     837922938    107207451904
+          UC3         390634             0               0
+          UC4         400000             0               0
+          UC5              0             0               0
+          UC6              0             0               0
+          UC7              0             0               0
+          UC8              0             0               0
+          UC9              0             0               0
+ 
+          </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show priority-group" help="Display priority group information" test="${show_watermark_supported}">
+      <PARAM name="priority-group-subcommands" help="priority-group subcommands" mode="switch" ptype="SUBCOMMAND">
+        <!-- show priority-group watermark -->
+        <PARAM name="watermark" help="Watermark for all interface priority-groups" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="watermark-subcommands" help="pg type or percentage watermark subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="percentage" help="Watermark percentage for all interface unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="percentage-subcommands" help="pg percentage subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="persistent-watermark" help="Persistent-Watermark for all interface " ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="watermark-subcommands" help="pg type or percentage persistent watermark subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="percentage" help="Watermark percentage for all interface unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="percentage-subcommands" help="pg percentage subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                      <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${priority-group-subcommands}" = "watermark"; then
+ if test "${watermark-subcommands}" = "percentage"; then
+ if test "${percentage-subcommands}" = "headroom"; then
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_headroom_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_headroom_watermark_percent.j2
+ fi
+ else
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_shared_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_shared_watermark_percent.j2
+ fi
+ fi
+ else
+ if test "${watermark-subcommands}" = "headroom"; then
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_headroom_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_headroom_watermark.j2
+ fi
+ else
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_shared_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_shared_watermark.j2
+ fi
+ fi
+ fi
+ elif test "${priority-group-subcommands}" = "persistent-watermark"; then
+ if test "${watermark-subcommands}" = "percentage"; then
+ if test "${percentage-subcommands}" = "headroom"; then
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_headroom_persistent_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_headroom_persistent_watermark_percent.j2
+ fi
+ else
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_shared_persistent_watermark_percent.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_shared_persistent_watermark_percent.j2
+ fi
+ fi
+ else
+ if test "${watermark-subcommands}" = "headroom"; then
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_headroom_persistent_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_headroom_persistent_watermark.j2
+ fi
+ else
+ if test "${phy-intf-name}" = ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces show_qos_pg_shared_persistent_watermark.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_input_priority_groups ${phy-intf-name} show_qos_interface_pg_shared_persistent_watermark.j2
+ fi
+ fi
+ fi
+ fi
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command displays priroity group shared/headroom watermarks and persistent-watermarks.
+          </DESCRIPTION>
+        <USAGE>
+            Use this command to display priority group watermarks, persistent-watermarks etc.
+            There are various CLI options available to display infomration for shared, headroom and interface watermarks.
+            - show priority-group (watermark|persitent-watermark) (shared | headroom ) (interface Ethernet [ifname]))
+              This command will display priority groups shared/headroom watermars.
+          </USAGE>
+        <EXAMPLE summary="Below are some of the sample outputs of show priority-group command">
+          sonic# show priority-group watermark shared
+          Ingress shared pool watermark per PG:
+          -------------------------------------------------------------------
+          Port        PG0  PG1  PG2  PG3  PG4  PG5  PG6  PG7
+          -------------------------------------------------------------------
+          Ethernet0   0    0    0    0    0    0    0    0
+          Ethernet4   0    0    0    0    0    0    0    0
+          Ethernet8   0    0    0    0    0    0    0    0
+          Ethernet12  0    0    0    0    0    0    0    0
+          Ethernet16  0    0    0    0    0    0    0    0
+         
+          sonic# show priority-group persistent-watermark headroom
+          Ingress headroom persistent watermark per PG:
+          -------------------------------------------------------------------
+          Port        PG0  PG1  PG2  PG3  PG4  PG5  PG6  PG7
+          -------------------------------------------------------------------
+          Ethernet0   0    0    0    0    0    0    0    0
+          Ethernet4   0    0    0    0    0    0    0    0
+          Ethernet8   0    0    0    0    0    0    0    0
+          Ethernet12  0    0    0    0    0    0    0    0
+          Ethernet16  0    0    0    0    0    0    0    0
+          Ethernet20  0    0    0    0    0    0    0    0
+          Ethernet24  0    0    0    0    0    0    0    0
+          </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

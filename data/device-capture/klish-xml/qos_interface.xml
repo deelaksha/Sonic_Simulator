@@ -1,0 +1,275 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="configure-if-view">
+    <COMMAND name="queue" access="netadmin" help="Queue configuration" command_tables="sonic-queue:sonic-queue/QUEUE/QUEUE_LIST/ifname={name},qindex={qindex}" render_command_cb="queue_wred_policy">
+      <PARAM name="qid" help="Queue ID" ptype="RANGE_0_7">
+        <PARAM name="wred-policy" help="WRED policy" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="wred_prof_name" help="WRED profile name" ptype="STRING_32"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_qos_queues_queue_wred_config_wred_profile ${iface}:${qid} ${wred_prof_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="scheduler-policy" access="netadmin" help="Scheduler Policy configuration" command_tables="sonic-queue:sonic-queue/QUEUE/QUEUE_LIST/ifname={name},qindex={qindex};sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_sched_policy">
+      <PARAM name="sp_name" help="Scheduler Policy name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_qos_interfaces_interface_output_scheduler_policy_config_name ${iface} ${sp_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no scheduler-policy" access="netadmin" help="Unconfigure a scheduler policy">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/output/scheduler-policy/config/name?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map" access="netadmin" help="QoS Map Configuration"> </COMMAND>
+    <COMMAND name="no qos-map" access="netadmin" help="QoS Map Unconfiguration"> </COMMAND>
+    <COMMAND name="qos-map dscp-tc" access="netadmin" help="DSCP to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dscp_tc">
+      <PARAM name="dscp_tc_map_name" help="DSCP to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dscp_tc_map ${iface} ${dscp_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dscp-tc" access="netadmin" help="Unconfigure a DSCP to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/dscp-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map dot1p-tc" access="netadmin" help="DOT1P to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dot1p_tc">
+      <PARAM name="dot1p_tc_map_name" help="DOT1P to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dot1p_tc_map ${iface} ${dot1p_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dot1p-tc" access="netadmin" help="Unconfigure a DOT1P to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/dot1p-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-queue" access="netadmin" help="TC to Queue map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_queue">
+      <PARAM name="tc_queue_map_name" help="TC to Queue map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_tc_queue_map ${iface} ${tc_queue_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-queue" access="netadmin" help="Unconfigure a TC to Queue map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-queue?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-pg" access="netadmin" help="TC to priority group map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_pg">
+      <PARAM name="tc_pg_map_name" help="TC to PG map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_tc_pg_map ${iface} ${tc_pg_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-pg" access="netadmin" help="Unconfigure a TC to Priority Group map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-priority-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dscp" access="netadmin" help="TC to DSCP map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dscp">
+      <PARAM name="tc_dscp_map_name" help="TC to DSCP map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dscp ${iface} ${tc_dscp_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dscp" access="netadmin" help="Unconfigure a TC to DSCP map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dscp?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dot1p" access="netadmin" help="TC to DOT1P map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dot1p">
+      <PARAM name="tc_dot1p_map_name" help="TC to DOT1P map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dot1p ${iface} ${tc_dot1p_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dot1p" access="netadmin" help="Unconfigure a TC to DOT1P map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dot1p?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map pfc-priority-queue" access="netadmin" help="PFC Priority to Queue map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_pfc_queue">
+      <PARAM name="pfc_priority_queue_map_name" help="PFC Priority to Queue map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_pfc_priority_queue_map ${iface} ${pfc_priority_queue_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map pfc-priority-queue" access="netadmin" help="Unconfigure a PFC priority to Queue map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/pfc-priority-to-queue?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map pfc-priority-pg" access="netadmin" test="${pfc_priority_pg_supported}" help="PFC Priority to Priority group map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_pfc_pg">
+      <PARAM name="pfc_priority_pg_map_name" help="PFC Priority to Priority Group map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_pfc_priority_pg_map ${iface} ${pfc_priority_pg_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map pfc-priority-pg" access="netadmin" test="${pfc_priority_pg_supported}" help="Unconfigure a PFC priority to Priority Group map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/pfc-priority-to-priority-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="no queue" access="netadmin" help="Negate Queue configuration">
+      <PARAM name="qid" help="Queue ID" ptype="RANGE_0_7">
+        <PARAM name="wred-policy" help="WRED policy" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/queues/queue=${iface_uri}:${qid}/wred/config/wred-profile?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control" access="netadmin" help="PFC Configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_pfc">
+      <PARAM name="pfc-subcmd" help="PFC commands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="priority" help="PFC Priority commands" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1p" help="Priority value (0-7), (-) or (,) separated Priority value and ranges of Priority value's; for example, 3 or 3,4 or 3-4. Maximum Priorities supported are 2" ptype="VAL_0_7_RANGE"> </PARAM>
+        </PARAM>
+        <PARAM name="asymmetric" help="PFC asymmetric configuration" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_qos_interfaces_interface_pfc ${iface} ${__full_line} </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control watchdog" access="netadmin" help="PFC watchdog configuration" command_tables="sonic-qos-pfc:sonic-qos-pfc/PFC_WD/" render_command_cb="qos_intf_pfc_wd"/>
+    <COMMAND name="priority-flow-control watchdog on" access="netadmin" help="PFC watchdog enable">
+      <PARAM name="detect-time" help="PFC watchdog detection time" mode="subcommand" ptype="SUBCOMMAND">
+        <PARAM name="detection-time" help="PFC Watchdog detection time in milliseconds" ptype="DETECT_TIME"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_detect ${iface} ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control watchdog restore-time" access="netadmin" help="PFC watchdog restoration time">
+      <PARAM name="restore-time" help="PFC Watchdog restoration time in milliseconds" ptype="RESTORE_TIME"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_restore ${iface} ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control watchdog action" access="netadmin" help="PFC watchdog storm action">
+      <PARAM name="action-option" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="alert" help="Alert when PFC watchdog storm detected" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="drop" help="Drop when PFC watchdog storm detected" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="forward" help="Forward when PFC watchdog storm detected" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_action ${iface} ${__params} </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control watchdog off" access="netadmin" help="PFC watchdog disable">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_enable ${iface} off</ACTION>
+    </COMMAND>
+    <COMMAND name="no priority-flow-control" access="netadmin" help="Delete PFC Configuration">
+      <PARAM name="pfc-subcmd" help="PFC commands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="priority" help="PFC Priority commands" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1p" help="Priority value (0-7), (-) or (,) separated Priority value and ranges of Priority value's; for example, 3 or 3,4 or 3-4. Maximum Priorities supported are 2" ptype="VAL_0_7_RANGE" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="asymmetric" help="PFC asymmetric configuration" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos delete_openconfig_qos_qos_interfaces_interface_pfc ${iface} ${__full_line} </ACTION>
+    </COMMAND>
+    <COMMAND name="no priority-flow-control watchdog" access="netadmin" help="PFC watchdog configuration"/>
+    <COMMAND name="no priority-flow-control watchdog on" access="netadmin" help="PFC watchdog disable">
+      <PARAM name="detect-time" help="Clear PFC watchdog detection time" mode="subcommand" ptype="SUBCOMMAND"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_no_detect ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no priority-flow-control watchdog restore-time" access="netadmin" help="Clear PFC watchdog restoration time">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_no_restore ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no priority-flow-control watchdog action" access="netadmin" help="Clear PFC watchdog storm action">
+      <ACTION builtin="clish_pyobj">sonic_cli_qos_pfc pfcwd_if_no_action ${iface}</ACTION>
+    </COMMAND>
+  </VIEW>
+  <!-- qos interface PortChannel <id> -->
+  <VIEW name="configure-lag-view">
+    <COMMAND name="qos-map" access="netadmin" help="QoS Map Configuration"> </COMMAND>
+    <COMMAND name="no qos-map" access="netadmin" help="QoS Map Unconfiguration"> </COMMAND>
+    <COMMAND name="qos-map dscp-tc" access="netadmin" help="DSCP to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dscp_tc">
+      <PARAM name="dscp_tc_map_name" help="DSCP to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dscp_tc_map ${po_name} ${dscp_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dscp-tc" access="netadmin" help="Unconfigure a DSCP to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${po_name}/openconfig-qos-maps-ext:interface-maps/config/dscp-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map dot1p-tc" access="netadmin" help="DOT1P to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dot1p_tc">
+      <PARAM name="dot1p_tc_map_name" help="DOT1P to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dot1p_tc_map ${po_name} ${dot1p_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dot1p-tc" access="netadmin" help="Unconfigure a DOT1P to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${po_name}/openconfig-qos-maps-ext:interface-maps/config/dot1p-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dscp" access="netadmin" help="TC to DSCP map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dscp">
+      <PARAM name="tc_dscp_map_name" help="TC to DSCP map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dscp ${po_name} ${tc_dscp_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dscp" access="netadmin" help="Unconfigure a TC to DSCP map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${po_name}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dscp?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dot1p" access="netadmin" help="TC to DOT1P map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dot1p">
+      <PARAM name="tc_dot1p_map_name" help="TC to DOT1P map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dot1p ${po_name} ${tc_dot1p_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dot1p" access="netadmin" help="Unconfigure a TC to DOT1P map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${po_name}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dot1p?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!-- qos interface Vlan <id> -->
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="qos-map" access="netadmin" help="QoS Map Configuration"> </COMMAND>
+    <COMMAND name="no qos-map" access="netadmin" help="QoS Map Unconfiguration"> </COMMAND>
+    <COMMAND name="qos-map dscp-tc" access="netadmin" help="DSCP to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dscp_tc">
+      <PARAM name="dscp_tc_map_name" help="DSCP to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dscp_tc_map ${vlan_name} ${dscp_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dscp-tc" access="netadmin" help="Unconfigure a DSCP to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${vlan_name}/openconfig-qos-maps-ext:interface-maps/config/dscp-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dscp" access="netadmin" help="TC to DSCP map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dscp">
+      <PARAM name="tc_dscp_map_name" help="TC to DSCP map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dscp ${vlan_name} ${tc_dscp_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dscp" access="netadmin" help="Unconfigure a TC to DSCP map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${vlan_name}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dscp?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!-- qos interface Subinterface <id> -->
+  <VIEW name="configure-subif-view">
+    <COMMAND name="qos-map" access="netadmin" help="QoS Map Configuration"> </COMMAND>
+    <COMMAND name="no qos-map" access="netadmin" help="QoS Map Unconfiguration"> </COMMAND>
+    <COMMAND name="qos-map dscp-tc" access="netadmin" help="DSCP to TC map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_dscp_tc">
+      <PARAM name="dscp_tc_map_name" help="DSCP to TC map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_dscp_tc_map ${iface} ${dscp_tc_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map dscp-tc" access="netadmin" help="Unconfigure a DSCP to TC map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/dscp-to-forwarding-group?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+    <COMMAND name="qos-map tc-dscp" access="netadmin" help="TC to DSCP map configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_map_tc_dscp">
+      <PARAM name="tc_dscp_map_name" help="TC to DSCP map name" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_qos patch_openconfig_qos_maps_ext_qos_interfaces_interface_interface_maps_config_forwarding_group_to_dscp ${iface} ${tc_dscp_map_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no qos-map tc-dscp" access="netadmin" help="Unconfigure a TC to DSCP map">
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/interfaces/interface=${iface_uri}/openconfig-qos-maps-ext:interface-maps/config/forwarding-group-to-dscp?deleteEmptyEntry=True </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="enable-view">
+    <COMMAND name="show qos" help="Display QoS information">
+      <PARAM name="interface" help="Display QoS information per interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="qos-if-subcommands" help="QOS Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="CPU" help="CPU interface" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE_ALL">
+            <PARAM name="qos-intf-subcommands" help="QOS Interface subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="queue" help="Queue ID" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="queue-id" help="Queue ID" ptype="QUEUE_ID_ALL"> </PARAM>
+                <PARAM name="priority-flow-control" help="PFC Watchdog Statistics" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="watchdog-statistics" help="PFC Watchdog Statistics" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="priority-flow-control" help="PFC Pause Statistics" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="statistics" help="PFC Pause Statistics" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="po-intf-name" help="PortChannel Interface" ptype="PO_INTERFACE"> </PARAM>
+          <PARAM name="vlan-intf-name" help="VLAN Interface" ptype="VLAN_INTERFACE"> </PARAM>
+          <PARAM name="phy-sub-if-name" help="Subinterface" ptype="PHY_PO_SUB_INTERFACE"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${qos-if-subcommands}" = "phy-intf-name"; then
+ if test "${priority-flow-control}" != ""; then
+ if test "${queue}" != ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_queue_statistics ${phy-intf-name} ${queue-id} show_qos_interface_pfc_queue_statistics.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_statistics ${phy-intf-name} show_qos_interface_pfc_statistics.j2
+ fi
+ elif test "${queue}" != ""; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py get_openconfig_qos_qos_queues_queue ${phy-intf-name}:${queue-id} 
+ else
+ if test "${phy-intf-name}" = "EthernetAll"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_summary ${phy-intf-name} show_qos_interface_summary.j2
+ elif test "${phy-intf-name}" = "Ethernetall"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_summary ${phy-intf-name} show_qos_interface_summary.j2
+ elif test "${phy-intf-name}" = "EthAll"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_summary ${phy-intf-name} show_qos_interface_summary.j2
+ elif test "${phy-intf-name}" = "Ethall"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos_pfc.py show_port_pfc_summary ${phy-intf-name} show_qos_interface_summary.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py show_intf ${phy-intf-name} 
+ fi
+ fi
+ elif test "${qos-if-subcommands}" = "po-intf-name"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_maps ${po-intf-name} 
+ elif test "${qos-if-subcommands}" = "vlan-intf-name"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_maps ${vlan-intf-name} 
+ elif test "${qos-if-subcommands}" = "phy-sub-if-name"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_maps ${phy-sub-if-name} 
+ elif test "${qos-if-subcommands}" = "lag-id-subid"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interfaces_interface_maps ${lag-id-subid} 
+ elif test "${qos-if-subcommands}" = "CPU"; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_qos.py get_openconfig_qos_qos_interface_scheduler_policy_config CPU 
+ fi
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

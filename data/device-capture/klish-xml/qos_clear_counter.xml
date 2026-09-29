@@ -1,0 +1,163 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="clear_watermark_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature component tam</ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="clear queue" access="netadmin" help="Clear Queue information">
+      <PARAM name="queue-subcommands" help="queue subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="counters" help="Clear queue Counters for all interface, all queues" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="interface" help="Counters for interface queues" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+              <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE">
+                <PARAM name="queue" help="Counters for interface queue" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="queue-id" help="Queue id: 0, 1, .. etc" ptype="RANGE_0_20"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="CPU" help="Counters for CPU interface queues" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="queue" help="Counters for CPU interface queue" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="queue-id" help="Queue id: 0, 1, .. etc" ptype="RANGE_0_47"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="watermark" help="Watermark for all interface queues" ptype="SUBCOMMAND" mode="subcommand" test="${clear_watermark_supported}">
+          <PARAM name="queue-type-subcommands" help="queue type subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="persistent-watermark" help="Persistent-Watermark for all interface queues" ptype="SUBCOMMAND" mode="subcommand" test="${clear_watermark_supported}">
+          <PARAM name="queue-type-subcommands" help="queue type subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="unicast" help="Watermark for unicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="multicast" help="Watermark for multicast queues" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="CPU" help="Watermark for CPU queues" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="wred-ecn" help="WRED/ECN counters for all interface queues" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="counters" help="Clear WRED/ECN Counters for all interface queues" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_clear_qos clear_qos ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command clears queue counters, watermarks, persistent-watermarks and breaches etc.
+          </DESCRIPTION>
+        <USAGE>
+            Use this command to clear queue counters, WRED ECN counters, watermarks, persistent-watermarks and breches etc.
+            There are various CLI options available to clear counters for queue, interface and all interfaces.
+            - clear queue counters (interfcae Ethernet|CPU [ifname] (queue [id]))
+              This command will clear all queue counters
+            - clear queue (watermark|persitent-watermark) (unicast| multicast) (interfcae Ethernet|CPU [ifname]))
+              This command will clear all queue watermarks or persistent watermark
+            - clear queue wred-ecn counters (interfcae Ethernet)
+              This command will clear all WRED ECN queue counters
+          </USAGE>
+        <EXAMPLE summary="Below are some of the sample clear commands">
+          sonic# clear queue counters interface Ethernet 0 queue 0
+          sonic# clear queue watermark unicast
+          sonic# clear queue persistent-watermark multicast interface Ethernet 0
+          sonic# clear queue wred-ecn counters interface Ethernet 0 
+          </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear priority-group" access="netadmin" help="Clear priority group counters" test="${clear_watermark_supported}">
+      <PARAM name="priority-group-subcommands" help="priority-group subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="watermark" help="Watermark for all interface priority-groups" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="priority-group-watermark-subcommands" help="priority group watermark subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="persistent-watermark" help="Persistent-Watermark for all interface " ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="priority-group-watermark-subcommands" help="priority-group watermark subcommands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="headroom" help="Watermarks for Headroom buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="shared" help="Watermark for shared buffers" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="interface" help="Watermarks for interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="intf-type-subcommands" help="interface type subcommands" mode="switch" ptype="SUBCOMMAND">
+                  <PARAM name="phy-intf-name" help="Physical Interface" ptype="PHY_INTERFACE"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_clear_qos clear_qos ${__full_line}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            This command clears priority-group watermarks, persistent-watermarks and breaches etc.
+          </DESCRIPTION>
+        <USAGE>
+            Use this command to clear priority-group watermarks, persistent-watermarks and breches etc.
+            There are various CLI options available to clear infomration for unicast/multicast on priority-group, interface.
+            - clear priority-group (watermark|persitent-watermark) (headoom|shared) (interfcae Ethernet [ifname]))
+              This command will display all queue watermarks
+          </USAGE>
+        <EXAMPLE summary="Below are some of the sample clear commands">
+          sonic# clear priority-group watermark shared interface Ethernet 0
+          sonic# clear priority-group persistent-watermark headroom
+          </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

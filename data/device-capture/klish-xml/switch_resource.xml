@@ -1,0 +1,265 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <VAR name="vlan_stack_enable_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">sonic_cli_switch_resource is_vlan_stack_enable_configurable </ACTION>
+  </VAR>
+  <VAR name="l2_nexthop_group_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">sonic_cli_switch_resource is_vlan_stack_enable_configurable </ACTION>
+  </VAR>
+  <VAR name="sw_route_scale_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported SW_ROUTE_SCALE </ACTION>
+  </VAR>
+  <VAR name="tam_drop_monitor_supported" dynamic="true">
+    <ACTION builtin="clish_pyobj">feature supported MOD </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <COMMAND name="show switch-resource" help="Display Switch Resource stats."/>
+    <COMMAND name="show switch-resource drop-monitor" help="Display Drop-Monitor Switch Resource stats " test="${tam_drop_monitor_supported}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_switch_resource get_openconfig_system_ext_system_swresource switch_resource.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Show warm restart </DESCRIPTION>
+        <EXAMPLE summary="Shows the warm restart state information">
+ 
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show switch-resource route-scale" help="Display Route-Scale Switch Resource stats ">
+      <ACTION builtin="clish_pyobj"> sonic_cli_switch_resource get_openconfig_system_ext_system_swresource switch_resource_routes.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Show warm restart </DESCRIPTION>
+        <EXAMPLE summary="Shows route-scale switch resource information">
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show switch-resource ecmp-group" help="Display ECMP Group Switch Resource Info ">
+      <ACTION builtin="clish_pyobj"> sonic_cli_switch_resource get_openconfig_system_ext_system_swresource switch_resource_ecmp_group.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Show switch-resource ECMP Group Info </DESCRIPTION>
+        <EXAMPLE summary="Shows ECMP Group switch resource information">
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show switch-resource vlan-stacking" help="Display if vlan stacking is enabled " test="${vlan_stack_enable_supported}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_switch_resource get_sonic_switch_sonic_switch_SWITCH_TABLE_SWITCH_TABLE_LIST_switch_vlan_stacking switch_table_vlan_stacking.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Show switch-resource vlan-stacking </DESCRIPTION>
+        <EXAMPLE summary="Shows vlan-stacking switch resource information">
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show switch-resource l2-nexthop-group" help="Display if L2 NH group is enabled " test="${l2_nexthop_group_supported}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_switch_resource get_sonic_switch_sonic_switch_SWITCH_TABLE_SWITCH_TABLE_LIST_switch_l2nhg switch_table_l2_nexthop_group.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Show switch-resource l2-nexthop-group </DESCRIPTION>
+        <EXAMPLE summary="Shows l2-nexthop-group switch resource information">
+           </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="switch-resource" test="-z ${__in_session}" access="netadmin" help="Switch Resource Configuration" mode="subcommand" ptype="SUBCOMMAND" view="configure-switch-resource-view" command_tables="sonic-switch-resource:sonic-switch-resource/SWITCH_RESOURCE_TABLE/SWITCH_RESOURCE_TABLE_LIST/name={name}" render_command_cb="switch_resource_flow_scale_entry"/>
+  </VIEW>
+  <VIEW name="configure-switch-resource-view" prompt="${SYSTEM_NAME}(${__config_mode}-switch-resource)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="drop-monitor" access="netadmin" help="Drop-Monitor Resource" test="${tam_drop_monitor_supported}">
+      <PARAM name="flows" help="Configure Drop-Monitor Flow Scale " ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <PARAM name="flows-name" help="flow scale that can be configured" ptype="MIN_NONE"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource ${flows-name}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   This CLI is used to create flow configuration for drop-monitor
+ 	   </DESCRIPTION>
+        <USAGE>
+ 		   This command is used to flow configurations for Drop-Monitor in the EM Entry Table
+ 	   </USAGE>
+        <EXAMPLE summary="Configure Drop Monitor Flow Scale configuration">
+ 		   sonic(config-switch-resource)# drop-monitor flows min
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no route-scale" access="netadmin" help="Remove Route Scale configuration" test="${sw_route_scale_supported}">
+      <PARAM name="routes" help="Route Scale configuration " ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource delete_openconfig_system_ext_system_swresource </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   Remove Route Scale configuration .
+ 	   </DESCRIPTION>
+        <USAGE>
+        Use this command to remove route scale configuration.
+ 	   </USAGE>
+        <EXAMPLE summary="Remove Route Scale Configurations">
+ 		   sonic(config)# no route-scale routes
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ecmp-group" access="netadmin" help="Remove ECMP Group configuration">
+      <PARAM name="level-1-partition" help="ECMP Group Level-1 Partition configuration " ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource delete_openconfig_system_ext_system_swresource </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                    Remove ECMP Group Level-1 Partition configuration .
+            </DESCRIPTION>
+        <USAGE>
+        Use this command to remove ecmp group level-1 partition configuration.
+            </USAGE>
+        <EXAMPLE summary="Remove ECMP Group Partition Configurations">
+                    sonic(config)# no ecmp-group level-1-partition
+            </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no route-scale hosts" access="netadmin" help="Host Scale configuration" test="${sw_route_scale_supported}">
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource delete_openconfig_system_ext_system_swresource </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                    Remove Host Scale configuration .
+            </DESCRIPTION>
+        <USAGE>
+                    Use this command to remove host scale configuration.
+            </USAGE>
+        <EXAMPLE summary="Remove Host Scale Configurations">
+                    sonic(config)# no route-scale hosts
+            </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="route-scale" access="netadmin" help="Route Scale Resource" test="${sw_route_scale_supported}">
+      <PARAM name="routes" help="Configure Route Scale " ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <PARAM name="scale" help="Route scale that can be configured" ptype="MAX_V6MAX_V4V6MAX"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_routes ${scale}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   This CLI is used to route scale configuration
+ 	   </DESCRIPTION>
+        <USAGE>
+ 		   This CLI is used to route scale configuration
+ 	   </USAGE>
+        <EXAMPLE summary="Configure Route Scale">
+ 		   sonic(config-switch-resource)# route-scale routes max
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ecmp-group" access="netadmin" help="ECMP Group configuration">
+      <PARAM name="level-1-partition" help="ECMP Group Level-1 Partition Configuration " ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <PARAM name="size" help="Level-1 Partition size that can be configured" ptype="512_1024_1536_2048_2560_3072_3584"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_ecmp_group ${size}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                    This CLI is used to configure ECMP Group Level-1 Partition
+            </DESCRIPTION>
+        <USAGE>
+                    This CLI is used to configure ECMP Group Level-1 Partition
+            </USAGE>
+        <EXAMPLE summary="Configure ECMP Group Level-1 Partition">
+                    sonic(config-switch-resource)# ecmp-group level-1-partition 512
+            </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="route-scale hosts" access="netadmin" help="Configure Host Scale" test="${sw_route_scale_supported}">
+      <PARAM name="scale" help="Host scale that can be configured" ptype="L2L3_L2L3BALANCED"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_hosts ${scale}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   This CLI is used to host scale configuration
+ 	   </DESCRIPTION>
+        <USAGE>
+                    This CLI is used to host scale configuration
+            </USAGE>
+        <EXAMPLE summary="Configure Host Scale">
+                    sonic(config-switch-resource)# route-scale hosts layer2-layer3
+            </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="vlan-stacking" access="netadmin" help="Configure vlan-stacking feature" test="( ! -z &quot;${vlan_stack_enable_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_vlan_stacking enable</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   Enable vlan stacking configuration .
+ 	   </DESCRIPTION>
+        <USAGE>
+                    Use this command to enable vlan stacking configuration.
+ 	   </USAGE>
+        <EXAMPLE summary="Enable Vlan Stacking Configurations">
+ 		   sonic(config)# vlan-stacking enable
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no vlan-stacking" access="netadmin" help="Disable vlan-stacking feature" test="( ! -z &quot;${vlan_stack_enable_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_vlan_stacking default</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   Disable vlan stacking configuration .
+ 	   </DESCRIPTION>
+        <USAGE>
+                    Use this command to disable vlan stacking configuration.
+ 	   </USAGE>
+        <EXAMPLE summary="Disable Vlan Stacking Configurations">
+ 		   sonic(config)# no vlan-stacking enable
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="l2-nexthop-group" access="netadmin" help="Configure l2 nexthop group feature" test="( ! -z &quot;${l2_nexthop_group_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_l2_nexthop_group enable</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   Enable l2 nexthop group configuration .
+ 	   </DESCRIPTION>
+        <USAGE>
+                    Use this command to enable l2 nexthop group configuration.
+ 	   </USAGE>
+        <EXAMPLE summary="Enable l2 nexthop group Configurations">
+ 		   sonic(config)# l2-nexthop-group enable
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no l2-nexthop-group" access="netadmin" help="Disable l2 nexthop group feature" test="( ! -z &quot;${l2_nexthop_group_supported}&quot; ) -a ( -z &quot;${__in_session}&quot; )">
+      <ACTION builtin="clish_pyobj">sonic_cli_switch_resource patch_openconfig_system_ext_system_swresource_l2_nexthop_group default</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 		   Disable l2 nexthop group configuration .
+ 	   </DESCRIPTION>
+        <USAGE>
+                    Use this command to disable l2 nexthop group configuration.
+ 	   </USAGE>
+        <EXAMPLE summary="Disable l2 nexthop group Configurations">
+ 		   sonic(config)# no l2-nexthop-group enable
+ 	   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- show configuration -->
+    <COMMAND name="show configuration" access="netadmin" help="Display current switch-resource configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-switch-resource view_keys="name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+            Displays current switch-resource configuration
+          </DESCRIPTION>
+        <USAGE>
+            Use this command to display running configurations.
+          </USAGE>
+        <FEATURE> Switch-resource </FEATURE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

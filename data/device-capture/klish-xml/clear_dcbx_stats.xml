@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--Copyright 2024 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!-- ********************************************************************** -->
+  <!-- * CLEAR DCBX STATISTICS COMMANDS * -->
+  <!-- clear dcbx statistics [interface <interface>]-->
+  <!-- * View : enable-view * -->
+  <!-- ********************************************************************** -->
+  <VIEW name="enable-view">
+    <COMMAND name="clear dcbx-statistics" access="netadmin" help="Clear DCBX statistics" ptype="SUBCOMMAND">
+      <PARAM name="interface" help="Clear DCBX statistics on interface" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="interface-switch" help="interface type" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="port" help="Clear Physical interface DCBX statistics" ptype="PHY_INTERFACE"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_clear_dcbx rpc_clear_dcbx_stats ${port}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

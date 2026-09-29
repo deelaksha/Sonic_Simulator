@@ -1,0 +1,6 @@
+### show lldp table
+Capability codes: (R) Router, (B) Bridge, (O) Other
+LocalPort    RemoteDevice    RemotePortID    Capability    RemotePortDescr
+-----------  --------------  --------------  ------------  -----------------
+--------------------------------------------------
+Total entries displayed:  0

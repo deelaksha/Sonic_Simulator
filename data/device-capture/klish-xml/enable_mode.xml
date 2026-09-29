@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="hidden-view" prompt="hidden-view">
+    <COMMAND name="!" help="Comments" args="args" args_help="Comments">
+      <ACTION builtin="clish_nop"/>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <VIEW name="enable-view" prompt="${SYSTEM_NAME}# ">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <COMMAND name="no" access="secadmin:netadmin" help="No commands under Exec mode"/>
+    <COMMAND name="exit" help="Exit from the CLI" lock="false">
+      <ACTION builtin="clish_close"/>
+    </COMMAND>
+    <COMMAND name="configure" access="secadmin:netadmin" help="Enter configuration mode" view="configure-view"/>
+    <COMMAND name="configure terminal" access="secadmin:netadmin" help="Configure from the terminal" view="configure-view"> </COMMAND>
+    <COMMAND name="debug" access="admin" help="Enter debugsh mode"/>
+    <COMMAND name="debug shell" access="admin" help="SONiC Debug shell" view="debugsh-view"> </COMMAND>
+    <COMMAND name="debug cli" access="admin" help="Turn on displaying rest requests used" hidden="true">
+      <PARAM name="save" help="Save output to a file in user's home folder" ptype="SUBCOMMAND" optional="true" mode="subcommand">
+        <PARAM name="filepath" help="path of file to save to" ptype="STRING"/>
+      </PARAM>
+      <ACTION builtin="clish_setenv">DEBUG_CLI_FILE=${filepath};DEBUG_CLI_REST=1</ACTION>
+    </COMMAND>
+    <!-- Show commands -->
+    <COMMAND name="show" help="Display running system information">
+      <PARAM name="iftype" help="Interface Type" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="vlan-if-name" help="Display VLAN commands" ptype="VLAN_INTERFACE"/>
+        <PARAM name="Vlan" help="Display VLAN commands" ptype="SUBCOMMAND" mode="subcommand" hidden="true">
+          <PARAM name="count" help="Display the number of VLANs" ptype="SUBCOMMAND" mode="subcommand" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_vlan get_sonic_vlan_sonic_vlan ${vlan-if-name}${Vlan} show_vlan.j2 ${__full_line}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration" help="Current operating configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config dummy </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- Clear commands -->
+    <COMMAND name="clear" access="secadmin:netadmin" help="Clear commands"/>
+    <!-- renew commands -->
+    <COMMAND name="renew" access="netadmin" help="Renew commands"/>
+    <!-- Debug commands -->
+    <!-- Debug not supported now <COMMAND name="debug" help="Debug commands" /> -->
+    <COMMAND name="no debug" help="No Debug commands"/>
+    <COMMAND name="no debug cli" access="admin" help="Turn off displaying rest requests used" hidden="true">
+      <ACTION builtin="clish_setenv">DEBUG_CLI_REST=0;DEBUG_CLI_FILE=""</ACTION>
+    </COMMAND>
+    <COMMAND name="terminal" help="Set terminal settings"/>
+    <COMMAND name="terminal length" help="Set terminal length">
+      <PARAM name="length" help="Number of lines on screen (0 for no pausing, default 24)" ptype="RANGE_0_255"/>
+      <ACTION builtin="clish_setenv">CLISH_TERM_LEN=${length}</ACTION>
+    </COMMAND>
+    <COMMAND name="terminal timeout" help="Set terminal timeout">
+      <PARAM name="timeout" help="CLI terminal session timeout value (in seconds); A value of 0 disables the session timeout. The default is 605 seconds." ptype="RANGE_0_3600"/>
+      <ACTION builtin="clish_set_idle_timeout">CLISH_TERM_TIMEOUT=${timeout}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

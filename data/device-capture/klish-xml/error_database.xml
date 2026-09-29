@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND name="show error-database" help="Display error database tables">
+      <PARAM name="show-subcommands" help="Show subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="ERROR_ROUTE_TABLE" help="Show route table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_NEIGH_TABLE" help="Show neigh table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_IPMC_ROUTE_TABLE" help="Show ipmc route table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_VLAN_MAPPING_TABLE" help="Show vlan mapping table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_VLAN_MEMBER_TABLE" help="Show vlan member table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ALL" help="Show all tables" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_error_database show_error_database_table ${show-subcommands} show_error_database.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="clear error-database" access="admin" help="Clear error database table">
+      <PARAM name="clear-subcommands" help="Clear subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="ERROR_ROUTE_TABLE" help="Clear route table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_NEIGH_TABLE" help="Clear neigh table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_IPMC_ROUTE_TABLE" help="Clear ipmc route table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_VLAN_MAPPING_TABLE" help="Clear vlan mapping table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ERROR_VLAN_MEMBER_TABLE" help="Clear vlan member table" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ALL" help="Clear all tables" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_error_database clear_error_database_table ${clear-subcommands} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

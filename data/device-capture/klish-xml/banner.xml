@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2023 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="configure-view">
+    <!-- banner attributes -->
+    <COMMAND name="banner" access="secadmin" data_and_render_cb="banner_config" help="Configure banner login/motd"/>
+    <COMMAND name="banner login" help="Configure Banner to display before login" mode="subcommand">
+      <PARAM name="banner-msg" help="c banner-text(max length 4096) c, where 'c' is a delimiting character" ptype="BANNER_STRING"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_set_banner_login ${banner-msg}</ACTION>
+    </COMMAND>
+    <COMMAND name="banner login disable" help="Disable login banner" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_set_disable_banner_login</ACTION>
+    </COMMAND>
+    <COMMAND name="banner motd" help="Configure Banner to display after login" mode="subcommand">
+      <PARAM name="banner-msg" help="c banner-text(max length 4096) c, where 'c' is a delimiting character" ptype="BANNER_STRING"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_set_banner_motd ${banner-msg}</ACTION>
+    </COMMAND>
+    <COMMAND name="banner motd disable" help="Disable motd banner" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_set_disable_banner_motd</ACTION>
+    </COMMAND>
+    <!-- no banner -->
+    <COMMAND name="no banner" access="secadmin" help="Unconfigure login/motd banner"/>
+    <COMMAND name="no banner login" help="Unconfigure login banner" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_delete_banner_login</ACTION>
+    </COMMAND>
+    <COMMAND name="no banner login disable" help="Disable login banner" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_delete_banner_login_disable</ACTION>
+    </COMMAND>
+    <COMMAND name="no banner motd" help="Unconfigure motd banner" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_delete_banner_motd</ACTION>
+    </COMMAND>
+    <COMMAND name="no banner motd disable" help="Disable motd banner" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_banner handle_delete_banner_motd_disable</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

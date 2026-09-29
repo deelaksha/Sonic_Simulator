@@ -1,0 +1,1502 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <!-- ND Interface mode configs -->
+  <!--=======================================================-->
+  <VIEW name="configure-if-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-lag-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-subif-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- ===================== -->
+  <!-- Range Ethernet Config -->
+  <!-- ===================== -->
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- ======================== -->
+  <!-- Range Portchannel Config -->
+  <!-- ======================== -->
+  <VIEW name="configure-po-range-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- ================= -->
+  <!-- Range VLAN Config -->
+  <!-- ================= -->
+  <VIEW name="configure-vlan-range-view">
+    <COMMAND name="ipv6 nd" access="netadmin" command_keys="name=*,dnssl_name=*,nd_prefix=*,nd_address=*" command_tables="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/name={name};sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/name={name},dnssl-name={dnssl_name};sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/name={name},prefix={nd_prefix};sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/name={name},address={nd_address}" help="Neighbor discovery" render_command_cb="nd_running_config">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/suppress=false"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/managed-config"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/other-config"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-config"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-fast-retrans=true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/adv-interval-option=true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/dnssl-name">
+            <PARAM name="dnssl-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_DNSSL/ND_DNSSL_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-lifetime-interval" help="Home Agent lifetime in seconds (0 to track ra-lifetime)" ptype="RANGE_0_65520" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="home-agent-preference-interval" help="preference value (default is 0, least preferred)" ptype="ND_PREFERENCE_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/home-agent-preference"> </PARAM>
+        </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="mtu-value" help="MTU in bytes" ptype="ND_MTU_RANGE_0_65535" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/mtu"> </PARAM>
+        </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/prefix">
+            <PARAM name="ra-prefix-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/preferred-lifetime">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="preferred-lifetime-option" help="" ptype="SUBCOMMAND" mode="switch">
+                  <PARAM name="preferred_lifetime_interval" help="Preferred lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+                  <PARAM name="infinite1" value="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="other-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+              <PARAM name="router-address" help="Set Router Address flag" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/router-address"> </PARAM>
+              <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/off-link">
+                <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+              <PARAM name="no-autoconfig" help="Do not use prefix for autoconfiguration" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_PREFIX/ND_PREFIX_LIST/no-autoconfig">
+                <PARAM name="off-link" help="Do not use prefix for onlink determination" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="hop-limit-value" help="Advertisement Hop Limit in hops (default:64)" ptype="ND_HOP_LIMIT_RANGE_0_255" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-hop-limit"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ra-interval-sec" help="Router Advertisement max interval in seconds" ptype="ND_RA_SEC_RANGE_1_1800"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement max interval in milliseconds" ptype="ND_RA_MSEC_RANGE_70_1800000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/min-ra-interval">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="min-ra-interval-sec" help="Router Advertisement min interval in seconds" ptype="ND_MIN_RA_SEC_RANGE_1_1350"> </PARAM>
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="msec-interval" help="Router Advertisement min interval in milliseconds" ptype="ND_MIN_RA_MSEC_RANGE_30_1350000"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-lifetime-value" help="Router lifetime in seconds (0 stands for a non-default gw)" ptype="ND_RA_LIFETIME_RANGE_0_9000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/lifetime"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-retrans-value" help="Advertisement Retransmit Interval in msec" ptype="RANGE_0_4294967295" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/ra-retrans-interval"> </PARAM>
+        </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/address">
+            <PARAM name="rdnss-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true" dbpath="sonic-frr-nd:sonic-frr-nd/ND_RDNSS/ND_RDNSS_LIST/valid-lifetime">
+              <PARAM name="lifetime_interval" help="Valid lifetime in seconds" ptype="RANGE_0_4294967295"> </PARAM>
+              <PARAM name="infinite" help="Infinite valid lifetime" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="reachable-time-value" help="Reachable time in milliseconds" ptype="RANGE_0_3600000" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/reachable-time"> </PARAM>
+        </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="router-pref-option" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="high" help="High default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:HIGH"> </PARAM>
+            <PARAM name="low" help="Low default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:LOW"> </PARAM>
+            <PARAM name="medium" help="Medium default router preference" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-frr-nd:sonic-frr-nd/ND_CFG_MSG/ND_CFG_MSG_LIST/router-preference=sonic-frr-nd:MEDIUM"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                Don’t send router advertisement messages. The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Enable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Neighbor discovery">
+      <PARAM name="ra_config" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="suppress-ra" help="Suppress Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="managed-config-flag" help="Managed address configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="other-config-flag" help="Other stateful configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-config-flag" help="Home Agent configuration flag" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-fast-retrans" help="Fast retransmit of RA packets" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="adv-interval-option" help="Advertisement Interval Option to be sent over RA msg" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="dnssl" help="DNS search list information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="SUFFIX" help="Domain name suffix" ptype="DOMAIN_NAME"> </PARAM>
+        </PARAM>
+        <PARAM name="home-agent-lifetime" help="Home Agent lifetime when home agent config is set" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="home-agent-preference" help="Home Agent preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="mtu" help="Advertised MTU" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="prefix" help="Prefix information" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-prefix" help="IPv6 prefix" ptype="ND_IPV6_ADDR_MASK"> </PARAM>
+        </PARAM>
+        <PARAM name="ra-hop-limit" help="Advertisement Hop Limit" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-interval" help="Set IPv6 Max Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement max interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="min-ra-interval" help="Set IPv6 Min Router Advertisement Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="ra-interval-option" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="msec" help="Router Advertisement min interval in milliseconds" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ra-lifetime" help="Lifetime associated with the default router" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="ra-retrans-interval" help="Advertisement Retransmit Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="rdnss" help="Recursive DNS server information(RFC8106)" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM name="rdnss-prefix" help="IPv6 address" ptype="ND_IPV6_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="reachable-time" help="Duration for neighbor to be reachable after receiving reachability confirmation" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        <PARAM name="router-preference" help="Default router preference" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-neighbors patch_frr_nd_no_cfg_param ${iface} ${vlan_name} ${po_name} ${__full_line} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                The no form of this command enables sending RA messages.
+              </DESCRIPTION>
+        <USAGE>
+                Use this command to suppress sending router advertisement messages. By default, sending router advertisement messages are suppressed.
+              </USAGE>
+        <EXAMPLE summary="Disable suppress router advertisement messages.">
+                sonic(conf-if-Ethernet46)# no ipv6 nd suppress-ra
+              </EXAMPLE>
+        <FEATURE> ND </FEATURE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--=======================================================-->
+  <!-- show/clear ipv6 neighbors changes -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <!-- show ipv6 neighbors <ip-addr> commands -->
+    <COMMAND help="Display NDP commands" name="show ipv6 neighbors">
+      <PARAM name="vrf" help="Display NDP entries of the given VRF" mode="subcommand" optional="true" ptype="SUBCOMMAND">
+        <PARAM name="vrfname" help="Display NDP entries of the given VRF" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="vrfname" help="Display NDP entries of the given VRF" ptype="VRF_NAME"> </PARAM>
+          <PARAM name="mgmt" help="Display NDP entries of the management VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="all" help="Display ARP entries from all VRFs" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <PARAM name="filter" help="Filtering parameter 'ip' or 'mac-address'" optional="true" mode="switch" order="true" ptype="SUBCOMMAND">
+        <PARAM help="NDP entry for this IPv6 address" name="ip-addr" ptype="IPV6_OR_IPV4_MAPPED_IPV6_ADDR" optional="true"> </PARAM>
+        <PARAM name="mac-address" help="HW address" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+          <PARAM help="48 bit MAC address" name="mac-addr" ptype="MAC_ADDR"> </PARAM>
+        </PARAM>
+        <PARAM name="summary" help="Summary of NDP entries" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 ip:${ip-addr} mac:${mac-addr} vrf:${vrfname} summary:${summary}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command displays NDP table entries. To filter the
+                 output, specify an interface, port channel, or VLAN, an IPv6 address, a MAC
+                 address, or a combination of more than one value to match.  You can also
+                 display total number of ARP entries using 'summary' option.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show ipv6 neighbors [interface { Ethernet &lt; port &gt; [summary] | PortChannel &lt; id &gt; [summary] | Vlan &lt; id &gt; [summary] }] [&lt; ipv6-address &gt;] [mac-address &lt; mac &gt;] [summary]
+             </USAGE>
+        <EXAMPLE summary="show ipv6 neighbors information">
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+        <EXAMPLE summary="show ipv6 neighbors interface information">
+                 sonic# show ipv6 neighbors Vlan 100
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+ 
+                 sonic# show ipv6 neighbors interface Management 0
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+        <EXAMPLE summary="show ipv6 neighbors ip information">
+                 sonic# show ipv6 neighbors 20::2
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+             </EXAMPLE>
+        <EXAMPLE summary="show ipv6 neighbors mac-address information">
+                 sonic# show ipv6 neighbors mac-address 00:01:02:03:04:05
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show ipv6 nd ra-interfaces command -->
+    <COMMAND name="show ipv6 nd" help="Display Neighbor Discovery information">
+      <PARAM name="ra-interfaces" help="Display Route Advertisement Interfaces" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ifName" help="Interface-type number" ptype="PHY_PO_VL_SUBINTERFACE" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py oc_get_ipv6_nd_ra_interfaces ifname:${ifName}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 This command displays NDP ra-interfaces.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# show ipv6 nd ra-interfaces
+             </USAGE>
+        <EXAMPLE summary="show ipv6 nd ra-interfaces">
+                 sonic(config)# do show ipv6 nd ra-interfaces | no-more
+                 Interfaces:
+                     Vlan100
+                   ND advertised reachable time is 0 milliseconds
+                   ND advertised retransmit interval is 0 milliseconds
+                   ND advertised hop-count limit is 64 hops
+                   ND router advertisements sent: 0 rcvd: 0
+                   ND router advertisements are sent every 600 seconds
+                   ND router advertisements lifetime tracks ra-interval  
+                   ND router advertisement default router preference is MEDIUM
+                   Hosts use stateless autoconfig for addresses.
+                   ND router advertisements with Adv. Interval option.
+                   Advertised Link MTU is 1200
+                   rdnss 2001::1 1234
+                   rdnss 2002::1 infinite
+                   rdnss 2003::1
+                   dnssl mybroadcom1 1234
+                   dnssl mybroadcom2
+                   dnssl mybroadcom3 infinite
+                   prefix 2001::1/128 5000 4000 
+                   prefix 2002::1/128 no-autoconfig off-link 
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show ipv6 neighbors interface <intf> [summary] -->
+    <COMMAND help="NDP entries for this interface" name="show ipv6 neighbors interface">
+      <PARAM name="iftype" help="interface type" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="phy-if-name" help="Select an interface" ptype="PHY_INTERFACE" optional="true">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="subif-name" help="Select an interface" ptype="PHY_PO_SUB_INTERFACE" optional="true">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Loopback" help="Loopback Interface Configuration" ptype="LOOPBACK_INTERFACE">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Management" help="Management Interface commands" ptype="MGMT_INTERFACE">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="PortChannel" help="Port channel Interface Configuration" ptype="PO_INTERFACE">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Vlan" help="Vlan Interface Configuration" ptype="VLAN_INTERFACE">
+          <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Vxlan" help="VXLAN Configuration mode" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="vxlan-if-name" help="VTEP Name" ptype="STRING_63">
+            <PARAM help="Summary of NDP entries" name="summary" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> if test "${iftype}" = "phy-if-name"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${phy-if-name} summary:${summary}
+ fi
+ if test "${iftype}" = "subif-name"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${subif-name} summary:${summary}
+ fi
+ if test "${iftype}" = "Loopback"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${Loopback} summary:${summary}
+ fi
+ if test "${iftype}" = "Management"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${Management} summary:${summary}
+ fi
+ if test "${iftype}" = "PortChannel"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${PortChannel} summary:${summary}
+ fi
+ if test "${iftype}" = "Vlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${Vlan} summary:${summary}
+ fi
+ if test "${iftype}" = "Vxlan"; then
+ python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_oc_get_neighbors family:IPv6 intf:${iftype}${vxlan-if-name} summary:${summary}
+ fi
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- clear ipv6 neighbors -->
+    <COMMAND help="Clear IPv6 commands" access="netadmin" name="clear ipv6"> </COMMAND>
+    <!-- clear ipv6 neighbors interface <intf> -->
+    <COMMAND help="Clear NDP entries for this interface" access="netadmin" name="clear ipv6 neighbors interface">
+      <PARAM name="interface-switch" help="interface type" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="phy-if-name" help="Clear Ethernet interface NDP entries" ptype="PHY_INTERFACE"> </PARAM>
+        <PARAM name="subif-name" help="Clear Subinterface NDP entries" ptype="PHY_PO_SUB_INTERFACE"> </PARAM>
+        <PARAM name="mgmt-if-name" help="Clear Management interface NDP entries" ptype="MGMT_INTERFACE"> </PARAM>
+        <PARAM name="po-if-name" help="Clear PortChannel interface NDP entries" ptype="PO_INTERFACE"> </PARAM>
+        <PARAM name="vlan-if-name" help="Clear VLAN interface NDP entries" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_sonic_clear_neighbors family:IPv6 intf:${interface-switch} phyIf:${phy-if-name} subIf:${subif-name} mgmtIf:eth0 vlanIf:${vlan-if-name} poIf:${po-if-name}
+ </ACTION>
+    </COMMAND>
+    <!-- clear ipv6 neighbors <ip> -->
+    <COMMAND help="Clear NDP commands" access="netadmin" name="clear ipv6 neighbors">
+      <PARAM name="clearneighbors-subcommands" help="Clear neighbors subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="ip-addr" help="IP address for which NDP record needs to be deleted" ptype="IPV6_OR_IPV4_MAPPED_IPV6_ADDR" optional="true"> </PARAM>
+      </PARAM>
+      <PARAM name="vrf" help="Clear NDP entries of the given VRF" mode="subcommand" optional="true" ptype="SUBCOMMAND">
+        <PARAM name="vrfname" help="Clear NDP entries of the given VRF" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="vrfname" help="Clear NDP entries of the given VRF" ptype="VRF_NAME"> </PARAM>
+          <PARAM name="mgmt" help="Clear NDP entries of the management VRF" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="all" help="Clear NDP entries from all VRFs" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py rpc_sonic_clear_neighbors family:IPv6 ip:${ip-addr} vrf:${vrfname}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 To delete dynamically learned IPv6 entries from the NDP table, use the 'clear ipv6 neighbor' command.
+                 To specify the entries to be deleted, enter an interface, port channel, or VLAN, an IPv6 address, or a combination to match.
+                 Use the 'show ipv6 neighbors' to verify that the IPv6 entries have been deleted.
+             </DESCRIPTION>
+        <USAGE>
+                 sonic# clear ipv6 neighbors [interface {Ethernet &lt; port-number &gt;| PortChannel &lt; number &gt;| Vlan &lt; vlan-id &gt;| Management &lt; port-number &gt;}] [&lt; ipv6-address &gt;]
+             </USAGE>
+        <EXAMPLE summary="clear ipv6 neighbors information">
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ipv6 neighbors
+                 sonic# show ipv6 neighbors
+              </EXAMPLE>
+        <EXAMPLE summary="clear ipv6 neighbors interface information">
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ipv6 neighbors interface Vlan 100
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+             </EXAMPLE>
+        <EXAMPLE summary="clear ipv6 neighbors ip information">
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+                 fe80::e6f0:4ff:fe79:34c7    00:01:e8:8b:44:71   eth0              -
+                 sonic# clear ipv6 neighbors fe80::e6f0:4ff:fe79:34c7
+                 sonic# show ipv6 neighbors
+                 ---------------------------------------------------------------------------------
+                 Address                     Hardware address    Interface        Egress Interface
+                 ---------------------------------------------------------------------------------
+                 20::1                       00:01:02:03:44:55   Ethernet8         -
+                 20::2                       00:01:02:03:ab:cd   PortChannel200    -
+                 20::3                       00:01:02:03:04:05   Vlan100           Ethernet4
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="clear ipv6 nd" help="Clear Neighbor Discovery information">
+      <PARAM name="ra-interfaces" help="Clear Route Advertisement Interfaces" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ifName" help="Interface-type number" ptype="PHY_PO_VL_SUBINTERFACE" optional="true"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py oc_clear_ipv6_nd_ra_interfaces ifname:${ifName}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+         This command clears/resets statistical information on RA enabled interface(s).
+       </DESCRIPTION>
+        <USAGE>
+         Use this command to clear statistical information on RA enabled interface(s).
+       </USAGE>
+        <EXAMPLE summary="Below commands clear sessions on Ethernt64">
+         sonic# clear ipv6 nd ra-interfaces Ethernet64
+       </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- ipv6 nd cache expire -->
+    <COMMAND name="ipv6 nd" access="netadmin" help="Configure IPv6 ND" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/name={name}" command_keys="name=Values">
+      <PARAM name="cache" help="Set IPv6 ND cache entry" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="expire" help="Set IPv6 ND cache entry expiry time" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" help="Expiry time in seconds" ptype="NEIGH_TIMEOUT" dbpath="sonic-neighbor:sonic-neighbor/NEIGH_GLOBAL/NEIGH_GLOBAL_LIST/ipv6_nd_cache_expiry"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py set_ipv6_nd_cache_expiry ${value}
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Configures time in seconds for IPv6 ND cache entry to expire.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to configure IPv6 ND cache entry timeout.
+ 			</USAGE>
+        <EXAMPLE summary="Configure IPv6 ND timeout">
+ 				sonic-cli(config)# ipv6 nd cache expire 500 
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ipv6 nd cache expire -->
+    <COMMAND name="no ipv6 nd" access="netadmin" help="Unconfigure IPv6 ND" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="cache" help="Unset IPv6 ND cache entry" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="expire" help="Unset IPv6 ND cache entry expiry time" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py del_ipv6_nd_cache_expiry 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Unconfigures IPv6 ND cache entry expiry time and sets it to Default Value.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to Unconfigure IPv6 ND cache entry timeout.
+ 			</USAGE>
+        <EXAMPLE summary="Unconfigure IPv6 ND timeout">
+ 				sonic-cli(config)# no ipv6 nd cache expire
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- radv enable -->
+    <COMMAND name="radv" access="netadmin" help="Enable Sonic Router Advertisement" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-system-infra:sonic-system-infra/RADVDAEMON/RADVDAEMON_LIST={id}" render_command_cb="nd_radv_enable_config">
+      <PARAM name="enable" help="Enable" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py enable_radv_daemon 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Enables sonic version of router advertisement daemon inside radv docker.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to enable sonic version of router advertisement daemon inside radv docker.
+ 			</USAGE>
+        <EXAMPLE summary="Enable Sonic Router Advertisement">
+ 				sonic-cli(config)# radv enable 
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no radv enable -->
+    <COMMAND name="no radv" access="netadmin" help="Disable Sonic Router Advertisement" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="enable" help="Enable" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/sonic-cli-neighbors.py disable_radv_daemon 
+ </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+ 				Disables sonic version of router advertisement daemon inside radv docker.
+ 			</DESCRIPTION>
+        <USAGE>
+ 				Use this command to disable sonic version of router advertisement daemon inside radv docker.
+ 			</USAGE>
+        <EXAMPLE summary="Disable Sonic Router Advertisement">
+ 				sonic-cli(config)# no radv enable
+ 			</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

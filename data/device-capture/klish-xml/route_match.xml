@@ -1,0 +1,188 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <VIEW name="configure-route-map-view">
+    <COMMAND name="no" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match interface" access="netadmin" help="Delete matched interface">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_interface_config_interface ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match tag" access="netadmin" help="Delete matched tag">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_tag_set_config_tag_value ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match as-path" access="netadmin" help="Delete matched as-path-name">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_match_as_path_set_config_as_path_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match community" access="netadmin" help="Delete matched community">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_community_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match ext-community" access="netadmin" help="Delete matched extended community">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_ext_community_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match origin" access="netadmin" help="Delete matched origin">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_origin_eq ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match metric" access="netadmin" help="Delete matched metric">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_med_eq ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match local-preference" access="netadmin" help="Delete matched local-preference">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_local_pref_eq ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match ip next-hop" access="netadmin" help="Delete matched IP next-hop"> </COMMAND>
+    <COMMAND name="no match ip next-hop prefix-list" access="netadmin" help="Delete matched IP next-hop prefix-list">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_next_hop_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match peer" access="netadmin" help="Delete matched peer IP">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_neighbor_set_config_address ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no call" access="netadmin" help="Delete matched call policy">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_config_call_policy ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match source-protocol" access="netadmin" help="Delete matched source-protocol">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_config_install_protocol_eq ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match ip" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match ip address" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match ipv6" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match ipv6 address" access="netadmin" help="Negate a commands"/>
+    <COMMAND name="no match ip address prefix-list" access="netadmin" help="Delete matched IP address prefix">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_prefix_set_config_prefix_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match ipv6 address prefix-list" access="netadmin" help="Delete matched IPv6 address prefix">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_prefix_set_config_ipv6_prefix_set ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match source-vrf" access="netadmin" help="Source VRF">
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_src_network_instance_config_name ${name} ${seq_num}</ACTION>
+    </COMMAND>
+    <COMMAND name="match" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match as-path" access="netadmin" help="Set routing policy match criteria as-path">
+      <PARAM name="as-path-name" help="Name of as-path-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_as_path"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_match_as_path_set_config_as_path_set ${name} ${seq_num} ${as-path-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="match evpn" access="netadmin" help="Set routing policy match criteria to BGP Ethernet Virtual Private Network" render_command_cb="routemap_match_evpn">
+      <PARAM name="match-evpn-cmd-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="default-route" help="default EVPN type-5 route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="route-type" help="Match route-type" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="evpn-route-type" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ead" help="Ethernet AD route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="macip" help="mac-ip route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="multicast" help="IMET route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="es" help="Ethernet Segmnet route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="prefix" help="prefix route" ptype="SUBCOMMAND" mode="subcommand"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="vni" help="Match VNI" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="vni-number" help="VNI ID" ptype="RANGE_1_16777215"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_match_evpn ${name} ${seq_num} match_evpn_cmd_type ${match-evpn-cmd-type} evpn_route_type ${evpn-route-type} vni_number ${vni-number}</ACTION>
+    </COMMAND>
+    <COMMAND name="no match evpn" access="netadmin" help="Delete matched criteria for BGP Ethernet Virtual Private Network">
+      <PARAM name="match-evpn-cmd-type" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="default-route" help="Default EVPN type-5 route" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="route-type" help="Match route-type" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="evpn-route-type" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ead" help="Ethernet AD route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="macip" help="mac-ip route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="multicast" help="IMET route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="es" help="Ethernet Segment route" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="prefix" help="prefix route" ptype="SUBCOMMAND" mode="subcommand"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="vni" help="Match VNI" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="vni-number" help="VNI ID" ptype="RANGE_1_16777215"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match delete_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_match_evpn ${name} ${seq_num} match_evpn_cmd_type ${match-evpn-cmd-type} evpn_route_type ${evpn-route-type} vni_number ${vni-number}</ACTION>
+    </COMMAND>
+    <COMMAND name="match ip" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match ipv6" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match ip address" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match ipv6 address" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match ip next-hop" access="netadmin" help="Set routing policy match criteria"/>
+    <COMMAND name="match ip address prefix-list" access="netadmin" help="Set routing policy match criteria to IPv4 prefix-list">
+      <PARAM name="prefix-list-name" help="Name of prefix-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_prefix_set"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_prefix_set_config_prefix_set ${name} ${seq_num} ${prefix-list-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="match ipv6 address prefix-list" access="netadmin" help="Set routing policy match criteria to IPv6 prefix-list">
+      <PARAM name="prefix-list-name" help="Name of prefix-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_ipv6_prefix_set"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_prefix_set_config_ipv6_prefix_set ${name} ${seq_num} ${prefix-list-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="match interface" access="netadmin" help="Set routing policy match criteria to interface" render_command_cb="routemap_match_interface">
+      <PARAM name="if-type" help="Configure match peer" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="phy-if-name" help="Select an interface or sub-interface" ptype="PHY_INTERFACE_SUBIF"> </PARAM>
+        <PARAM name="Loopback" help="Select a Loopback interface" ptype="LOOPBACK_INTERFACE"> </PARAM>
+        <PARAM name="PortChannel" help="Select a PortChannel interface or sub-interface" mode="subcommand" ptype="PO_INTERFACE_SUBIF"> </PARAM>
+        <PARAM name="Vlan" help="Select a VLAN Interface" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_interface_config_interface ${name} ${seq_num} ${if-type} ${phy-if-name}${PortChannel}${Loopback}${Vlan}</ACTION>
+    </COMMAND>
+    <COMMAND name="match community" access="netadmin" help="Set routing policy match criteria to BGP community">
+      <PARAM name="community-name" help="Name of community-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_community"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_community_set ${name} ${seq_num} ${community-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="match ext-community" access="netadmin" help="Set routing policy match criteria to BGP extended community">
+      <PARAM name="community-name" help="Name of extended community-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_ext_community"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_ext_community_set ${name} ${seq_num} ${community-name}</ACTION>
+    </COMMAND>
+    <COMMAND name="match tag" access="netadmin" help="Redistributes routes in the routing table that match the specified tags." render_command_cb="routemap_match_tag">
+      <PARAM name="match-tag" help="Tag value" ptype="RANGE_1_4294967295"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_tag_set_config_tag_value ${name} ${seq_num} ${match-tag}</ACTION>
+    </COMMAND>
+    <COMMAND name="match local-preference" access="netadmin" help="Set routing policy match criteria to local-preference">
+      <PARAM name="match-loc" help="Local-preference" ptype="RANGE_0_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_local_pref"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_local_pref_eq ${name} ${seq_num} ${match-loc}</ACTION>
+    </COMMAND>
+    <COMMAND name="match source-vrf" access="netadmin" help="Source VRF">
+      <PARAM name="src-vrf" help="Name of VRF" ptype="VRF_OR_DEFAULT" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_src_vrf"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_src_network_instance_config_name ${name} ${seq_num} ${src-vrf}</ACTION>
+    </COMMAND>
+    <COMMAND name="match ip next-hop prefix-list" access="netadmin" help="Set routing policy match criteria to next-hop prefix-list">
+      <PARAM name="match-hop" help="Name of prefix-list" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_next_hop_set"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_next_hop_set ${name} ${seq_num} ${match-hop}</ACTION>
+    </COMMAND>
+    <COMMAND name="call" access="netadmin" help="Jump to another route-map after match_set">
+      <PARAM name="match-call" help="Name of route-map" ptype="STRING_63" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/call_route_map"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_config_call_policy ${name} ${seq_num} ${match-call}</ACTION>
+    </COMMAND>
+    <COMMAND name="match peer" access="netadmin" help="Set routing policy match criteria to peer IP" render_command_cb="routemap_match_peer">
+      <PARAM name="peer-type" help="Configure match peer" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="match-peer" help="Peer's IP address" ptype="IPV4V6_ADDR"/>
+        <PARAM name="phy-if-name" help="Select an interface or sub-interface" ptype="PHY_INTERFACE_SUBIF"> </PARAM>
+        <PARAM name="PortChannel" help="PortChannel interface or sub-interface configuration" mode="subcommand" ptype="PO_INTERFACE_SUBIF"> </PARAM>
+        <PARAM name="Vlan" help="VLAN Interface Configuration" ptype="VLAN_INTERFACE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_ext_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_match_neighbor_set_config_address ${name} ${seq_num} ${peer-type} ${match-peer}${phy-if-name}${PortChannel}${Vlan}</ACTION>
+    </COMMAND>
+    <COMMAND name="match source-protocol" access="netadmin" help="Specify source protocol">
+      <PARAM name="action-switch" help="Configure match source protocol" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="bgp" help="Border Gateway Protocol" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_protocol=bgp"/>
+        <PARAM name="ospf" help="Open Shortest Path First" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_protocol=ospf"/>
+        <PARAM name="static" help="Static" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_protocol=static"/>
+        <PARAM name="connected" help="Connected" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_protocol=connected"/>
+        <PARAM name="attached-host" help="Attached Host" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_protocol=attached-host"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_routing_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_config_install_protocol_eq ${name} ${seq_num} ${action-switch}</ACTION>
+    </COMMAND>
+    <COMMAND name="match metric" access="netadmin" help="Set routing policy match criteria to metric">
+      <PARAM name="match-met" help="Metric value" ptype="RANGE_0_4294967295" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_med"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_med_eq ${name} ${seq_num} ${match-met}</ACTION>
+    </COMMAND>
+    <COMMAND name="match origin" access="netadmin" help="Specify BGP origin">
+      <PARAM name="action-switch" help="Configure the BGP origin" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="egp" help="Exterior Gateway protocol" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_origin=EGP"/>
+        <PARAM name="igp" help="Interior Gateway protocol" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_origin=IGP"/>
+        <PARAM name="incomplete" help="Incomplete" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-route-map:sonic-route-map/ROUTE_MAP/ROUTE_MAP_LIST/match_origin=INCOMPLETE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_route_match patch_openconfig_bgp_policy_routing_policy_policy_definitions_policy_definition_statements_statement_conditions_bgp_conditions_config_origin_eq ${name} ${seq_num} ${action-switch}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

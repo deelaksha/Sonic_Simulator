@@ -1,0 +1,10 @@
+### show system
+Usage: show system [OPTIONS] COMMAND [ARGS]...
+
+  Show system status
+
+Options:
+  -?, -h, --help  Show this message and exit.
+
+Commands:
+  status  Shows the system ready status

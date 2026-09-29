@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <!-- interface port-locator -->
+    <COMMAND name="interface" access="admin" help="interfaces Utility"/>
+    <COMMAND name="interface port-locator" access="admin" help="Enable Port Locator LED">
+      <PARAM name="timer" help="Expiration timer in minutes: 1-120" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="timer_value" help="Expiration timer value (minute)" default="0" ptype="TIMER_VALUE"> </PARAM>
+      </PARAM>
+      <PARAM name="port" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_port_locator ${__full_line} </ACTION>
+    </COMMAND>
+    <!-- show interface port-locator -->
+    <COMMAND name="show interface port-locator" help="Display port locator LED status">
+      <PARAM name="port" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_port_locator ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- no interface port-locator -->
+    <COMMAND name="no interface" access="admin" help="interfaces disablement utility"/>
+    <COMMAND name="no interface port-locator" access="admin" help="Disable Port Locator LED ">
+      <PARAM name="port" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_port_locator ${__full_line} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

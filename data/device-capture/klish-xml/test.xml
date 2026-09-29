@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2021 Broadcom, Inc. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="test" access="netadmin" help="Run diagnostics test program"/>
+    <!-- interface cable-diagnostics -->
+    <COMMAND name="test cable-diagnostics" access="netadmin" help="Run cable-diagnostics test">
+      <PARAM name="port" help="Interface ID" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_cable_diag ${__full_line}</ACTION>
+    </COMMAND>
+    <!-- show cable-diagnostics -->
+    <COMMAND name="show cable-diagnostics" help="Show cable-diagnostics information">
+      <PARAM name="cd-subcommands" help="cable-diagnostics subcommands" mode="switch" ptype="SUBCOMMAND">
+        <!-- show cable-diagnostics cable-length -->
+        <PARAM name="cable-length" help="Show cable-length information" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="port" help="Interface ID" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+        </PARAM>
+        <!-- show cable-diagnostics report -->
+        <PARAM name="report" help="Show the test report" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="port" help="Interface ID" ptype="ETHER_INTERFACE_RANGE" optional="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_cable_diag ${__full_line}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

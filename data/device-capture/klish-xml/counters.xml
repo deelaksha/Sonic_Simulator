@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="configure-view">
+    <COMMAND name="counters" access="netadmin" help="counters config"/>
+    <COMMAND name="counters rif" access="netadmin" help="counters rif config"/>
+    <COMMAND name="counters rif interval" access="netadmin" help="rif counters interval config" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}">
+      <PARAM name="rif-time" help="rif interval time in seconds (default - 5) " ptype="RANGE_1_10000" dbpath="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/rif_cntr_interval"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_if add_rif_config_interval ${rif-time}
+ </ACTION>
+    </COMMAND>
+    <COMMAND name="no counters" access="netadmin" help="counters unconfig"/>
+    <COMMAND name="no counters rif" access="netadmin" help="counters rif unconfig"/>
+    <COMMAND name="no counters rif interval" access="netadmin" help="rif counters interval unconfig" mode="subcommand" ptype="SUBCOMMAND" command_keys="switch=*" command_tables="sonic-switch:sonic-switch/SWITCH/SWITCH_LIST/switch={switch}">
+      <ACTION builtin="clish_pyobj"> sonic_cli_if delete_rif_config_interval
+ </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

@@ -1,0 +1,1635 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!-- Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+<!ENTITY ACL_MAC_ADDR "^([0-9a-fA-F]{2}(-[0-9a-fA-F]{2}){5}|[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}|[0-9a-fA-F]{4}(\.[0-9a-fA-F]{4}){2})$">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="https://raw.githubusercontent.com/project-arlo/sonic-mgmt-framework/master/src/CLI/clitree/scripts/sonic-clish.xsd">
+  <!--================================= PTYPES =================================-->
+  <PTYPE name="ACL_MAC_ADDR" pattern="&ACL_MAC_ADDR;" help="MACADDRESS" preprocess="toupper"/>
+  <PTYPE name="PCP_VALUE" method="integer" pattern="0..7" help="0-7"/>
+  <PTYPE name="DEI_VALUE" method="integer" pattern="0..1" help="0-1"/>
+  <PTYPE name="ETHERTYPE_VALUE" pattern="0[xX]([6-9a-fA-F][0-9a-fA-F]{2}|[1-9a-fA-F][0-9a-fA-F]{3})" help="0x600-0xffff"/>
+  <PTYPE name="ACL_REMARK" pattern=".{1,256}" help="String (Max: 256 characters)"/>
+  <!--============================== EXEC MODE COMMANDS =======================-->
+  <VIEW name="enable-view">
+    <!--show xxx access-group -->
+    <COMMAND name="show access-group" help="Display access-group information">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_all_acl_binding</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Display ACL binding summary
+                 </DESCRIPTION>
+        <EXAMPLE summary="show access-group">
+                     Ingress IPV6 access-list ipv6acl-example on Ethernet0
+                     Ingress IP access-list ipacl-example on PortChannel1
+                     Ingress MAC access-list macacl-example on Vlan100
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl table [name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show mac access-group" help="Display MAC access-group information">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_all_acl_binding ACL_L2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Display MAC ACL binding summary
+                 </DESCRIPTION>
+        <EXAMPLE summary="show mac access-group">
+                     Ingress MAC access-list macacl-example on Vlan100
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl table [name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip access-group" help="Display IPv4 access-group information">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_all_acl_binding ACL_IPV4</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Display IPv4 ACL binding summary
+                 </DESCRIPTION>
+        <EXAMPLE summary="show ip access-group">
+                     Ingress IP access-list ipacl-example on PortChannel1
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl table [name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ipv6 access-group" help="Display IPv6 access-group information">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_all_acl_binding ACL_IPV6</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Display IPv6 ACL binding summary
+                 </DESCRIPTION>
+        <EXAMPLE summary="show ipv6 access-group">
+                     Ingress IPV6 access-list ipv6acl-example on Ethernet0
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl table [name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show xxx access-lists [NAME] -->
+    <COMMAND name="show mac access-lists" help="Display MAC access-lists information">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Show MAC ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_acl_details ACL_L2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show MAC ACL rules and statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all MAC ACLs will be displayed. ACL statistics will be shown only if the ACL is applied globally or to any interface.
+                 </USAGE>
+        <EXAMPLE summary="show mac access-lists">
+                     mac access-list macacl-example
+                         seq 10 permit host 00:00:10:00:00:01 host 00:00:20:00:00:01 (10 packets) [1000 bytes]
+                         seq 20 permit host 00:00:10:00:00:02 host 00:00:20:00:00:02 (20 packets) [2000 bytes]
+                         seq 30 permit host 00:00:10:00:00:03 host 00:00:20:00:00:03 (30 packets) [3000 bytes]
+                         seq 40 permit host 00:00:10:00:00:04 host 00:00:20:00:00:04 (40 packets) [4000 bytes]
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip access-lists" help="Display IPv4 access-lists information">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Show IPv4 ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_acl_details ACL_IPV4 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show IPv4 ACL rules and statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all IPv4 ACLs will be displayed. ACL statistics will be shown only if the ACL is applied globally or to any interface.
+                 </USAGE>
+        <EXAMPLE summary="show ip access-lists">
+                     ip access-list ipacl-example
+                         seq 10 permit ip host 10.1.1.1 host 20.1.1.1 (0 packets) [0 bytes]
+                         seq 20 permit ip host 10.1.1.2 host 20.1.1.2 (0 packets) [0 bytes]
+                         seq 30 permit ip host 10.1.1.3 host 20.1.1.3 (0 packets) [0 bytes]
+                         seq 40 permit ip host 10.1.1.4 host 20.1.1.4 (0 packets) [0 bytes]
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ipv6 access-lists" help="Display IPv6 access-lists information">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Show IPv6 ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl get_acl_details ACL_IPV6 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show IPv6 ACL rules and statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all IPv6 ACLs will be displayed. ACL statistics will be shown only if the ACL is applied globally or to any interface.
+                 </USAGE>
+        <EXAMPLE summary="show ipv6 access-lists">
+                     ipv6 access-list ipv6acl-example
+                         seq 100 permit ipv6 host abcd::1 host bcde::1 (0 packets) [0 bytes]
+                         seq 200 permit tcp host abcd::2 host bcde::2 (0 packets) [0 bytes]
+                         seq 300 permit udp host abcd::3 host bcde::3 (0 packets) [0 bytes]
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name]
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show object-groups [NAME] | [type network] -->
+    <COMMAND name="show object-groups" help="Show Object-groups information">
+      <PARAM name="show-object-group-name-or-type" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+        <PARAM name="show-object-group-name" help="Shows object group information using name(Max: 72 characters)" ptype="STRING_72"/>
+        <PARAM name="type" help="Shows all object-groups using the object-group type" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <PARAM name="show-object-group-type" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${show-object-group-name}&quot; = &quot;type&quot;">
+        <PARAM name="network" help="Show all Object groups" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl show_object_groups ${show-object-group-name} ${show-object-group-type}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show Object Groups
+                 </DESCRIPTION>
+        <USAGE>
+                     Object group Type and name are optional. If Object group name and Object group type are not specified then all the object groups will be displayed. All the object group of a given type will be displayed if the object group type is specified. If the Object group name is specified then the specific object group will be displayed.
+                 </USAGE>
+        <EXAMPLE summary="show object-groups">
+                     object-group object-group-example type network
+                         description: Object group example
+                         network-object host 1.1.1.1
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- clear counters xxx access-list -->
+    <COMMAND name="clear mac access-list" access="netadmin" help="Clear MAC ACL counters"/>
+    <COMMAND name="clear mac access-list counters" access="netadmin" help="Clear MAC ACL counters">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Clear MAC ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_counters L2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Clear MAC ACL rules statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all MAC ACLs statistics will be cleared.
+                 </USAGE>
+        <EXAMPLE summary="clear mac access-list counters">
+                     sonic# clear mac access-list counters
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name] -c
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="clear ip access-list" access="netadmin" help="Clear IPv4 ACL counters"/>
+    <COMMAND name="clear ip access-list counters" access="netadmin" help="Clear IPv4 ACL counters">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Clear IPv4 ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_counters L3 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Clear IPv4 ACL rules statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all IPv4 ACLs statistics will be cleared.
+                 </USAGE>
+        <EXAMPLE summary="clear ip access-list counters">
+                     sonic# clear ip access-list counters ipacl-example
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name] -c
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="clear ipv6 access-list" access="netadmin" help="Clear IPv6 ACL Counters"/>
+    <COMMAND name="clear ipv6 access-list counters" access="netadmin" help="Clear IPv6 ACL counters">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true">
+        <PARAM name="interface-or-global" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+          <PARAM name="interface" help="Clear IPv6 ACL counters applied on interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="interface-types" help="" ptype="SUBCOMMAND" mode="switch">
+              <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+              <PARAM name="PortChannel" help="Portchannel interface" ptype="PO_INTERFACE"/>
+              <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE"/>
+              <PARAM name="eth-sub-if-id" help="Ethernet sub-interface" ptype="PHY_INTERFACE_SUBIF"/>
+              <PARAM name="po-sub-if-id" help="PortChannel sub-interface" ptype="PO_INTERFACE_SUBIF"/>
+            </PARAM>
+          </PARAM>
+          <PARAM name="Switch" help="ACLs applied at switch level" ptype="SUBCOMMAND" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_counters L3V6 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Clear IPv6 ACL rules statistics
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name and interface names are optional. If ACL name is not specified then all IPv6 ACLs statistics will be cleared.
+                 </USAGE>
+        <EXAMPLE summary="clear ipv6 access-list counters">
+                     sonic# clear ipv6 access-list counters ipv6acl-example
+                 </EXAMPLE>
+        <ALTCMD type="click">
+                     admin@sonic:~$ show acl rule [name] [rule_name] -c
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="show running-configuration mac" help="Display current MAC ACL configuration"/>
+    <COMMAND name="show running-configuration mac access-list" help="Display current MAC ACL configuration">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-mac-acl view_keys="access-list-name=${access-list-name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current MAC ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL Name is optional. If no ACL name is specified then configuration for all MAC ACLs will be displayed.
+                 </USAGE>
+        <EXAMPLE summary="show running-configuration mac access-list">
+                     mac access-list macacl-example
+                      seq 10 permit host 00:00:10:00:00:01 host 00:00:20:00:00:01
+                      seq 20 permit host 00:00:10:00:00:02 host 00:00:20:00:00:02
+                      seq 30 permit host 00:00:10:00:00:03 host 00:00:20:00:00:03
+                      seq 40 permit host 00:00:10:00:00:04 host 00:00:20:00:00:04
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration ip" help="Display current IPv4 ACL configuration"/>
+    <COMMAND name="show running-configuration ip access-list" help="Display current IPv4 ACL configuration">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ipv4-acl view_keys="access-list-name=${access-list-name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current IPv4 ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL Name is optional. If no ACL name is specified then configuration for all IPv4 ACLs will be displayed.
+                 </USAGE>
+        <EXAMPLE summary="show running-configuration ip access-list">
+                     ip access-list ipacl-example
+                      seq 10 permit ip host 10.1.1.1 host 20.1.1.1
+                      seq 20 permit ip host 10.1.1.2 host 20.1.1.2
+                      seq 30 permit ip host 10.1.1.3 host 20.1.1.3
+                      seq 40 permit ip host 10.1.1.4 host 20.1.1.4
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration ipv6" help="Display current IPv6 ACL configuration"/>
+    <COMMAND name="show running-configuration ipv6 access-list" help="Display current IPv6 ACL configuration">
+      <PARAM name="access-list-name" help="Access list name" ptype="STRING_72" optional="true"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ipv6-acl view_keys="access-list-name=${access-list-name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current IPv6 ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL Name is optional. If no ACL name is specified then configuration for all IPv6 ACLs will be displayed.
+                 </USAGE>
+        <EXAMPLE summary="show running-configuration ipv6 access-list">
+                     ipv6 access-list ipv6acl-example
+                       seq 100 permit ipv6 host abcd::1 host bcde::1
+                       seq 200 permit tcp host abcd::2 host bcde::2
+                       seq 300 permit udp host abcd::3 host bcde::3
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!--============================== INTERFACE ETHERNET MODE COMMANDS ======================-->
+  <VIEW name="configure-if-view">
+    <COMMAND name="mac" access="netadmin" help="Configure MAC parameters" data_and_render_cb="acl_bind_cb"/>
+    <COMMAND name="no mac" access="netadmin" help="Configure MAC parameters"/>
+    <!-- mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply MAC ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type MAC to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply MAC ACL to an interface">
+                          sonic(conf-if-Vlan100)# mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv4 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv4 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL to an interface">
+                          sonic(conf-if-po1)# ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv6 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv6 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv6 ACL to an interface">
+                          sonic(conf-if-Eth1/1)# ipv6 access-group ipv6acl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="no mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove MAC ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove MAC ACL application">
+                          sonic(conf-if-Vlan100)# no mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv4 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv4 ACL application">
+                          sonic(conf-if-po1)# no ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv6 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv6 ACL application">
+                          sonic(conf-if-Eth1/1)# no ipv6 access-group ipv6acl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--============================== INTERFACE PORTCHANNEL MODE COMMANDS ======================-->
+  <VIEW name="configure-lag-view">
+    <COMMAND name="mac" access="netadmin" help="Configure MAC parameters" data_and_render_cb="acl_bind_cb"/>
+    <COMMAND name="no mac" access="netadmin" help="Configure MAC parameters"/>
+    <!-- mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply MAC ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type MAC to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply MAC ACL to an interface">
+                          sonic(conf-if-Vlan100)# mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv4 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv4 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL to an interface">
+                          sonic(conf-if-po1)# ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv6 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv6 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv6 ACL to an interface">
+                          sonic(conf-if-Eth1/1)# ipv6 access-group ipv6acl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="no mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove MAC ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove MAC ACL application">
+                          sonic(conf-if-Vlan100)# no mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv4 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv4 ACL application">
+                          sonic(conf-if-po1)# no ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv6 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv6 ACL application">
+                          sonic(conf-if-Eth1/1)# no ipv6 access-group ipv6acl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--============================== INTERFACE VLAN MODE COMMANDS ======================-->
+  <VIEW name="configure-vlan-view">
+    <COMMAND name="mac" access="netadmin" help="Configure MAC parameters" data_and_render_cb="acl_bind_cb"/>
+    <COMMAND name="no mac" access="netadmin" help="Configure MAC parameters"/>
+    <!-- mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply MAC ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type MAC to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply MAC ACL to an interface">
+                          sonic(conf-if-Vlan100)# mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv4 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv4 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL to an interface">
+                          sonic(conf-if-po1)# ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv6 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv6 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv6 ACL to an interface">
+                          sonic(conf-if-Eth1/1)# ipv6 access-group ipv6acl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="no mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove MAC ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove MAC ACL application">
+                          sonic(conf-if-Vlan100)# no mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv4 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv4 ACL application">
+                          sonic(conf-if-po1)# no ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv6 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv6 ACL application">
+                          sonic(conf-if-Eth1/1)# no ipv6 access-group ipv6acl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--============================== SUB-INTERFACE MODE COMMANDS ======================-->
+  <VIEW name="configure-subif-view">
+    <COMMAND name="mac" access="netadmin" help="Configure MAC parameters" data_and_render_cb="acl_bind_cb"/>
+    <COMMAND name="no mac" access="netadmin" help="Configure MAC parameters"/>
+    <!-- mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply MAC ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type MAC to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply MAC ACL to an interface">
+                          sonic(conf-if-Vlan100)# mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv4 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv4 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL to an interface">
+                          sonic(conf-if-po1)# ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Apply IPv6 ACL to an interface.
+                      </DESCRIPTION>
+        <USAGE>
+                          ACL must be created first and must be of type IPv6 to be applied. Only 1 ACL of a given type can be applied per interface and per direction. 
+                      </USAGE>
+        <EXAMPLE summary="Apply IPv6 ACL to an interface">
+                          sonic(conf-if-Eth1/1)# ipv6 access-group ipv6acl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="no mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_L2 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove MAC ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove MAC ACL application">
+                          sonic(conf-if-Vlan100)# no mac access-group macacl-example in
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV4 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv4 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv4 ACL application">
+                          sonic(conf-if-po1)# no ip access-group ipacl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV6 ${iface} ${vlan_name} ${po_name}  ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Remove IPv6 ACL application to an interface.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Remove IPv6 ACL application">
+                          sonic(conf-if-Eth1/1)# no ipv6 access-group ipv6acl-example out
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--============================== CONFIG MODE COMMANDS ======================-->
+  <VIEW name="configure-view">
+    <!-- Global binding options -->
+    <!-- mac access-list -->
+    <COMMAND name="mac access-list" access="netadmin" help="Configure MAC access-list" view="configure-mac-acl-view" viewid="name=${access-list-name}" data_and_render_cb="mac_acl_table_cb">
+      <PARAM name="access-list-name" help="Name of the MAC access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl ${access-list-name} ACL_L2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create MAC ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character. ACL name must be unique across all ACL types.
+                 </USAGE>
+        <EXAMPLE summary="Create MAC ACL">
+                     sonic(config)# mac access-list macacl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ip access-list -->
+    <COMMAND name="ip access-list" access="netadmin" help="Configure IPv4 access-list" view="configure-ipv4-acl-view" viewid="name=${access-list-name}" data_and_render_cb="ipv4_acl_table_cb">
+      <PARAM name="access-list-name" help="Name of the IPv4 access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl ${access-list-name} ACL_IPV4</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create IPv4 ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character. ACL name must be unique across all ACL types.
+                 </USAGE>
+        <EXAMPLE summary="Create IPv4 ACL">
+                     sonic(config)# ip access-list ipacl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ipv6 access-list -->
+    <COMMAND name="ipv6 access-list" access="netadmin" help="Configure IPv6 access-list" view="configure-ipv6-acl-view" viewid="name=${access-list-name}" data_and_render_cb="ipv6_acl_table_cb">
+      <PARAM name="access-list-name" help="Name of the IPv6 access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl ${access-list-name} ACL_IPV6</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create IPv6 ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character. ACL name must be unique across all ACL types.
+                 </USAGE>
+        <EXAMPLE summary="Create IPv6 ACL">
+                     sonic(config)# ipv6 access-list ipv6acl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac access-list -->
+    <COMMAND name="no mac access-list" access="netadmin" help="Delete MAC access-list">
+      <PARAM name="access-list-name" help="Name of the MAC access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl ${access-list-name} ACL_L2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete MAC ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                 </USAGE>
+        <EXAMPLE summary="Delete MAC ACL">
+                     sonic(config)# no mac access-list macacl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip access-list -->
+    <COMMAND name="no ip access-list" access="netadmin" help="Delete IPv4 access-list">
+      <PARAM name="access-list-name" help="Name of the IPv4 access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl ${access-list-name} ACL_IPV4</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete IPv4 ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                 </USAGE>
+        <EXAMPLE summary="Delete IPv4 ACL">
+                     sonic(config)# no ip access-list ipacl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ipv6 access-list -->
+    <COMMAND name="no ipv6 access-list" access="netadmin" help="Delete IPv6 access-list">
+      <PARAM name="access-list-name" help="Name of the IPv6 access-list (Max size 72)" ptype="STRING_72"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl ${access-list-name} ACL_IPV6</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Delete IPv6 ACL
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL name can be of maximum 72 characters. The name must begin with A-Z, a-z or 0-9. Underscore and hypens can be used except as the first character.
+                 </USAGE>
+        <EXAMPLE summary="Delete IPv6 ACL">
+                     sonic(config)# no ipv6 access-list ipv6acl-example
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Global ACL Binding -->
+    <COMMAND name="mac access-group" access="netadmin" help="Specify MAC access control for packets" data_and_render_cb="acl_global_bind_cb">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_L2 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Apply MAC ACL globally.
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL must be created first and must be of type MAC to be applied. Only 1 ACL of a given type can be applied globally per direction. 
+                 </USAGE>
+        <EXAMPLE summary="Apply MAC ACL globally">
+                     sonic(config)# mac access-group macacl-example in
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV4 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Apply IPv4 ACL globally
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL must be created first and must be of type IPv4 to be applied. Only 1 ACL of a given type can be applied globally per direction.
+                 </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL globally">
+                     sonic(config)# ip access-group ipacl-example in
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl bind_acl ${access-list-name} ACL_IPV6 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Apply IPv6 ACL globally
+                 </DESCRIPTION>
+        <USAGE>
+                     ACL must be created first and must be of type IPv6 to be applied. Only 1 ACL of a given type can be applied globally per direction.
+                 </USAGE>
+        <EXAMPLE summary="Apply IPv4 ACL globally">
+                     sonic(config)# ipv6 access-group ipv6acl-example out
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no mac|ip|ipv6 access-group NAME in|out -->
+    <COMMAND name="no mac access-group" access="netadmin" help="Specify MAC access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_L2 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Remove MAC ACL thats applied globally.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Unbind MAC ACL globally">
+                     sonic(config)# no mac access-group macacl-example in
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip access-group" access="netadmin" help="Specify IP access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV4 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Remove IPv4 ACL thats applied globally.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Unbind IPv4 ACL globally">
+                     sonic(config)# no ip access-group ipacl-example in
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 access-group" access="netadmin" help="Specify IPv6 access control for packets">
+      <PARAM name="access-list-name" help="Name of access-list (Max size 72)" ptype="STRING_72"/>
+      <PARAM name="direction-switch" help="Configure the direction to apply the access list" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="in" help="Apply access-list at ingress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="out" help="Apply access-list at egress direction" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl unbind_acl ${access-list-name} ACL_IPV6 Switch ${direction-switch}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Remove IPv6 ACL thats applied globally.
+                 </DESCRIPTION>
+        <EXAMPLE summary="Unbind IPv6 ACL globally">
+                     sonic(config)# no ipv6 access-group ipv6acl-example out
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-mac-acl-view" prompt="${SYSTEM_NAME}(${__config_mode}-mac-acl)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current MAC ACL configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-mac-acl view_keys="access-list-name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current MAC ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     Displays the configuration of the given MAC ACLs.
+                 </USAGE>
+        <EXAMPLE summary="show running-configuration mac access-list">
+                     mac access-list macacl-example
+                      seq 10 permit host 00:00:10:00:00:01 host 00:00:20:00:00:01
+                      seq 20 permit host 00:00:10:00:00:02 host 00:00:20:00:00:02
+                      seq 30 permit host 00:00:10:00:00:03 host 00:00:20:00:00:03
+                      seq 40 permit host 00:00:10:00:00:04 host 00:00:20:00:00:04
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="no seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535"/>
+      <PARAM name="remark" help="Clear remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl_rule ${name} ACL_L2 ${seq-no} ${remark}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL rule or remark associated with the rule.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Delete Rule">
+                          sonic(config-mac-acl)# no seq 100
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="remark" access="netadmin" help="Set remark or description for ACL">
+      <PARAM name="remark-val" help="Remark or description for ACL" ptype="ACL_REMARK"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl set_acl_remark ${name} ACL_L2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Set an ACL remark or description.
+                      </DESCRIPTION>
+        <USAGE>
+                          Remark with spaces should be mentioned in double quotes.
+                      </USAGE>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# remark"Example ACL remark"
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no remark" access="netadmin" help="Clear remark or description for ACL">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_remark ${name} ACL_L2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL remark or description.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# no remark
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535">
+        <PARAM name="action-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+          <PARAM name="deny" help="Do not forward the packet. Allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="discard" help="Do not forward the packet. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="permit" help="Allow packet to be forwarded and trapped to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="transit" help="Allow traffic to be forwarded. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="do-not-nat" help="Do not allow NAT processing for the packet" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" order="true">
+            <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="src-mac-options-switch" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="src-mac-addr" help="Source MAC address" ptype="ACL_MAC_ADDR">
+            <PARAM name="src-mac-mac" help="Source MAC address mask" ptype="ACL_MAC_ADDR"/>
+          </PARAM>
+          <PARAM name="src-mac-any" help="Any source MAC address" ptype="SUBCOMMAND" mode="subcommand" value="any"/>
+          <PARAM name="src-mac-host" help="source MAC address" ptype="SUBCOMMAND" mode="subcommand" value="host">
+            <PARAM name="src-mac-addr" help="Source MAC address value" ptype="ACL_MAC_ADDR"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dst-mac-options-switch" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="dst-mac-addr" help="Destination MAC address and mask" ptype="ACL_MAC_ADDR">
+            <PARAM name="dst-mac-mask" help="Destination MAC address mask" ptype="ACL_MAC_ADDR"/>
+          </PARAM>
+          <PARAM name="dst-mac-any" help="Any destination MAC address" ptype="SUBCOMMAND" mode="subcommand" value="any"/>
+          <PARAM name="dst-mac-host" help="Destination MAC address" ptype="SUBCOMMAND" mode="subcommand" value="host">
+            <PARAM name="dst-mac-addr" help="Destination MAC address value" ptype="ACL_MAC_ADDR"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ethertype" help="Match packets using Ethertype value" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="ethertype-ip" help="IPv4 ethertype (0x800)" ptype="SUBCOMMAND" mode="subcommand" value="ip"/>
+          <PARAM name="ethertype-ipv6" help="IPv6 ethertype (0x86dd)" ptype="SUBCOMMAND" mode="subcommand" value="ipv6"/>
+          <PARAM name="ethertype-arp" help="ARP ethertype (0x806)" ptype="SUBCOMMAND" mode="subcommand" value="arp"/>
+          <PARAM name="ETHERTYPE" help="Ethertype value (0x600-0xffff)" ptype="ETHERTYPE_VALUE"/>
+        </PARAM>
+        <PARAM name="pcp" help="Match packets using PCP value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="pcp-val-options" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="pcp-be" help="Best effort (0)" ptype="SUBCOMMAND" mode="subcommand" value="be"/>
+            <PARAM name="pcp-bk" help="Background (1)" ptype="SUBCOMMAND" mode="subcommand" value="bk"/>
+            <PARAM name="pcp-ee" help="Excellent effort (2)" ptype="SUBCOMMAND" mode="subcommand" value="ee"/>
+            <PARAM name="pcp-ca" help="Critical applications (3)" ptype="SUBCOMMAND" mode="subcommand" value="ca"/>
+            <PARAM name="pcp-vi" help="Video, &lt; 100 ms latency and jitter (4)" ptype="SUBCOMMAND" mode="subcommand" value="vi"/>
+            <PARAM name="pcp-vo" help="Voice, &lt; 10 ms latency and jitter (5)" ptype="SUBCOMMAND" mode="subcommand" value="vo"/>
+            <PARAM name="pcp-ic" help="Internetwork control (6)" ptype="SUBCOMMAND" mode="subcommand" value="ic"/>
+            <PARAM name="pcp-nc" help="Network control (7)" ptype="SUBCOMMAND" mode="subcommand" value="nc"/>
+            <PARAM name="pcp-val" help="PCP value. (range 0-7)" ptype="PCP_VALUE"/>
+          </PARAM>
+          <PARAM name="pcp-mask" help="PCP value mask" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="pcp-val-mask" help="PCP value mask (range 0-7)" ptype="PCP_VALUE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dei" help="Match packets using DEI value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="dei-val" help="DEI value (range 0-1)" ptype="DEI_VALUE"/>
+        </PARAM>
+        <PARAM name="vlan-tag-format" help="Match packets using vlan tag format" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="(&quot;${action-options}&quot; != &quot;remark&quot;) -a (&quot;${ethertype}&quot; = &quot;&quot;)">
+          <PARAM name="vlan-tag-format-options" help="" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="multi-tagged" help="Three or more tagged" ptype="SUBCOMMAND" mode="subcommand" value="multi-tagged"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="vlan" help="Match packets using VLAN ID value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="vlan-val" help="VLAN ID value (range 1-4094)" ptype="VLAN_ID" order="true"/>
+        </PARAM>
+        <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl_rule ${name} ACL_L2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create a MAC ACL Rule.
+                 </DESCRIPTION>
+        <USAGE>
+                     The rule will be created if there is no existing rule with the same sequence number. ACL Rule cant be updated. To update, the rule must be deleted and added with updated parameters.
+                 </USAGE>
+        <EXAMPLE summary="Add MAC ACL Rule">
+                     sonic(config-mac-acl)# seq 10 permit host 00:00:10:00:00:01 host 00:00:20:00:00:01
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-ipv4-acl-view" prompt="${SYSTEM_NAME}(${__config_mode}-ipv4-acl)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current IPv4 ACL configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ipv4-acl view_keys="access-list-name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current IPv4 ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     Displays the configuration of the current IPv4 ACLs.
+                 </USAGE>
+        <EXAMPLE summary="show configuration">
+                     ip access-list ipacl-example
+                      seq 10 permit ip host 10.1.1.1 host 20.1.1.1
+                      seq 20 permit ip host 10.1.1.2 host 20.1.1.2
+                      seq 30 permit ip host 10.1.1.3 host 20.1.1.3
+                      seq 40 permit ip host 10.1.1.4 host 20.1.1.4
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="no seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535"/>
+      <PARAM name="remark" help="Clear remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl_rule ${name} ACL_IPV4 ${seq-no} ${remark}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL rule or remark associated with the rule.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Delete Rule">
+                          sonic(config-mac-acl)# no seq 100
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="remark" access="netadmin" help="Set remark or description for ACL">
+      <PARAM name="remark-val" help="Remark or description for ACL" ptype="ACL_REMARK"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl set_acl_remark ${name} ACL_IPV4 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Set an ACL remark or description.
+                      </DESCRIPTION>
+        <USAGE>
+                          Remark with spaces should be mentioned in double quotes.
+                      </USAGE>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# remark"Example ACL remark"
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no remark" access="netadmin" help="Clear remark or description for ACL">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_remark ${name} ACL_IPV4</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL remark or description.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# no remark
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535">
+        <PARAM name="action-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+          <PARAM name="deny" help="Do not forward the packet. Allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="discard" help="Do not forward the packet. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="permit" help="Allow packet to be forwarded and trapped to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="transit" help="Allow traffic to be forwarded. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="do-not-nat" help="Do not allow NAT processing for the packet" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" order="true">
+            <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ip-protocol" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="ip-protocol-val" help="Protocol number (0 to 255)" ptype="RANGE_0_255" order="true"/>
+          <PARAM name="icmp" help="ICMP Packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="ip" help="Any IPv4 Packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="tcp" help="TCP packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="udp" help="UDP packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="src-ip-type" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="src-ip-prefix" help="Source prefix" ptype="IP_ADDR_MASK" order="true"/>
+          <PARAM name="src-ip-any" help="Any source address" ptype="SUBCOMMAND" mode="subcommand" value="any" order="true"/>
+          <PARAM name="src-ip-host" help="source IP address" ptype="SUBCOMMAND" mode="subcommand" value="host" order="true">
+            <PARAM name="src-ip" help="Source IP address value" ptype="DOTTED_QUAD" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="src-l4-port-oper" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) -o ( &quot;${ip-protocol}&quot;=&quot;udp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;17&quot; ) )">
+          <PARAM name="src-eq" help="Match packets with TCP/UDP source port equal to the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="eq" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_0_65535" order="true"/>
+          </PARAM>
+          <PARAM name="src-gt" help="Match packets with TCP/UDP source port greater than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="gt" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_0_65534" order="true"/>
+          </PARAM>
+          <PARAM name="src-lt" help="Match packets with TCP/UDP source port lesser than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="lt" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+          <PARAM name="src-range" help="Match packets with TCP/UDP source port in the given range" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="range" order="true">
+            <PARAM name="src-port1" help="Source port begin" ptype="RANGE_0_65534" order="true"/>
+            <PARAM name="src-port2" help="Source port end. Must be greater than source port begin." ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dst-ip-type" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="dst-ip-prefix" help="Destination prefix" ptype="IP_ADDR_MASK" order="true"/>
+          <PARAM name="dst-ip-any" help="Any destination address" ptype="SUBCOMMAND" mode="subcommand" value="any" order="true"/>
+          <PARAM name="dst-ip-host" help="destination IP address" ptype="SUBCOMMAND" mode="subcommand" value="host" order="true">
+            <PARAM name="dst-ip" help="Destination IP address value" ptype="DOTTED_QUAD" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dst-l4-port-oper" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) -o ( &quot;${ip-protocol}&quot;=&quot;udp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;17&quot; ) )">
+          <PARAM name="dst-eq" help="Match packets with TCP/UDP destination port equal to the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="eq" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_0_65535" order="true"/>
+          </PARAM>
+          <PARAM name="dst-gt" help="Match packets with TCP/UDP destination port greater than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="gt" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_0_65534" order="true"/>
+          </PARAM>
+          <PARAM name="dst-lt" help="Match packets with TCP/UDP destination port lesser than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="lt" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+          <PARAM name="dst-range" help="Match packets with TCP/UDP destination port in the given range" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="range" order="true">
+            <PARAM name="dst-port1" help="Destination port begin" ptype="RANGE_0_65534" order="true"/>
+            <PARAM name="dst-port2" help="Destination port end. Must be greater than destination port begin." ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dscp" help="Match packets using DSCP value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="dscp-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+            <PARAM name="default" help="Match packets with CS0 DSCP (000000 - Decimal value 0)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs1" help="Match packets with CS1 DSCP (001000 - Decimal value 8)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs2" help="Match packets with CS2 DSCP (010000 - Decimal value 16)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs3" help="Match packets with CS3 DSCP (011000 - Decimal value 24)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs4" help="Match packets with CS4 DSCP (100000 - Decimal value 32)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs5" help="Match packets with CS5 DSCP (101000 - Decimal value 40)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs6" help="Match packets with CS6 DSCP (110000 - Decimal value 48)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs7" help="Match packets with CS7 DSCP (111000 - Decimal value 56)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af11" help="Match packets with AF11 DSCP (001010 - Decimal value 10)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af12" help="Match packets with AF12 DSCP (001100 - Decimal value 12)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af13" help="Match packets with AF13 DSCP (001110 - Decimal value 14)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af21" help="Match packets with AF21 DSCP (010010 - Decimal value 18)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af22" help="Match packets with AF22 DSCP (010100 - Decimal value 20)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af23" help="Match packets with AF23 DSCP (010110 - Decimal value 22)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af31" help="Match packets with AF31 DSCP (011010 - Decimal value 26)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af32" help="Match packets with AF32 DSCP (011100 - Decimal value 28)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af33" help="Match packets with AF33 DSCP (011110 - Decimal value 30)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af41" help="Match packets with AF41 DSCP (100010 - Decimal value 34)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af42" help="Match packets with AF42 DSCP (100100 - Decimal value 36)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af43" help="Match packets with AF43 DSCP (100110 - Decimal value 38)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ef" help="Match packets with EF DSCP (101110 - Decimal value 46)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="voice-admit" help="Match packets with VOICE-ADMIT DSCP (101100 - Decimal value 44)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="dscp-val" help="DSCP value (range 0-63)" ptype="RANGE_0_63" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ecn" help="Match packets using ECN value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;" hidden="true">
+          <PARAM name="ecn-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+            <PARAM name="non-ect" help="Match packets with 00 ECN (Decimal value 0)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ect-1" help="Match packets with 01 ECN (Decimal value 1)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ect-0" help="Match packets with 10 ECN (Decimal value 2)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ce" help="Match packets with 11 ECN (Decimal value 3)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ecn-val" help="ECN value (range 0-3)" ptype="RANGE_0_3" order="true">
+              <PARAM name="ecn-mask" help="ECN mask" ptype="SUBCOMMAND" mode="subcommand" order="true">
+                <PARAM name="ecn-val-mask" help="ECN value mask (range 0-3)" ptype="RANGE_0_3" order="true"/>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="tcp-established" value="established" help="Match packets which are part of established TCP session" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )"/>
+        <PARAM name="fin-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="fin" help="Match packets with FIN TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-fin" help="Match packets with FIN TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="syn-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="syn" help="Match packets with SYN TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-syn" help="Match packets with SYN TCP Flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="rst-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="rst" help="Match packets with RST TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-rst" help="Match packets with RST TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="psh-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="psh" help="Match packets with PSH TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-psh" help="Match packets with PSH TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="ack-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="ack" help="Match packets with ACK TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-ack" help="Match packets with ACK TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="urg-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="urg" help="Match packets with URG TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-urg" help="Match packets with URG TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="type" help="Match packets using ICMP type" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;icmp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;1&quot; ) )">
+          <PARAM name="TYPE" help="ICMP type" ptype="RANGE_0_255" order="true"/>
+        </PARAM>
+        <PARAM name="code" help="Match packets using ICMP code" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;icmp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;1&quot; ) )">
+          <PARAM name="CODE" help="ICMP code" ptype="RANGE_0_255" order="true"/>
+        </PARAM>
+        <PARAM name="vlan" help="Match packets using VLAN ID value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="vlan-val" help="VLAN ID value (range 1-4094)" ptype="VLAN_ID" order="true"/>
+        </PARAM>
+        <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl_rule ${name} ACL_IPV4 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create a IPv4 ACL Rule.
+                 </DESCRIPTION>
+        <USAGE>
+                     The rule will be created if there is no existing rule with the same sequence number. ACL Rule cant be updated. To update, the rule must be deleted and added with updated parameters.
+                 </USAGE>
+        <EXAMPLE summary="Add IP ACL Rule">
+                     sonic(config-ip-acl)# seq 10 permit ip host 10.1.1.1 host 20.1.1.1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-ipv6-acl-view" prompt="${SYSTEM_NAME}(${__config_mode}-ipv6-acl)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display current IPv6 ACL configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-ipv6-acl view_keys="access-list-name=${name}"</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show current IPv6 ACL configuration.
+                 </DESCRIPTION>
+        <USAGE>
+                     Displays the configuration of the current IPv6 ACLs.
+                 </USAGE>
+        <EXAMPLE summary="show configuration">
+                     ipv6 access-list ipv6acl-example
+                       seq 100 permit ipv6 host abcd::1 host bcde::1
+                       seq 200 permit tcp host abcd::2 host bcde::2
+                       seq 300 permit udp host abcd::3 host bcde::3
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="no seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535"/>
+      <PARAM name="remark" help="Clear remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl delete_acl_rule ${name} ACL_IPV6 ${seq-no} ${remark}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL rule or remark associated with the rule.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Delete Rule">
+                          sonic(config-mac-acl)# no seq 100
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="remark" access="netadmin" help="Set remark or description for ACL">
+      <PARAM name="remark-val" help="Remark or description for ACL" ptype="ACL_REMARK"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl set_acl_remark ${name} ACL_IPV6 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Set an ACL remark or description.
+                      </DESCRIPTION>
+        <USAGE>
+                          Remark with spaces should be mentioned in double quotes.
+                      </USAGE>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# remark"Example ACL remark"
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no remark" access="netadmin" help="Clear remark or description for ACL">
+      <ACTION builtin="clish_pyobj">sonic_cli_acl clear_acl_remark ${name} ACL_IPV6</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                          Delete ACL remark or description.
+                      </DESCRIPTION>
+        <EXAMPLE summary="Set ACL remark">
+                          sonic(config-mac-acl)# no remark
+                      </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="seq" access="netadmin" help="Sequence number">
+      <PARAM name="seq-no" help="Sequence number" ptype="RANGE_1_65535">
+        <PARAM name="action-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+          <PARAM name="deny" help="Do not forward the packet. Allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="discard" help="Do not forward the packet. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="permit" help="Allow packet to be forwarded and trapped to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="transit" help="Allow traffic to be forwarded. Do not allow trap to CPU" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="do-not-nat" help="Do not allow NAT processing for the packet" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" order="true">
+            <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ip-protocol" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="ip-protocol-val" help="Protocol number (0 to 255)" ptype="RANGE_0_255" order="true"/>
+          <PARAM name="icmpv6" help="ICMPv6 Packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="ipv6" help="Any IPv6 Packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="tcp" help="TCP packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="udp" help="UDP packets" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="src-ip-type" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="src-ip-prefix" help="Source prefix" ptype="IPV6_ADDR_MASK" order="true"/>
+          <PARAM name="src-ip-any" help="Any source address" ptype="SUBCOMMAND" mode="subcommand" value="any" order="true"/>
+          <PARAM name="src-ip-host" help="source IP address" ptype="SUBCOMMAND" mode="subcommand" value="host" order="true">
+            <PARAM name="src-ip" help="Source IP address value" ptype="IPV6_ADDR" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="src-l4-port-oper" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) -o ( &quot;${ip-protocol}&quot;=&quot;udp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;17&quot; ) )">
+          <PARAM name="src-eq" help="Match packets with TCP/UDP source port equal to the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="eq" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_0_65535" order="true"/>
+          </PARAM>
+          <PARAM name="src-gt" help="Match packets with TCP/UDP source port greater than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="gt" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_0_65534" order="true"/>
+          </PARAM>
+          <PARAM name="src-lt" help="Match packets with TCP/UDP source port lesser than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="lt" order="true">
+            <PARAM name="src-port1" help="Source port number" ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+          <PARAM name="src-range" help="Match packets with TCP/UDP source port in the given range" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="range" order="true">
+            <PARAM name="src-port1" help="Source port begin" ptype="RANGE_0_65534" order="true"/>
+            <PARAM name="src-port2" help="Source port end. Must be greater than source port begin." ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dst-ip-type" help="" ptype="SUBCOMMAND" mode="switch" test="&quot;${action-options}&quot; != &quot;remark&quot;" order="true">
+          <PARAM name="dst-ip-prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK" order="true"/>
+          <PARAM name="dst-ip-any" help="Any destination address" ptype="SUBCOMMAND" mode="subcommand" value="any" order="true"/>
+          <PARAM name="dst-ip-host" help="destination IP address" ptype="SUBCOMMAND" mode="subcommand" value="host" order="true">
+            <PARAM name="dst-ip" help="Destination IP address value" ptype="IPV6_ADDR" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dst-l4-port-oper" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) -o ( &quot;${ip-protocol}&quot;=&quot;udp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;17&quot; ) )">
+          <PARAM name="dst-eq" help="Match packets with TCP/UDP destination port equal to the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="eq" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_0_65535" order="true"/>
+          </PARAM>
+          <PARAM name="dst-gt" help="Match packets with TCP/UDP destination port greater than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="gt" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_0_65534" order="true"/>
+          </PARAM>
+          <PARAM name="dst-lt" help="Match packets with TCP/UDP destination port lesser than the given port number" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="lt" order="true">
+            <PARAM name="dst-port1" help="Destination port number" ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+          <PARAM name="dst-range" help="Match packets with TCP/UDP destination port in the given range" ptype="SUBCOMMAND" mode="subcommand" optional="true" value="range" order="true">
+            <PARAM name="dst-port1" help="Destination port begin" ptype="RANGE_0_65534" order="true"/>
+            <PARAM name="dst-port2" help="Destination port end. Must be greater than destination port begin." ptype="RANGE_1_65535" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="dscp" help="Match packets using DSCP value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="dscp-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+            <PARAM name="default" help="Match packets with CS0 DSCP (000000 - Decimal value 0)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs1" help="Match packets with CS1 DSCP (001000 - Decimal value 8)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs2" help="Match packets with CS2 DSCP (010000 - Decimal value 16)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs3" help="Match packets with CS3 DSCP (011000 - Decimal value 24)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs4" help="Match packets with CS4 DSCP (100000 - Decimal value 32)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs5" help="Match packets with CS5 DSCP (101000 - Decimal value 40)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs6" help="Match packets with CS6 DSCP (110000 - Decimal value 48)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="cs7" help="Match packets with CS7 DSCP (111000 - Decimal value 56)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af11" help="Match packets with AF11 DSCP (001010 - Decimal value 10)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af12" help="Match packets with AF12 DSCP (001100 - Decimal value 12)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af13" help="Match packets with AF13 DSCP (001110 - Decimal value 14)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af21" help="Match packets with AF21 DSCP (010010 - Decimal value 18)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af22" help="Match packets with AF22 DSCP (010100 - Decimal value 20)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af23" help="Match packets with AF23 DSCP (010110 - Decimal value 22)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af31" help="Match packets with AF31 DSCP (011010 - Decimal value 26)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af32" help="Match packets with AF32 DSCP (011100 - Decimal value 28)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af33" help="Match packets with AF33 DSCP (011110 - Decimal value 30)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af41" help="Match packets with AF41 DSCP (100010 - Decimal value 34)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af42" help="Match packets with AF42 DSCP (100100 - Decimal value 36)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="af43" help="Match packets with AF43 DSCP (100110 - Decimal value 38)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ef" help="Match packets with EF DSCP (101110 - Decimal value 46)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="voice-admit" help="Match packets with VOICE-ADMIT DSCP (101100 - Decimal value 44)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="dscp-val" help="DSCP value (range 0-63)" ptype="RANGE_0_63" order="true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="ecn" help="Match packets using ECN value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;" hidden="true">
+          <PARAM name="ecn-options" help="" ptype="SUBCOMMAND" mode="switch" order="true">
+            <PARAM name="non-ect" help="Match packets with 00 ECN (Decimal value 0)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ect-1" help="Match packets with 01 ECN (Decimal value 1)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ect-0" help="Match packets with 10 ECN (Decimal value 2)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ce" help="Match packets with 11 ECN (Decimal value 3)" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+            <PARAM name="ecn-val" help="ECN value (range 0-3)" ptype="RANGE_0_3" order="true">
+              <PARAM name="ecn-mask" help="ECN mask" ptype="SUBCOMMAND" mode="subcommand" order="true">
+                <PARAM name="ecn-val-mask" help="ECN value mask (range 0-3)" ptype="RANGE_0_3" order="true"/>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="tcp-established" value="established" help="Match packets which are part of established TCP session" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )"/>
+        <PARAM name="fin-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="fin" help="Match packets with FIN TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-fin" help="Match packets with FIN TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="syn-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="syn" help="Match packets with SYN TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-syn" help="Match packets with SYN TCP Flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="rst-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="rst" help="Match packets with RST TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-rst" help="Match packets with RST TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="psh-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="psh" help="Match packets with PSH TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-psh" help="Match packets with PSH TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="ack-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="ack" help="Match packets with ACK TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-ack" help="Match packets with ACK TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="urg-options" help="" ptype="SUBCOMMAND" mode="switch" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( &quot;${tcp-established}&quot; != &quot;established&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;tcp&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;6&quot; ) )">
+          <PARAM name="urg" help="Match packets with URG TCP flag set" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+          <PARAM name="not-urg" help="Match packets with URG TCP flag cleared" ptype="SUBCOMMAND" mode="subcommand" order="true"/>
+        </PARAM>
+        <PARAM name="type" help="Match packets using ICMPv6 type" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;icmpv6&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;58&quot; ) )">
+          <PARAM name="TYPE" help="ICMPv6 type" ptype="RANGE_0_255" order="true"/>
+        </PARAM>
+        <PARAM name="code" help="Match packets using ICMPv6 code" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="( &quot;${action-options}&quot; != &quot;remark&quot; ) -a ( ( &quot;${ip-protocol}&quot;=&quot;icmpv6&quot; ) -o ( &quot;${ip-protocol-val}&quot;=&quot;58&quot; ) )">
+          <PARAM name="CODE" help="ICMPv6 code" ptype="RANGE_0_255" order="true"/>
+        </PARAM>
+        <PARAM name="vlan" help="Match packets using VLAN ID value" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="vlan-val" help="VLAN ID value (range 1-4094)" ptype="VLAN_ID" order="true"/>
+        </PARAM>
+        <PARAM name="remark" help="Set remark or description for rule" ptype="SUBCOMMAND" mode="subcommand" optional="true" order="true" test="&quot;${action-options}&quot; != &quot;remark&quot;">
+          <PARAM name="remark-val" help="Remark or description for rule" ptype="ACL_REMARK" order="true"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_acl create_acl_rule ${name} ACL_IPV6 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Create a IPv6 ACL Rule.
+                 </DESCRIPTION>
+        <USAGE>
+                     The rule will be created if there is no existing rule with the same sequence number. ACL Rule cant be updated. To update, the rule must be deleted and added with updated parameters.
+                 </USAGE>
+        <EXAMPLE summary="Add IPv6 ACL Rule">
+                     sonic(config-ip-acl)# seq 100 permit ipv6 host abcd::1 host bcde::1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

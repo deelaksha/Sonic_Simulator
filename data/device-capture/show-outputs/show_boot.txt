@@ -1,0 +1,6 @@
+### show boot
+Current: SONiC-OS-4.5.0-Enterprise_Base
+Next: SONiC-OS-4.5.0-Enterprise_Base
+Available: 
+SONiC-OS-4.5.0-Enterprise_Base
+

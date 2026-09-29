@@ -1,0 +1,285 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Copyright 2019 Dell, Inc. Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+<!ENTITY CORE_URL "coredump directory (coredump://filename)">
+<!ENTITY CONFIG_URL "configuration directory (config://filename)">
+<!ENTITY SUPPORT_URL "tech-support directory (tech-support://filename)">
+<!ENTITY USB_URL "usb media directory (usb://filename)">
+<!ENTITY HOME_URL "home directory (home://filename)">
+<!ENTITY HTTP_URL "remote HTTP server (http://hostip/filepath)">
+<!ENTITY FTP_URL "remote FTP server (ftp://userid:passwd@hostip/filepath)">
+<!ENTITY SCP_URL "remote SCP server (scp://userid:passwd@hostip/filepath)">
+<!ENTITY LOG_URL "log directory (log://filename)">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="copy_src_url" dynamic="true">
+    <ACTION> echo -n "${copy_config_url}${copy_coredump_url}${copy_ftp_url}${copy_home_url}${copy_http_url}${copy_log_url}${copy_scp_url}${copy_support_url}${copy_usb_url}"
+ </ACTION>
+  </VAR>
+  <VAR name="copy_dest_url" dynamic="true">
+    <ACTION> echo -n "${config_to_config_url}${config_to_home_url}${config_to_ftp_url}${config_to_http_url}${config_to_scp_url}${core_to_ftp_url}${core_to_home_url}${core_to_http_url}${core_to_scp_url}${ftp_to_config_url}${ftp_to_home_url}${home_to_config_url}${home_to_home_url}${home_to_ftp_url}${home_to_http_url}${home_to_scp_url}${http_to_config_url}${http_to_home_url}${log_to_home_url}${log_to_ftp_url}${log_to_http_url}${log_to_scp_url}${scp_to_config_url}${scp_to_home_url}${support_to_ftp_url}${support_to_home_url}${support_to_http_url}${support_to_scp_url}${run_to_config_url}${run_to_home_url}${run_to_ftp_url}${run_to_http_url}${run_to_scp_url}${start_to_config_url}${start_to_home_url}${start_to_ftp_url}${start_to_http_url}${start_to_scp_url}${config_to_usb_url}${core_to_usb_url}${ftp_to_usb_url}${home_to_usb_url}${http_to_usb_url}${log_to_usb_url}${scp_to_usb_url}${support_to_usb_url}${run_to_usb_url}${start_to_usb_url}${usb_to_config_url}${usb_to_home_url}${usb_to_ftp_url}${usb_to_http_url}${usb_to_scp_url}${usb_to_usb_url}"
+ </ACTION>
+  </VAR>
+  <VAR name="copy_dest_options" dynamic="true">
+    <ACTION> echo -n "${copy_config_options}${copy_core_options}${copy_ftp_options}${copy_home_options}${copy_http_options}${copy_log_options}${copy_scp_options}${copy_support_options}${copy_running_config_options}${copy_startup_config_options}${copy_usb_options}"
+ </ACTION>
+  </VAR>
+  <VAR name="delete_options" dynamic="true">
+    <ACTION> echo -n "${delete_from_config}${delete_from_core}${delete_from_home}${delete_from_support}${delete_from_usb}"
+ </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <!--====================================-->
+    <!-- dir command -->
+    <!--====================================-->
+    <COMMAND name="dir" help="Show folder contents" ptype="SUBCOMMAND">
+      <PARAM name="folder-name" help="Folder name" ptype="FOLDER_NAME"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt dir folder-name=${folder-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command displays files of the given directory.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic# dir {config: | coredump: | home: | log: | tech-support: | usb:}
+                  </USAGE>
+        <EXAMPLE summary="dir information">
+                     sonic# dir config:/
+                     -------------------------------------------------------------------------
+                     Date(Last Modified)      Size(Bytes)         Filename
+                     -------------------------------------------------------------------------
+                     2021-08-09 19:47         41                  asic_config_checksum
+                     2021-08-09 21:42         20830               config_db.json
+                     2020-09-17 01:48         437                 config_db_version_registry.json
+                     2021-08-09 19:50         1456                constants.yml
+                     2021-08-09 21:14         15739               copp_config.json
+                  </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="ls" help="Show folder contents" ptype="SUBCOMMAND">
+      <PARAM name="folder-name" help="Folder name" ptype="FOLDER_NAME"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt dir folder-name=${folder-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command displays files of the given directory.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic# ls {config: | coredump: | home: | log: | tech-support: | usb:}
+                  </USAGE>
+        <EXAMPLE summary="ls information">
+                     sonic# ls config:/
+                     -------------------------------------------------------------------------
+                     Date(Last Modified)      Size(Bytes)         Filename
+                     -------------------------------------------------------------------------
+                     2021-08-09 19:47         41                  asic_config_checksum
+                     2021-08-09 21:42         20830               config_db.json
+                     2020-09-17 01:48         437                 config_db_version_registry.json
+                     2021-08-09 19:50         1456                constants.yml
+                     2021-08-09 21:14         15739               copp_config.json
+                  </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="copy" help="Perform file operations">
+      <PARAM name="copy_src_options" help="Copy source options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="copy_config_url" help="Copy from &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin">
+          <PARAM name="copy_config_options" help="Copy config options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="config_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+            <PARAM name="config_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="config_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="config_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="config_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND"/>
+            <PARAM name="config_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_coredump_url" help="Copy from &CORE_URL;" ptype="COREDUMP_TYPE" access="admin">
+          <PARAM name="copy_core_options" help="Copy coredump options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="core_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="core_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="core_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="core_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="core_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_ftp_url" help="Copy from &FTP_URL;" ptype="FTP_TYPE">
+          <PARAM name="copy_ftp_options" help="Copy FTP options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="ftp_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin"/>
+            <PARAM name="ftp_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin"/>
+            <PARAM name="ftp_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_home_url" help="Copy from &HOME_URL;" ptype="HOME_TYPE">
+          <PARAM name="copy_home_options" help="Copy config destination options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="home_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin"/>
+            <PARAM name="home_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="home_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="home_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="home_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin"/>
+            <PARAM name="home_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_http_url" help="Copy from &HTTP_URL;" ptype="HTTP_TYPE">
+          <PARAM name="copy_http_options" help="Copy HTTP options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="http_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin"/>
+            <PARAM name="http_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin"/>
+            <PARAM name="http_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_log_url" help="Copy from &LOG_URL;" ptype="LOG_PREF_TYPE" access="admin">
+          <PARAM name="copy_log_options" help="Copy log options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="log_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="log_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="log_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="log_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="log_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_scp_url" help="Copy from &SCP_URL;" ptype="SCP_TYPE">
+          <PARAM name="copy_scp_options" help="Copy SCP options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="scp_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin"/>
+            <PARAM name="scp_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin"/>
+            <PARAM name="scp_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_support_url" help="Copy from &SUPPORT_URL;" ptype="SUPPORTBUNDLE_TYPE" access="admin">
+          <PARAM name="copy_support_options" help="Copy support-bundle options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="support_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="support_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="support_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="support_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="support_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="running-configuration" help="Copy running-configuration to a .tar archive" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+          <PARAM name="copy_running_config_options" help="Copy running-config options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="run_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+            <PARAM name="run_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="run_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="run_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="run_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND"/>
+            <PARAM name="run_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="startup-configuration" help="Copy startup-configuration" mode="subcommand" ptype="SUBCOMMAND" access="netadmin:secadmin">
+          <PARAM name="copy_startup_config_options" help="Copy startup-config options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="start_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+            <PARAM name="start_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="start_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="start_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="start_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+            </PARAM>
+            <PARAM name="start_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE" access="admin"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="copy_usb_url" help="Copy from &USB_URL;" ptype="USB_TYPE" access="admin">
+          <PARAM name="copy_usb_options" help="Copy config destination options" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="usb_to_config_url" help="Copy to &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+            <PARAM name="usb_to_home_url" help="Copy to &HOME_URL;" ptype="HOME_TYPE"/>
+            <PARAM name="usb_to_ftp_url" help="Copy to &FTP_URL;" ptype="FTP_TYPE"/>
+            <PARAM name="usb_to_http_url" help="Copy to &HTTP_URL;" ptype="HTTP_TYPE"/>
+            <PARAM name="usb_to_scp_url" help="Copy to &SCP_URL;" ptype="SCP_TYPE"/>
+            <PARAM name="running-configuration" help="Copy to running-configuration" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="op_options" help="Copy operation options" optional="true" ptype="SUBCOMMAND" mode="switch">
+                <PARAM name="overwrite" help="Overwrite running-configuration and restart core services." optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+                <PARAM name="replace" help="Replace running-configuration" optional="true" mode="subcommand" ptype="SUBCOMMAND"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="startup-configuration" help="Copy to startup-configuration" mode="subcommand" ptype="SUBCOMMAND"/>
+            <PARAM name="usb_to_usb_url" help="Copy to &USB_URL;" ptype="USB_TYPE"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt copy copy_src_options=${copy_src_options} copy_src_url=${copy_src_url} copy_dest_options=${copy_dest_options} copy_dest_url=${copy_dest_url} overwrite=${overwrite} replace=${replace} </ACTION>
+    </COMMAND>
+    <COMMAND name="delete" help="Delete the file from local filesystem">
+      <PARAM name="delete_url" help="Copy config options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="delete_from_config" help="File to be deleted from &CONFIG_URL;" ptype="CONFIG_TYPE" access="netadmin:secadmin"/>
+        <PARAM name="delete_from_core" help="File to be deleted from &CORE_URL;" ptype="COREDUMP_TYPE" access="admin"/>
+        <PARAM name="delete_from_home" help="File to be deleted from &HOME_URL;" ptype="HOME_TYPE"/>
+        <PARAM name="delete_from_support" help="File to be deleted from &SUPPORT_URL;" ptype="SUPPORTBUNDLE_TYPE" access="admin"/>
+        <PARAM name="delete_from_usb" help="File to be deleted from &USB_URL;" ptype="USB_TYPE" access="admin"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt del filename=${delete_options} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                      This command can be used to delete the file from the given directory.
+                  </DESCRIPTION>
+        <USAGE>
+                      sonic# delete {config: | coredump: | home: | log: | tech-support: | usb:}
+                  </USAGE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="show config-reload" help="Display Config Reload information"> </COMMAND>
+    <COMMAND name="show config-reload status" help="Display Config Reload status">
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt show_cfg_reload_status show_config_reload_status.j2 </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="replace" help="Delete the file from local filesystem" test="${__in_session}">
+      <PARAM name="copy_src_options" help="Config source " ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="copy_config_url" help="Copy from &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+        <PARAM name="copy_home_url" help="Copy from &HOME_URL;" ptype="HOME_TYPE"/>
+        <PARAM name="copy_ftp_url" help="Copy from &FTP_URL;" ptype="FTP_TYPE"/>
+        <PARAM name="copy_http_url" help="Copy from &HTTP_URL;" ptype="HTTP_TYPE"/>
+        <PARAM name="copy_scp_url" help="Copy from &SCP_URL;" ptype="SCP_TYPE"/>
+        <PARAM name="copy_usb_url" help="Copy from &USB_URL;" ptype="USB_TYPE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt copy copy_src_options=${copy_src_options} copy_src_url=${copy_src_url} copy_dest_options=running-configuration copy_dest_url=${copy_dest_url} overwrite=${overwrite} replace=replace </ACTION>
+    </COMMAND>
+    <COMMAND name="write" help="Write Candidate DB json" hidden="true" test="${__in_session}">
+      <PARAM name="copy_candidate_options" help="Destination options" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="config_to_config_url" help="Write candidate_db to &CONFIG_URL;" ptype="CONFIG_TYPE"/>
+        <PARAM name="config_to_home_url" help="Write candidate_db to &HOME_URL;" ptype="HOME_TYPE"/>
+        <PARAM name="config_to_ftp_url" help="Write candidate_db to &FTP_URL;" ptype="FTP_TYPE"/>
+        <PARAM name="config_to_http_url" help="Write candidate_db to &HTTP_URL;" ptype="HTTP_TYPE"/>
+        <PARAM name="config_to_scp_url" help="Write candidate_db to &SCP_URL;" ptype="SCP_TYPE"/>
+        <PARAM name="config_to_usb_url" help="Write candidate_db to &USB_URL;" ptype="USB_TYPE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_file_mgmt copy copy_src_url=candidate-configuration copy_dest_options=${copy_candidate_options} copy_dest_url=${copy_dest_url}</ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

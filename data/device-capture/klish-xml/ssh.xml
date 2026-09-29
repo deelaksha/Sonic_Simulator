@@ -1,0 +1,200 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show ip ssh" help="Display SSHD config parameters">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_ssh get_ssh_global </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows SSH config parameters</DESCRIPTION>
+        <EXAMPLE>
+                 sonic# show ip ssh 
+                 ---------------------------------------
+                 SSH Global Information
+                 ---------------------------------------
+                 Ciphers                        : aes128-ctr,aes192-ctr
+                 Disable-forwarding             : True
+                 Kexalgorithms                  : curve25519-sha256,curve25519-sha256@libssh.org
+                 Macs                           : umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512
+                 HostKeyalgorithms              : ecdsa-sha2-nistp256,rsa-sha2-256,rsa-sha2-512
+                 Max-auth-retries               : 5
+                 Permit-root-login              : True
+                 Permit-user-environment        : True
+                 X11-forwarding                 : True
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip ssh client" help="Display SSH client config parameters">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_ssh get_ssh_client_algorithm </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows SSH client config parameters</DESCRIPTION>
+        <EXAMPLE>
+                 sonic# show ip ssh client
+                 ---------------------------------------
+                 SSH Client Configuration Parameters
+                 ---------------------------------------
+                 Ciphers              : aes256-ctr
+                 Kexalgorithms        : diffie-hellman-group16-sha512
+                 Macs                 : hmac-sha2-256,hmac-sha2-512,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
+             </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!-- Config mode -->
+  <VIEW name="configure-view">
+    <COMMAND name="ip ssh" access="secadmin" help="Configure SSH" command_keys="id=GLOBAL" command_tables="sonic-ssh-common:sonic-ssh-common/SSHD_COMMON/SSHD_COMMON_LIST/id={id}" render_command_cb="ssh_common_values">
+      <PARAM name="ssh-global-options" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="max-auth-retries" help="Configure maximum authentication retries " ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="RANGE_0_10" help="max authentication retries"/>
+        </PARAM>
+        <PARAM name="disable-forwarding" help="Configure if forwarding is disabled" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset disable forwarding"/>
+        </PARAM>
+        <PARAM name="permit-root-login" help="Configure if root login is permitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset root login "/>
+        </PARAM>
+        <PARAM name="permit-user-environment" help="Configure if user environment is permitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset user environment "/>
+        </PARAM>
+        <PARAM name="permit-user-rc" help="Configure if using user rc is permitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset permit user rc"/>
+        </PARAM>
+        <PARAM name="x11-forwarding" help="Configure if x11 forwarding is permitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset x11 forwarding"/>
+        </PARAM>
+        <PARAM name="ciphers" help="Configure SSH cipher algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="SSH ciphers (aes128-ctr aes192-ctr aes256-ctr chacha20-poly1305@openssh.com aes128-gcm@openssh.com aes256-gcm@openssh.com comma separated)"/>
+        </PARAM>
+        <PARAM name="kexalgorithms" help="Configure SSH Key exchange algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="Key Exchange algorithms (curve25519-sha256 curve25519-sha256@libssh.org ecdh-sha2-nistp256 ecdh-sha2-nistp384 ecdh-sha2-nistp521 diffie-hellman-group-exchange-sha256 diffie-hellman-group16-sha512 diffie-hellman-group18-sha512 diffie-hellman-group14-sha256 comma separated)"/>
+        </PARAM>
+        <PARAM name="macs" help="Configure SSH Message Authentication Code(MAC) algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="MAC algorithms(umac-128-etm@openssh.com hmac-sha2-256-etm@openssh.com hmac-sha2-512-etm@openssh.com umac-128@openssh.com hmac-sha2-256 hmac-sha2-512 comma separated)"/>
+        </PARAM>
+        <PARAM name="hostkeyalgorithms" help="Configure SSH Host Key RSA algorithms (ECDSA algorithms are enabled by default)" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="Host Key algorithms(rsa-sha2-256 rsa-sha2-512 ssh-rsa comma separated)"/>
+        </PARAM>
+        <PARAM name="disable-password-authentication" help="Configure SSH password authentication" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset password authentication"/>
+        </PARAM>
+        <PARAM name="disable-publickey-authentication" help="Configure SSH public key authentication" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="BOOL" help="set/unset publick key authentication"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_ssh ssh_global_config ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure SSH server maximum authentication retries</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh max-auth-retries 5</EXAMPLE>
+        <DESCRIPTION>Configure if forwarding is disabled</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh disable-forwarding true</EXAMPLE>
+        <DESCRIPTION>Configure if root login is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh permit-root-login true</EXAMPLE>
+        <DESCRIPTION>Configure if user environment is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh permit-user-environment true</EXAMPLE>
+        <DESCRIPTION>Configure if user rc is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh permit-user-rc true</EXAMPLE>
+        <DESCRIPTION>Configure if x11 forwarding is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh x11-forwarding true</EXAMPLE>
+        <DESCRIPTION>Configure ciphers used for ssh</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh ciphers aes128-ctr,aes192-ctr</EXAMPLE>
+        <DESCRIPTION>Configure key exchange algorithms used for ssh</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh kexalgorithms curve25519-sha256,curve25519-sha256@libssh.org</EXAMPLE>
+        <DESCRIPTION>Configure macs used for ssh</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh macs umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com</EXAMPLE>
+        <DESCRIPTION>Configure SSH server Host Key algorithms</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh hostkeyalgorithms ecdsa-sha2-nistp256,rsa-sha2-256,rsa-sha2-512</EXAMPLE>
+        <DESCRIPTION>Configure if password authentication is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh disable-password-authentication true</EXAMPLE>
+        <DESCRIPTION>Configure if public key authentication is permitted</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh disable-publickey-authentication true</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip ssh" access="secadmin" help="Unconfigure SSH" command_keys="id=GLOBAL" command_tables="sonic-ssh-common:sonic-ssh-common/SSHD_COMMON/SSHD_COMMON_LIST/id={id}">
+      <PARAM name="ssh-global-options" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="max-auth-retries" help="Unconfigure max authentication retries" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="disable-forwarding" help="Unconfigure value of disable-forwarding" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="permit-root-login" help="Unconfigure value of permit root login" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="permit-user-environment" help="Unconfigure value of permit user environment" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="permit-user-rc" help="Unconfigure value of permit user rc" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="x11-forwarding" help="Unconfigure value of x11 forwarding" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="ciphers" help="Unconfigure value of ciphers" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="kexalgorithms" help="Unconfigure value of kexalgorithms" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="macs" help="Unconfigure value of macs" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="hostkeyalgorithms" help="Unconfigure value of Host Key algorithms" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="disable-password-authentication" help="Unconfigure value of password authentication" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        <PARAM name="disable-publickey-authentication" help="Unconfigure value of publickey authentication" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_ssh del_ssh_global_config ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigure Disable Forwarding </DESCRIPTION>
+        <EXAMPLE>no ip ssh disable-forwarding</EXAMPLE>
+        <DESCRIPTION>Unconfigure Permit Root Login </DESCRIPTION>
+        <EXAMPLE>no ip ssh permit-root-login</EXAMPLE>
+        <DESCRIPTION>Unconfigure Permit Root RC </DESCRIPTION>
+        <EXAMPLE>no ip ssh permit-root-rc</EXAMPLE>
+        <DESCRIPTION>Unconfigure X11 Forwarding </DESCRIPTION>
+        <EXAMPLE>no ip ssh x11-forwarding</EXAMPLE>
+        <DESCRIPTION>Unconfigure Maximum Autehtication Retries</DESCRIPTION>
+        <EXAMPLE>no ip ssh max-auth-retries</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH ciphers</DESCRIPTION>
+        <EXAMPLE>no ip ssh ciphers</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH key exchange algorithms</DESCRIPTION>
+        <EXAMPLE>no ip ssh kexalgorithms</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH MACS</DESCRIPTION>
+        <EXAMPLE>no ip ssh macs</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH Host Key algorithms</DESCRIPTION>
+        <EXAMPLE>no ip ssh hostkeyalgorithms</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH Password authentication</DESCRIPTION>
+        <EXAMPLE>no ip ssh disable-password-authentication</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH Public key authentication</DESCRIPTION>
+        <EXAMPLE>no ip ssh disable-publickey-authentication</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip ssh client" access="secadmin" help="Configure SSH client parameters" command_tables="sonic-ssh-common:sonic-ssh-common/SSHC_CONFIG/global" render_command_viewid="renderCfg_sshclient" escape_chars="">
+      <PARAM name="ssh-client-configs" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="ciphers" help="Configure SSH cipher algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="SSH ciphers (aes128-ctr aes192-ctr aes256-ctr chacha20-poly1305@openssh.com aes128-gcm@openssh.com aes256-gcm@openssh.com comma separated)" dbpath="sonic-ssh-common:sonic-ssh-common/SSHC_CONFIG/global/ciphers"/>
+        </PARAM>
+        <PARAM name="kexalgorithms" help="Configure SSH Key exchange algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="Key Exchange algorithms (curve25519-sha256 curve25519-sha256@libssh.org ecdh-sha2-nistp256 ecdh-sha2-nistp384 ecdh-sha2-nistp521 diffie-hellman-group-exchange-sha256 diffie-hellman-group16-sha512 diffie-hellman-group18-sha512 diffie-hellman-group14-sha256 comma separated)" dbpath="sonic-ssh-common:sonic-ssh-common/SSHC_CONFIG/global/kexalgorithms"/>
+        </PARAM>
+        <PARAM name="macs" help="Configure SSH Message Authentication Code(MAC) algorithms" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="value" ptype="STRING" help="MAC algorithms(umac-128-etm@openssh.com hmac-sha2-256-etm@openssh.com hmac-sha2-512-etm@openssh.com umac-128@openssh.com hmac-sha2-256 hmac-sha2-512 comma separated)" dbpath="sonic-ssh-common:sonic-ssh-common/SSHC_CONFIG/global/macs"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_ssh ssh_client_config ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure ciphers used for ssh client</DESCRIPTION>
+        <EXAMPLE>sonic(config)# ip ssh client ciphers aes128-ctr,aes192-ctr</EXAMPLE>
+        <DESCRIPTION>Configure key exchange algorithms used for ssh client</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh client kexalgorithms curve25519-sha256,curve25519-sha256@libssh.org</EXAMPLE>
+        <DESCRIPTION>Configure macs used for ssh client</DESCRIPTION>
+        <EXAMPLE>sonic(config)#ip ssh client macs umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ip ssh client" access="secadmin" help="Unconfigure SSH client parameters">
+      <PARAM name="ssh-client-configs" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="ciphers" help="Unconfigure value of ciphers" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="kexalgorithms" help="Unconfigure value of kexalgorithms" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="macs" help="Unconfigure value of macs" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_ssh del_ssh_client_config ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigure SSH ciphers</DESCRIPTION>
+        <EXAMPLE>no ip ssh client ciphers</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH key exchange algorithms</DESCRIPTION>
+        <EXAMPLE>no ip ssh client kexalgorithms</EXAMPLE>
+        <DESCRIPTION>Unconfigure SSH MACS</DESCRIPTION>
+        <EXAMPLE>no ip ssh client macs</EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

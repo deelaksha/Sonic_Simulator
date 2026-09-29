@@ -1,0 +1,152 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--MODE : config terminal -->
+  <VIEW name="configure-view">
+    <COMMAND name="usb" access="admin" help="Configure usb parameters"> </COMMAND>
+    <COMMAND name="no usb" access="admin" help="Disable usb auto detection" command_keys="id=GLOBAL" command_tables="sonic-usb:sonic-usb/USB/USB_LIST/id=GLOBAL" dbpath="sonic-usb:sonic-usb/USB/USB_LIST/enable=false">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb disable </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Disable usb storage device auto detection.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use the command "no usb" to disable the usb auto detection capability.
+                 </USAGE>
+        <EXAMPLE>
+                     sonic# configure terminal
+                     sonic(config)# no usb
+                 </EXAMPLE>
+        <FEATURE> USB </FEATURE>
+        <ALTCMD type="click">
+                   config usb disable
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="usb enable" access="admin" help="Enable usb auto detection" command_keys="id=GLOBAL" command_tables="sonic-usb:sonic-usb/USB/USB_LIST/id=GLOBAL" dbpath="sonic-usb:sonic-usb/USB/USB_LIST/enable=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb enable </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Enable usb storage device auto detection.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use the command "usb enable" to enable the usb auto detection capability.
+                 </USAGE>
+        <EXAMPLE>
+                     sonic# configure terminal
+                     sonic(config)# usb enable
+                 </EXAMPLE>
+        <FEATURE> USB </FEATURE>
+        <ALTCMD type="click">
+                   config usb enable
+                 </ALTCMD>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : usb view -->
+  <VIEW name="enable-view">
+    <COMMAND name="show usb" help="Display usb information">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb status show_oc_usb_status.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show the usb partitions which have been detected and successfully  mounted
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to show the usb partitions mounted and accessible to
+                     the user.
+                 </USAGE>
+        <EXAMPLE>
+                     sonic# show usb
+                     Auto Detection: Enabled
+ 
+                     Mount Dir    Device Name    File System
+                     -----------  -------------  -------------
+                     /media/usb0  /dev/sdb1      vfat
+                 </EXAMPLE>
+        <FEATURE> USB </FEATURE>
+        <ALTCMD type="click">
+                   show usb status
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show usb devices" help="Display usb devices detected">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb devices show_oc_usb_devices.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show the list of usb attached storage media that have been detected.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to display the list of detected usb attached storage
+                     media. It also displays manufacturer and model information of the detected
+                     usb device.
+                 </USAGE>
+        <EXAMPLE>
+                     sonic# show usb devices
+                     ------------  --------------  ---------------
+                     USB Device    Manufacturer    Model Name
+                     ------------  --------------  ---------------
+                     /dev/sdb      Memorex         USB Flash Drive
+                 </EXAMPLE>
+        <FEATURE> USB </FEATURE>
+        <ALTCMD type="click">
+                   show usb devices
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show usb partitions" help="Display usb device partitions detected">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb parts show_oc_usb_parts.j2 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                     Show the list of partitions available in the usb attached storage media.
+                 </DESCRIPTION>
+        <USAGE>
+                     Use this command to display the list of partitions which are part of the
+                     detected usb attached storage media. It also displays the filesystem used
+                     to format the partition and the mount directory if the device is in a mounted
+                     state.
+                 </USAGE>
+        <EXAMPLE>
+                     sonic# show usb partitions
+                     ------------  --------------  ---------------
+                     Device Name    Mount Dir    File System
+                     -------------  -----------  -------------
+                     /dev/sdb1      /media/usb0  vfat
+                 </EXAMPLE>
+        <FEATURE> USB </FEATURE>
+        <ALTCMD type="click">
+                   show usb partitions
+                 </ALTCMD>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="usb" access="admin" help="Mount or un-mount usb partitions"/>
+    <COMMAND name="usb mount" access="admin" help="Mount all available usb partitions">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb mount</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Mount usb partitions</DESCRIPTION>
+        <USAGE>Use this command to mount all available usb partitions</USAGE>
+        <EXAMPLE summary="usb mount">
+                     sonic-cli# usb mount
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="usb un-mount" access="admin" help="Un-mount all available usb partitions">
+      <ACTION builtin="clish_pyobj">sonic_cli_oc_usb unmount</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Un-mount all usb partitions</DESCRIPTION>
+        <USAGE>Use this command to safely un-mount all mounted usb partitions</USAGE>
+        <EXAMPLE summary="usb un-mount">
+                     sonic-cli# usb un-mount
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

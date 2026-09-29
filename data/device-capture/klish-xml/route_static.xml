@@ -1,0 +1,1090 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=======================================================-->
+  <VIEW name="configure-view">
+    <COMMAND name="ip route" access="netadmin" help="Specify static route" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=default,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_entry" render_command_viewid="renderCfg_iprte">
+      <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+          </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                    <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                        <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                            <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                              <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                              </PARAM>
+                            </PARAM>
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop default ${__params} ipv4</ACTION>
+    </COMMAND>
+    <COMMAND name="ip route vrf" access="netadmin" help="Configure IP Route for a VRF instance" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=Vrf*,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_entry" render_command_viewid="renderCfg_iprte">
+      <PARAM name="vrfname" help="VRF name" ptype="VRF_NAME">
+        <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+          <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                  <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                      <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+            </PARAM>
+            <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+              <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                    <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                      <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                        <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                          <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                                </PARAM>
+                              </PARAM>
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                          <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop ${__params} ipv4 </ACTION>
+    </COMMAND>
+    <COMMAND name="ip route vrf mgmt" access="netadmin" help="Configure IP Route for Management VRF" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=mgmt,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_entry" render_command_viewid="renderCfg_iprtemgmt">
+      <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+          </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                    <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                        <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                            <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                              <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                              </PARAM>
+                            </PARAM>
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop mgmt ${__params} ipv4 </ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 route" access="netadmin" help="Specify static route" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=default,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_v6entry" render_command_viewid="renderCfg_iprte">
+      <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+          </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                    <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                        <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                            <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                              <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                              </PARAM>
+                            </PARAM>
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop default ${__params} ipv6</ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 route vrf" access="netadmin" help="Configure IP Route for a VRF instance" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=Vrf*,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_v6entry" render_command_viewid="renderCfg_iprte">
+      <PARAM name="vrfname" help="VRF name" ptype="VRF_NAME">
+        <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+          <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                  <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                      <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+            </PARAM>
+            <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+              <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                    <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                      <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                        <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                          <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                                </PARAM>
+                              </PARAM>
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                          <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                            <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                            </PARAM>
+                          </PARAM>
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop ${__params} ipv6 </ACTION>
+    </COMMAND>
+    <COMMAND name="ipv6 route vrf mgmt" access="netadmin" help="Configure IP Route for Management VRF" ptype="SUBCOMMAND" mode="subcommand" command_keys="vrf_name=mgmt,prefix_v=*" command_tables="sonic-static-route:sonic-static-route/STATIC_ROUTE/STATIC_ROUTE_LIST/vrf-name={vrf_name},prefix={prefix_v}" render_command_cb="static_routes_v6entry" render_command_viewid="renderCfg_iprtemgmt">
+      <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+          </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM help="switch subcommand" name="type_v" mode="switch" ptype="SUBCOMMAND" optional="true">
+                    <PARAM help="Set next hop VRF" name="nexthop-vrf" ptype="SUBCOMMAND" mode="subcommand">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                        <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                            <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                              <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                                <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                              </PARAM>
+                            </PARAM>
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                        <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                          <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                            <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                          </PARAM>
+                        </PARAM>
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                    <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                        <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                      </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+              <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF">
+                  <PARAM name="tag" help="Set tag for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="tag-val" help="Tag value (1-4294967295)" ptype="RANGE_1_4294967295">
+                      <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                        <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                          <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                        </PARAM>
+                      </PARAM>
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                  <PARAM name="track" help="Track gateway with SLA" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="trackid" help="Track ID for SLA" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                  <PARAM name="weight" help="Set weight for this route" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="weight-val" help="Weight value (1-255)" ptype="RANGE_1_255">
+                      <PARAM name="pref" help="Route preference" ptype="RANGE_1_255" optional="true"/>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route patch_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop mgmt ${__params} ipv6 </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip route" access="netadmin" help="Delete static route">
+      <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop default ${__params} ipv4</ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 route" access="netadmin" help="Delete static route">
+      <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop default ${__params} ipv6</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip route vrf" access="netadmin" help="Delete IP Route for a VRF instance">
+      <PARAM name="vrfname" help="VRF name" ptype="VRF_NAME">
+        <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+          <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+              <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                    <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop ${__params} ipv4 </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip route vrf mgmt" access="netadmin" help="Delete IP Route for Management VRF">
+      <PARAM name="prefix" help="Destination prefix" ptype="IP_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IP_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop mgmt ${__params} ipv4 </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 route vrf" access="netadmin" help="Delete IP Route for a VRF instance">
+      <PARAM name="vrfname" help="VRF name" ptype="VRF_NAME">
+        <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+          <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+              <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+            <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+            <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+              <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                    <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                      <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                    </PARAM>
+                  </PARAM>
+                </PARAM>
+                <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                  <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop ${__params} ipv6 </ACTION>
+    </COMMAND>
+    <COMMAND name="no ipv6 route vrf mgmt" access="netadmin" help="Delete IP Route for Management VRF">
+      <PARAM name="prefix" help="Destination prefix" ptype="IPV6_ADDR_MASK">
+        <PARAM name="route-target" help="Route target" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+          <PARAM name="blackhole" help="Silently discard pkts when matched" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="next-hop-addr" help="Set next hop address" ptype="IPV6_ADDR">
+            <PARAM help="switch subcommand" name="type" mode="switch" ptype="SUBCOMMAND" optional="true">
+              <PARAM name="interface" help="Select an interface" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="ifname" help="Interface-type number" ptype="PHY_LB_MGMT_PO_VL_SUBINTERFACE">
+                  <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+                    <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+                  </PARAM>
+                </PARAM>
+              </PARAM>
+              <PARAM name="nexthop-vrf" help="Select next hop VRF" ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="next-hop-vrf" help="Name of next hop VRF" ptype="ALL_VRF"> </PARAM>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic-cli-static-route delete_openconfig_network_instance_network_instances_network_instance_protocols_protocol_static_routes_static_next_hops_next_hop mgmt ${__params} ipv6 </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

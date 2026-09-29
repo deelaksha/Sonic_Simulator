@@ -1,0 +1,157 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VIEW name="enable-view">
+    <COMMAND name="show authentication telemetry" help="Display telemetry authentication modes" test="${gnmi_telemetry_supported}" hidden="true">
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication get_sonic_client_auth_telemetry:show_client_auth_telemetry.j2 ${__full_line}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show authentication rest" help="Display REST authentication modes" hidden="true">
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication get_sonic_client_auth_rest:show_client_auth_rest.j2 ${__full_line}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip rest" help="Display configurations for REST server">
+      <PARAM name="show_rest_options" help="REST server display options" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="authentication" help="Display REST authentication modes" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="log-level" help="Display log level" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="request-limit" help="Display concurrent request limit" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="read-timeout" help="Display read timeout" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="security-profile" help="Display security profile" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="port" help="Display port that Rest server is listening on" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="api-timeout" help="Display API timeout" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="cipher-suite" help="Display Cipher suite (TLSv1.2)" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="vrf" help="Display REST server vrf" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication get_sonic_client_rest ${show_rest_options}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show ip telemetry" help="Display configurations for telemetry server" test="${gnmi_telemetry_supported}">
+      <PARAM name="show_telemetry_options" help="Telemetry server display options" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="authentication" help="Display telemetry authentication modes" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="log-level" help="Display log level of telemetry server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="jwt-refresh" help="Display JWT refresh time" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="jwt-valid" help="Display JWT valid time" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="security-profile" help="Display security profile" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="port" help="Display port that telemetry server is listening on" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="api-timeout" help="Display API timeout" mode="subcommand" ptype="SUBCOMMAND"/>
+        <PARAM name="vrf" help="Display Telemetry server vrf" mode="subcommand" ptype="SUBCOMMAND"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication get_sonic_client_telemetry ${show_telemetry_options}</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="authentication telemetry" access="secadmin" help="telemetry authentication modes" test="${gnmi_telemetry_supported}" hidden="true">
+      <PARAM name="client-auth" help="Client authentication methods: password,jwt,cert,none" ptype="AUTH_TYPES"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication set_sonic_client_auth_telemetry ${client-auth} ${__full_line}</ACTION>
+    </COMMAND>
+    <COMMAND name="authentication rest" access="secadmin" help="rest authentication modes" hidden="true">
+      <PARAM name="client-auth" help="Client authentication methods: password,jwt,cert,none" ptype="AUTH_TYPES"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication set_sonic_client_auth_rest ${client-auth} ${__full_line}</ACTION>
+    </COMMAND>
+    <COMMAND name="ip rest" access="secadmin" test="-z ${__in_session}" help="Configure parameters for REST" command_tables="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/id=default">
+      <PARAM name="rest_options" help="Options for REST parameters" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="authentication" help="REST authentication modes" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="client-auth" help="Client authentication methods: password,jwt,cert,none (default: password,jwt)" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/client_auth" ptype="AUTH_TYPES"> </PARAM>
+        </PARAM>
+        <PARAM name="log-level" help="Log level of REST server" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="level" help="Log level of REST server" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/log_level" ptype="RANGE_0_255"/>
+        </PARAM>
+        <PARAM name="request-limit" help="Configure maximum number of concurrent requests allowed for REST server, 0 to disable (default: 0)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="limit" help="Limit of maximum number of concurrent requests allowed" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/req_limit" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="read-timeout" help="Configure number of seconds the server waits for a valid http request to arrive on a connection for REST server, 0 to disable (default: 30)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="timeout" help="Number of seconds the server waits for a valid http request to arrive on a connection" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/read_timeout" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="security-profile" help="Configure security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="security_profile" help="Name of security profile" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/security_profile" ptype="STRING_32"/>
+        </PARAM>
+        <PARAM name="port" help="Configure the port that the REST server listens on (default: 443)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="port_subcommands" help="Port subcommands" ptype="SUBCOMMAND" mode="switch">
+            <PARAM name="port_num" help="Port that the REST server listens on" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/port" ptype="RANGE_0_65535"/>
+            <PARAM name="shutdown" help="Disable REST server listen port" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/disable=true"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="api-timeout" help="Configure server side timeout hint, in seconds, for all REST requests with 0 to disable (default: 900)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="apitime" help="Server side timeout hint, in seconds, for all REST requests with 0 to disable (default: 900)" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/api_timeout" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="cipher-suite" help="Configure REST cipher suite (TLSv1.2)" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="ciphersuite" ptype="STRING" help="REST cipher suite (ecdhe-ecdsa-with-aes-256-gcm-SHA384 ecdhe-ecdsa-with-chacha20-poly1305-SHA256 ecdhe-ecdsa-with-aes-128-gcm-SHA256 comma separated)" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/cipher_suite"/>
+        </PARAM>
+        <PARAM name="vrf" help="VRF name" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="vrf-switch" help="VRF commands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="mgmt" help="Management VRF name" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-mgmt-rest:sonic-mgmt-rest/REST_SERVER/REST_SERVER_LIST/vrf"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication set_sonic_client_rest ${rest_options} ${client-auth} ${level} ${refresh_seconds} ${validity} ${limit} ${timeout} ${security_profile} ${port_num} ${shutdown} ${apitime} ${mgmt} ${ciphersuite}</ACTION>
+    </COMMAND>
+    <COMMAND name="ip telemetry" access="secadmin" help="Configure parameters for telemetry" test="${gnmi_telemetry_supported}" command_tables="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/id=gnmi">
+      <PARAM name="telemetry_options" help="Options for Telemetry parameters" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="authentication" help="Telemetry authentication modes" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="client-auth" help="Client authentication methods: password,jwt,cert,none (default: password,jwt)" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/client_auth" ptype="AUTH_TYPES"> </PARAM>
+        </PARAM>
+        <PARAM name="log-level" help="Log level of telemetry server" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="level" help="Log level of telemetry server" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/log_level" ptype="RANGE_0_255"/>
+        </PARAM>
+        <PARAM name="jwt-refresh" help="Time in seconds before JWT expiry the token can be refreshed for telemetry server (default: 900)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="refresh_seconds" help="Time before JWT expiry the token can be refreshed (default: 900)" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/jwt_refresh" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="jwt-valid" help="Time in seconds that JWT token is valid for telemetry server (default: 3600)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="validity" help="Seconds that JWT token is valid (default: 3600)" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/jwt_valid" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="security-profile" help="Configure security profile" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="security_profile" help="Name of security profile" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/security_profile" ptype="STRING_32"/>
+        </PARAM>
+        <PARAM name="port" help="Configure the port that the telemetry server listens on (default: 8080)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="port_num" help="Port that the telemetry server listens on" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/port" ptype="RANGE_0_65535"/>
+        </PARAM>
+        <PARAM name="api-timeout" help="Configure server side timeout hint, in seconds, for all gNMI requests, 0 to disable (default: 0)" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="apitime" help="Server side timeout hint, in seconds, for all gNMI requests, 0 to disable (default: 0)" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/api_timeout" ptype="RANGE_0_4294967295"/>
+        </PARAM>
+        <PARAM name="vrf" help="VRF name" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="vrf-switch" help="VRF commands" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="mgmt" help="Management VRF name" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-mgmt-telemetry:sonic-mgmt-telemetry/TELEMETRY/TELEMETRY_LIST/vrf"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication set_sonic_client_telemetry ${telemetry_options} ${client-auth} ${level} ${refresh_seconds} ${validity} ${security_profile} ${port_num} ${apitime} ${mgmt}</ACTION>
+    </COMMAND>
+    <COMMAND name="no ip rest" access="secadmin" help="Set to default the parameters for REST">
+      <PARAM name="rest_options" help="Options for REST parameters" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="authentication" help="REST authentication modes" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="log-level" help="Set to default the log level of REST server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="request-limit" help="Set to default the maximum number of concurrent requests allowed for REST server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="read-timeout" help="Set to default the number of seconds the server waits for a valid http request to arrive on a connection fr REST server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="security-profile" help="Set to default the security profile" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port" help="Set to default the the port that the REST server listens on" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="shutdown" help="Enable REST server listen port" mode="subcommand" ptype="SUBCOMMAND" optional="true"/>
+        </PARAM>
+        <PARAM name="api-timeout" help="Set to default the server side timeout hint, in seconds, for all REST requests" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="cipher-suite" help="Set to default cipher suite in REST server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vrf" help="Set to default behavior" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication delete_sonic_client_rest ${rest_options} ${shutdown} </ACTION>
+    </COMMAND>
+    <COMMAND name="no ip telemetry" access="secadmin" help="Set to default the parameters for telemetry" test="${gnmi_telemetry_supported}">
+      <PARAM name="telemetry_options" help="Options for Telemetry parameters" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="authentication" help="REST authentication modes" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="log-level" help="Set to default the log level of telemetry server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="jwt-refresh" help="Set to default the time in seconds before JWT expiry the token can be refreshed for telemetry server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="jwt-valid" help="Set to default the time in seconds that JWT token is valid for telemetry server" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="security-profile" help="Set to default the security profile" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port" help="Set to default the the port that the telemetry server listens on" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="api-timeout" help="Set to default the server side timeout hint, in seconds, for all gNMI requests" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vrf" help="Set to default behavior" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_authentication delete_sonic_client_telemetry ${telemetry_options} </ACTION>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

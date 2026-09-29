@@ -1,0 +1,649 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="POE_POWER_USG_THRESHOLD_TYPE" method="integer" pattern="1..99" help="PoE power usage threshold"/>
+  <PTYPE name="POE_POWER_LIMIT_USER_DEF" method="integer" pattern="0..99900" help="PoE port power limit value"/>
+  <VIEW name="configure-view">
+    <COMMAND name="poe" access="netadmin" help="PoE configuration"/>
+    <COMMAND name="no poe" access="netadmin" help="PoE configuration"/>
+    <COMMAND name="poe power" access="netadmin" help="PoE power management model configuration"/>
+    <COMMAND name="no poe power" access="netadmin" help="PoE power management model configuration"/>
+    <COMMAND name="poe power management" access="netadmin" help="Configure PoE power management model" command_tables="sonic-poe:sonic-poe/POE/POE_LIST/id={id}" command_keys="id=GLOBAL" render_command_cb="show_runn_poe_global_power_mgmt_model">
+      <PARAM name="power-mgmt-model" help="Power Management Model" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE/POE_LIST/power_management_model">
+        <PARAM name="DYNAMIC" help="Dynamic Power Management" ptype="SUBCOMMAND" mode="subcommand" value="dynamic"/>
+        <PARAM name="DYNAMIC_PRI" help="Dynamic Priority Power Management" ptype="SUBCOMMAND" mode="subcommand" value="dynamic-priority"/>
+        <PARAM name="STATIC" help="Static Power Management" ptype="SUBCOMMAND" mode="subcommand" value="static"/>
+        <PARAM name="STATIC_PRI" help="Static Priority Power Management" ptype="SUBCOMMAND" mode="subcommand" value="static-priority"/>
+        <PARAM name="CLASS" help="Class based Power Management" ptype="SUBCOMMAND" mode="subcommand" value="class"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_power_mgmt_model GLOBAL ${power-mgmt-model}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE Power management model</DESCRIPTION>
+        <USAGE>Use this command to set PoE Power management model</USAGE>
+        <EXAMPLE summary="Configure PoE Power management model">
+                     sonic-cli(config)# poe power management dynamic
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power management" access="netadmin" help="Reset PoE power management model">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_power_mgmt_model GLOBAL</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE Power management model</DESCRIPTION>
+        <USAGE>Use this command to reset PoE Power management model</USAGE>
+        <EXAMPLE summary="Reset PoE Power management model">
+                     sonic-cli(config)# no poe power management
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe usage-threshold" access="netadmin" help="Configure PoE power usage threshold" command_keys="id=GLOBAL" command_tables="sonic-poe:sonic-poe/POE/POE_LIST/id={id}">
+      <PARAM name="usg-threshold" help="Power Usage Threshold" ptype="POE_POWER_USG_THRESHOLD_TYPE" dbpath="sonic-poe:sonic-poe/POE/POE_LIST/power_usage_threshold"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_usage_threshold GLOBAL ${usg-threshold}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE power usage threshold value</DESCRIPTION>
+        <USAGE>Use this command to set PoE power usage threshold value</USAGE>
+        <EXAMPLE summary="Configure PoE power usage threshold value">
+                     sonic-cli(config)# poe usagethreshold 99
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe usage-threshold" access="netadmin" help="Reset PoE power usage threshold">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_usage_threshold GLOBAL</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE power usage threshold</DESCRIPTION>
+        <USAGE>Use this command to reset PoE power usage threshold value</USAGE>
+        <EXAMPLE summary="Rest PoE power usage threshold value">
+                     sonic-cli(config)# no poe usagethreshold
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe auto-reset" access="netadmin" help="Configure PoE global auto reset mode" command_keys="id=GLOBAL" command_tables="sonic-poe:sonic-poe/POE/POE_LIST/id={id}" dbpath="sonic-poe:sonic-poe/POE/POE_LIST/auto_reset_mode">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_auto_reset GLOBAL true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE global auto reset mode</DESCRIPTION>
+        <USAGE>Use this command to set PoE global auto reset mode</USAGE>
+        <EXAMPLE summary="Configure PoE global auto reset mode">
+                     sonic-cli(config)# poe auto-reset
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe auto-reset" access="netadmin" help="Disable PoE global auto reset mode">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_auto_reset GLOBAL</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE global auto reset mode</DESCRIPTION>
+        <USAGE>Use this command to disable PoE global auto reset mode</USAGE>
+        <EXAMPLE summary="Disable PoE global auto reset mode">
+                     sonic-cli(config)# no poe auto-reset
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe card" access="netadmin" help="Configure PoE card attributes" view="configure-poe-card-view" viewid="id=${id}" view_keys="id=*" view_tables="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/id={id}">
+      <PARAM name="id" help="Card identifier number" ptype="RANGE_0_7" dbpath="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/id"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe create_poe_card_entry ${id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE card attributes</DESCRIPTION>
+        <USAGE>Use this command to set PoE card attributes</USAGE>
+        <EXAMPLE summary="Configure PoE card attributes">
+                     sonic-cli(config)# poe card 1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe card" access="netadmin" help="Delete PoE card configuration">
+      <PARAM name="id" help="Card identifier number" ptype="RANGE_0_7"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_card_entry ${id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Deletes PoE card configuration</DESCRIPTION>
+        <USAGE>Use this command to delete PoE card configuration</USAGE>
+        <EXAMPLE summary="Delete PoE card configuration">
+                     sonic-cli(config)# no poe card 1
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- PoE Card Level CLIs -->
+  <VIEW name="configure-poe-card-view" prompt="${SYSTEM_NAME}(${__config_mode}-poe-card-${id})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration for PoE card">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-poe-card view_keys="id=${id}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="poe" access="netadmin" help="PoE card configuration"/>
+    <COMMAND name="no poe" access="netadmin" help="PoE card configuration"/>
+    <COMMAND name="poe power" access="netadmin" help="PoE power management model configuration"/>
+    <COMMAND name="no poe power" access="netadmin" help="PoE power management model configuration"/>
+    <COMMAND name="poe power management" access="netadmin" help="Configure PoE power management model" command_tables="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/id={id}" command_keys="id=*" render_command_cb="show_runn_poe_card_power_mgmt_model">
+      <PARAM name="power-mgmt-model" help="Power Management Model" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/power_management_model">
+        <PARAM name="DYNAMIC" help="Dynamic Power Management" ptype="SUBCOMMAND" mode="subcommand" value="dynamic"/>
+        <PARAM name="DYNAMIC_PRI" help="Dynamic Priority Power Management" ptype="SUBCOMMAND" mode="subcommand" value="dynamic-priority"/>
+        <PARAM name="STATIC" help="Static Power Management" ptype="SUBCOMMAND" mode="subcommand" value="static"/>
+        <PARAM name="STATIC_PRI" help="Static Priority Power Management" ptype="SUBCOMMAND" mode="subcommand" value="static-priority"/>
+        <PARAM name="CLASS" help="Class based Power Management" ptype="SUBCOMMAND" mode="subcommand" value="class"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_power_mgmt_model ${id} ${power-mgmt-model}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE Power management model</DESCRIPTION>
+        <USAGE>Use this command to set PoE Power management model</USAGE>
+        <EXAMPLE summary="Configure PoE Power management model">
+                     sonic-cli(config)# poe power management dynamic
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power management" access="netadmin" help="Reset PoE power management model">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_power_mgmt_model ${id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE Power management model</DESCRIPTION>
+        <USAGE>Use this command to reset PoE Power management model</USAGE>
+        <EXAMPLE summary="Reset PoE Power management model">
+                     sonic-cli(config)# no poe power management
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe usage-threshold" access="netadmin" help="Configure PoE power usage threshold" command_tables="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/id={id}" command_keys="id=*">
+      <PARAM name="usg-threshold" help="Power Usage Threshold" ptype="POE_POWER_USG_THRESHOLD_TYPE" dbpath="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/power_usage_threshold"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_usage_threshold ${id} ${usg-threshold}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE power usage threshold value</DESCRIPTION>
+        <USAGE>Use this command to set PoE power usage threshold value</USAGE>
+        <EXAMPLE summary="Configure PoE power usage threshold value">
+                     sonic-cli(config)# poe usagethreshold 99
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe usage-threshold" access="netadmin" help="Reset PoE power usage threshold">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_usage_threshold ${id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE power usage threshold</DESCRIPTION>
+        <USAGE>Use this command to reset PoE power usage threshold value</USAGE>
+        <EXAMPLE summary="Rest PoE power usage threshold value">
+                     sonic-cli(config)# no poe usagethreshold
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe auto-reset" access="netadmin" help="Configure PoE auto reset mode" command_tables="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/id={id}" command_keys="id=*" dbpath="sonic-poe:sonic-poe/POE_CARD/POE_CARD_LIST/auto_reset_mode=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe update_poe_auto_reset ${id} true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE auto reset mode</DESCRIPTION>
+        <USAGE>Use this command to set PoE auto reset mode</USAGE>
+        <EXAMPLE summary="Configure PoE auto reset mode">
+                     sonic-cli(config)# poe auto-reset
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe auto-reset" access="netadmin" help="Disable PoE auto reset mode">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_poe_auto_reset ${id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE auto reset mode</DESCRIPTION>
+        <USAGE>Use this command to disable PoE auto reset mode</USAGE>
+        <EXAMPLE summary="Disable PoE auto reset mode">
+                     sonic-cli(config)# no poe auto-reset
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- PoE Port Level CLIs -->
+  <VIEW name="configure-if-view">
+    <COMMAND name="poe" help="PoE configuration" access="netadmin" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*"/>
+    <COMMAND name="no poe" access="netadmin" help="Remove port level all PoE configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Removes all PoE configurations at port level</DESCRIPTION>
+        <USAGE>Use this command to remove all PoE configuration at port level</USAGE>
+        <EXAMPLE summary="Remove all PoE configurations at port level">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe disable" access="netadmin" help="Disable PoE at port level" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/admin_mode=false">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_admin_mode ${iface} false</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE at port level</DESCRIPTION>
+        <USAGE>Use this command to Disable PoE at port level</USAGE>
+        <EXAMPLE summary="Disable PoE at port level">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe disable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe disable" access="netadmin" help="Enable PoE at port level">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_admin_mode ${iface} true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enable PoE at port level</DESCRIPTION>
+        <USAGE>Use this command to enable PoE at port level</USAGE>
+        <EXAMPLE summary="Enable PoE at port level">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe disable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe power-limit" access="netadmin" help="Configure PoE power limit" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_power_limit">
+      <PARAM name="port-power-limit" help="" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/power_limit">
+        <PARAM name="dot3af" help="Class based port power limit" ptype="SUBCOMMAND" mode="subcommand" value="class-based"/>
+        <PARAM name="USER" help="User-defined port power limit" ptype="SUBCOMMAND" mode="subcommand" value="user-defined">
+          <PARAM name="user-def" help="User-defined port power limit" ptype="POE_POWER_LIMIT_USER_DEF"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_power_limit ${iface} ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE Power limit for a port</DESCRIPTION>
+        <USAGE>Use this command to set PoE Power limit for a port</USAGE>
+        <EXAMPLE summary="Configure PoE Power limit for a port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe power-limit dot3af
+                     sonic-cli(config)# interface Ethernet 4
+                     sonic-cli(conf-if-Ethernet4)# poe power-limit 4000
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power-limit" access="netadmin" help="Reset PoE power limit on port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_power_limit ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE Power limit on port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE Power limit on port</USAGE>
+        <EXAMPLE summary="Reset PoE Power limit on port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe power-limit
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe priority" access="netadmin" help="Configure PoE port priority" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_priority">
+      <PARAM name="port-priority" help="Port Priority" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/priority">
+        <PARAM name="low" help="Low Priority" ptype="SUBCOMMAND" mode="subcommand" value="low"/>
+        <PARAM name="medium" help="Medium Priority" ptype="SUBCOMMAND" mode="subcommand" value="medium"/>
+        <PARAM name="high" help="High Priority" ptype="SUBCOMMAND" mode="subcommand" value="high"/>
+        <PARAM name="critical" help="Critical Priority" ptype="SUBCOMMAND" mode="subcommand" value="critical"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_priority ${iface} ${port-priority}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE port priority</DESCRIPTION>
+        <USAGE>Use this command to set PoE port priority</USAGE>
+        <EXAMPLE summary="Configure PoE port priority">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe priority medium
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe priority" access="netadmin" help="Reset PoE port priority">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_priority ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE port priority</DESCRIPTION>
+        <USAGE>Use this command to reset PoE port priority</USAGE>
+        <EXAMPLE summary="Rest PoE port priority">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe priority
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe detection" access="netadmin" help="Configure PoE detection mode for port" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_detection">
+      <PARAM name="port-poe-detect" help="PoE detection mode" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/detection_mode">
+        <PARAM name="two_pt_dot3af" help="2 Point Dot3af detection" ptype="SUBCOMMAND" mode="subcommand" value="2pt-dot3af"/>
+        <PARAM name="two_pt_dot3af_leg" help="2 Point Dot3af detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="2pt-dot3af+legacy"/>
+        <PARAM name="four_pt_dot3af" help="4 Point Dot3af detection" ptype="SUBCOMMAND" mode="subcommand" value="4pt-dot3af"/>
+        <PARAM name="four_pt_dot3af_leg" help="4 Point Dot3af detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="4pt-dot3af+legacy"/>
+        <PARAM name="dot3bt" help="Dot3bt detection" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt"/>
+        <PARAM name="dot3bt_leg" help="Dot3bt detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt+legacy"/>
+        <PARAM name="legacy" help="Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="legacy"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_detection_mode ${iface} ${port-poe-detect}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE detection mode for port</DESCRIPTION>
+        <USAGE>Use this command to set PoE detection mode for port</USAGE>
+        <EXAMPLE summary="Configure PoE detection mode for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe detection 2ptdot3af
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe detection" access="netadmin" help="Reset PoE detection mode for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_detection_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE detection mode for port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE detection mode for port</USAGE>
+        <EXAMPLE summary="Rest PoE detection mode for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe detection
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe power-up" access="netadmin" help="PoE power-up configuration"/>
+    <COMMAND name="no poe power-up" access="netadmin" help="Remove PoE power-up configuration"/>
+    <COMMAND name="poe power-up mode" access="netadmin" help="Configure PoE power-up mode" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_powerup_mode">
+      <PARAM name="port-poe-powerup" help="PoE power-up mode" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/powerup_mode">
+        <PARAM name="IEEE_8023AT" help="Dot3at power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3at"/>
+        <PARAM name="PRE_8023AT" help="Pre-Dot3at power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="pre-dot3at"/>
+        <PARAM name="PRE_8023BT" help="Pre-Dot3bt power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="pre-dot3bt"/>
+        <PARAM name="IEEE_8023BT_TYPE3" help="Dot3bt Type3 power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt-type3"/>
+        <PARAM name="IEEE_8023BT_TYPE4" help="Dot3bt Type4 power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt-type4"/>
+        <PARAM name="IEEE_8023BT" help="Dot3bt power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt"/>
+        <PARAM name="IEEE_8023AF" help="Dot3af power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3af"/>
+        <PARAM name="HIGH_INRUSH" help="High Inrush power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="high-inrush"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_powerup_mode ${iface} ${port-poe-powerup}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE port power-up mode</DESCRIPTION>
+        <USAGE>Use this command to set PoE port power-up mode</USAGE>
+        <EXAMPLE summary="Configure PoE port power-up mode">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe power-up mode dot3at
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power-up mode" access="netadmin" help="Reset PoE power-up mode for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_powerup_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE power-up mode for port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE power-up mode for port</USAGE>
+        <EXAMPLE summary="Reset PoE power-up mode for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe power-up mode
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe high-power" access="netadmin" help="Configure PoE high-power"/>
+    <COMMAND name="no poe high-power" access="netadmin" help="Configure PoE high-power"/>
+    <COMMAND name="poe high-power enable" access="netadmin" help="Enable PoE high-power for port" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/high_power_mode">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_high_power_mode ${iface} true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enable PoE high-power for port</DESCRIPTION>
+        <USAGE>Use this command to enable PoE high-power for port</USAGE>
+        <EXAMPLE summary="Enable PoE high-power for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe high-power enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe high-power enable" access="netadmin" help="Disable PoE high-power for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_high_power_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE power-up mode for port</DESCRIPTION>
+        <USAGE>Use this command to disable PoE high-power for port</USAGE>
+        <EXAMPLE summary="Disable PoE high-power for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe high-power enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe four-pair" access="netadmin" help="Configure PoE four-pair"/>
+    <COMMAND name="no poe four-pair" access="netadmin" help="Configure PoE four-pair"/>
+    <COMMAND name="poe four-pair enable" access="netadmin" help="Enable PoE four-pair for port" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/four_pair_mode=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_four_pair_mode ${iface} true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enable PoE four-pair for port</DESCRIPTION>
+        <USAGE>Use this command to enable PoE four-pair for port</USAGE>
+        <EXAMPLE summary="Enable PoE four-pair for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe four-pair enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe four-pair enable" access="netadmin" help="Disable PoE four-pair for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_four_pair_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE four-pair mode for port</DESCRIPTION>
+        <USAGE>Use this command to disable PoE four-pair for port</USAGE>
+        <EXAMPLE summary="Disable PoE four-pair for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe four-pair enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe spare-pair-power" access="netadmin" help="Configure PoE spare pair power"/>
+    <COMMAND name="no poe spare-pair-power" access="netadmin" help="Configure PoE spare pair power"/>
+    <COMMAND name="poe spare-pair-power enable" access="netadmin" help="Enable PoE spare pair power for port" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/use_spare_pair=true">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_use_spare_pair ${iface} true</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Enable PoE spare pair power for port</DESCRIPTION>
+        <USAGE>Use this command to enable PoE spare pair power for port</USAGE>
+        <EXAMPLE summary="Enable PoE spare pair power for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe spare-pair-power enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe spare-pair-power enable" access="netadmin" help="Disable PoE spare pair power for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_use_spare_pair ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Disable PoE spare pair power mode for port</DESCRIPTION>
+        <USAGE>Use this command to disable PoE spare pair power for port</USAGE>
+        <EXAMPLE summary="Disable PoE spare pair power for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe spare-pair-power enable
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe power-pairs" access="netadmin" help="Configure PoE power-pairs" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_power_pairs">
+      <PARAM name="port-poe-powerpair" help="PoE power-pair mode" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/power_pairs">
+        <PARAM name="signal" help="Signal pair" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="spare" help="Spare pair" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_power_pairs ${iface} ${port-poe-powerpair}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE port power-pairs settings</DESCRIPTION>
+        <USAGE>Use this command to set PoE port power-pairs settings</USAGE>
+        <EXAMPLE summary="Configure PoE port power-pairs settings">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe power-pairs spare
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power-pairs" access="netadmin" help="Reset PoE power-pairs settings for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_power_pairs ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE power-pairs settings for port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE power-pairs settings for port</USAGE>
+        <EXAMPLE summary="Reset PoE power-pairs settings for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe power-pairs
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe disconnect-type" access="netadmin" help="Configure PoE disconnect type" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_disconnect">
+      <PARAM name="port-poe-disconnect" help="PoE disconnect type" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/disconnect_type">
+        <PARAM name="ac" help="AC type" ptype="SUBCOMMAND" mode="subcommand" value="type-ac"/>
+        <PARAM name="dc" help="DC type" ptype="SUBCOMMAND" mode="subcommand" value="type-dc"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_disconnect_type ${iface} ${port-poe-disconnect}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE port disconnect type settings</DESCRIPTION>
+        <USAGE>Use this command to set PoE port disconnect type settings</USAGE>
+        <EXAMPLE summary="Configure PoE port disconnect type settings">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe disconnect-type ac
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe disconnect-type" access="netadmin" help="Reset PoE disconnect type settings for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_disconnect_type ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE disconnect type settings for port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE disconnect type settings for port</USAGE>
+        <EXAMPLE summary="Reset PoE disconnect type settings for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe disconnect-type
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="poe power-classification" access="netadmin" help="Configure PoE power-classification mode" command_tables="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/ifname={name}" command_keys="name=*" render_command_cb="show_runn_poe_port_power_classification">
+      <PARAM name="port-poe-power-class" help="PoE power-classification mode" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/power_classification_mode">
+        <PARAM name="normal" help="Normal Power classification mode" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="bypass" help="Bypass Power classification mode" ptype="SUBCOMMAND" mode="subcommand"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe patch_sonic_poe_sonic_poe_poe_port_poe_port_list_power_classification_mode ${iface} ${port-poe-power-class}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure PoE port power-classification mode</DESCRIPTION>
+        <USAGE>Use this command to set PoE port power-classification mode</USAGE>
+        <EXAMPLE summary="Configure PoE port power-classification mode">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# poe power-classification bypass
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no poe power-classification" access="netadmin" help="Reset PoE power-classification mode for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_sonic_poe_sonic_poe_poe_port_poe_port_list_power_classification_mode ${iface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE power-classification mode for port</DESCRIPTION>
+        <USAGE>Use this command to reset PoE power-classification mode for port</USAGE>
+        <EXAMPLE summary="Reset PoE power-classification mode for port">
+                     sonic-cli(config)# interface Ethernet 0
+                     sonic-cli(conf-if-Ethernet0)# no poe power-classification
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-range-view">
+    <COMMAND name="poe" access="netadmin" help="PoE configuration"/>
+    <COMMAND name="no poe" access="netadmin" help="Remove port level all PoE configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_if_range iflist=${iflist} delete_sonic_poe_sonic_poe_poe_port_poe_port_list</ACTION>
+    </COMMAND>
+    <COMMAND name="poe disable" access="netadmin" help="Disable PoE at port level">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_admin_mode false</ACTION>
+    </COMMAND>
+    <COMMAND name="no poe disable" access="netadmin" help="Enable PoE at port level">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_admin_mode true</ACTION>
+    </COMMAND>
+    <COMMAND name="poe power-limit" access="netadmin" help="Configure PoE power limit">
+      <PARAM name="port-power-limit" access="netadmin" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="dot3af" help="Class based port power limit" ptype="SUBCOMMAND" mode="subcommand" value="class-based"/>
+        <PARAM name="USER" help="User-defined port power limit" ptype="SUBCOMMAND" mode="subcommand" value="user-defined">
+          <PARAM name="user-def" help="User-defined port power limit" ptype="POE_POWER_LIMIT_USER_DEF"/>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_power_limit ${__params}</ACTION>
+    </COMMAND>
+    <COMMAND name="no poe power-limit" access="netadmin" help="Reset PoE power limit on port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_if_range iflist=${iflist} delete_sonic_poe_sonic_poe_poe_port_poe_port_list_power_limit</ACTION>
+    </COMMAND>
+    <COMMAND name="poe priority" access="netadmin" help="Configure PoE port priority">
+      <PARAM name="port-priority" help="Port Priority" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="low" help="Low Priority" ptype="SUBCOMMAND" mode="subcommand" value="low"/>
+        <PARAM name="medium" help="Medium Priority" ptype="SUBCOMMAND" mode="subcommand" value="medium"/>
+        <PARAM name="high" help="High Priority" ptype="SUBCOMMAND" mode="subcommand" value="high"/>
+        <PARAM name="critical" help="Critical Priority" ptype="SUBCOMMAND" mode="subcommand" value="critical"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_priority ${port-priority}</ACTION>
+    </COMMAND>
+    <COMMAND name="no poe priority" access="netadmin" help="Reset PoE port priority">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_if_range iflist=${iflist} delete_sonic_poe_sonic_poe_poe_port_poe_port_list_priority</ACTION>
+    </COMMAND>
+    <COMMAND name="poe detection" access="netadmin" help="Configure PoE detection mode for port">
+      <PARAM name="port-poe-detect" help="PoE detection mode" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="two_pt_dot3af" help="2 Point Dot3af detection" ptype="SUBCOMMAND" mode="subcommand" value="2pt-dot3af"/>
+        <PARAM name="two_pt_dot3af_leg" help="2 Point Dot3af detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="2pt-dot3af+legacy"/>
+        <PARAM name="four_pt_dot3af" help="4 Point Dot3af detection" ptype="SUBCOMMAND" mode="subcommand" value="4pt-dot3af"/>
+        <PARAM name="four_pt_dot3af_leg" help="4 Point Dot3af detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="4pt-dot3af+legacy"/>
+        <PARAM name="dot3bt" help="Dot3bt detection" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt"/>
+        <PARAM name="dot3bt_leg" help="Dot3bt detection followed by Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt+legacy"/>
+        <PARAM name="legacy" help="Legacy detection" ptype="SUBCOMMAND" mode="subcommand" value="legacy"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_detection_mode ${port-poe-detect}</ACTION>
+    </COMMAND>
+    <COMMAND name="no poe detection" access="netadmin" help="Reset PoE detection mode for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_if_range iflist=${iflist} delete_sonic_poe_sonic_poe_poe_port_poe_port_list_detection_mode</ACTION>
+    </COMMAND>
+    <COMMAND name="poe power-up" access="netadmin" help="PoE power-up configuration"/>
+    <COMMAND name="no poe power-up" access="netadmin" help="Remove PoE power-up configuration"/>
+    <COMMAND name="poe power-up mode" access="netadmin" help="Configure PoE power-up mode">
+      <PARAM name="port-poe-powerup" help="PoE power-up mode" ptype="SUBCOMMAND" mode="switch" dbpath="sonic-poe:sonic-poe/POE_PORT/POE_PORT_LIST/powerup_mode">
+        <PARAM name="IEEE_8023AT" help="Dot3at power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3at"/>
+        <PARAM name="PRE_8023AT" help="Pre-Dot3at power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="pre-dot3at"/>
+        <PARAM name="PRE_8023BT" help="Pre-Dot3bt power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="pre-dot3bt"/>
+        <PARAM name="IEEE_8023BT_TYPE3" help="Dot3bt Type3 power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt-type3"/>
+        <PARAM name="IEEE_8023BT_TYPE4" help="Dot3bt Type4 power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt-type4"/>
+        <PARAM name="IEEE_8023BT" help="Dot3bt power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3bt"/>
+        <PARAM name="IEEE_8023AF" help="Dot3af power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="dot3af"/>
+        <PARAM name="HIGH_INRUSH" help="High Inrush power-up mode" ptype="SUBCOMMAND" mode="subcommand" value="high-inrush"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe config_if_range iflist=${iflist} patch_sonic_poe_sonic_poe_poe_port_poe_port_list_powerup_mode ${port-poe-powerup}</ACTION>
+    </COMMAND>
+    <COMMAND name="no poe power-up mode" access="netadmin" help="Reset PoE power-up mode for port">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe delete_if_range iflist=${iflist} delete_sonic_poe_sonic_poe_poe_port_poe_port_list_powerup_mode</ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="enable-view">
+    <COMMAND name="show poe" help="Show PoE information">
+      <ACTION builtin="clish_pyobj">sonic_cli_poe get_poe_global show_poe.j2</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows global level PoE information</DESCRIPTION>
+        <USAGE>Use this command to get PoE global level information</USAGE>
+        <EXAMPLE summary="Shows PoE global level details">
+                     sonic-cli# show poe
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show poe port" help="Show PoE port information"/>
+    <COMMAND name="show poe port info" help="Show PoE port operational information">
+      <PARAM name="port" help="POE port" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all" help="All PoE ports" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="intf-name" help="PoE Port name" ptype="PHY_INTERFACE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe get_poe_port_info show_poe.j2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows port level PoE operational information</DESCRIPTION>
+        <USAGE>Use this command to get PoE port level operational information</USAGE>
+        <EXAMPLE summary="Shows PoE port level operational details">
+                     sonic-cli# show poe port info all
+                     sonic-cli# show poe port info Ethernet0
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show poe port configuration" help="Show PoE port configuration">
+      <PARAM name="port" help="PoE port" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="all" help="All PoE ports" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="intf-name" help="PoE Port name" ptype="PHY_INTERFACE"/>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe get_poe_port_cfg show_poe.j2 ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows port level PoE configurations</DESCRIPTION>
+        <USAGE>Use this command to get PoE port level configurations</USAGE>
+        <EXAMPLE summary="Shows PoE port level configurations">
+                     sonic-cli# show poe port configuration all
+                     sonic-cli# show poe port configuration Ethernet0
+                 </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="poe" access="netadmin" help="Reset PoE Port(s)"/>
+    <COMMAND name="poe reset" access="netadmin" help="Reset all PoE Ports">
+      <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe reset_poe_port ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Reset PoE Port</DESCRIPTION>
+        <USAGE>Use this command to reset all or one PoE port</USAGE>
+        <EXAMPLE summary="Reset PoE port">
+                     sonic-cli# poe reset
+                     sonic-cli# poe reset Ethernet0
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="clear poe" access="netadmin" help="Clear PoE"> </COMMAND>
+    <COMMAND name="clear poe counters" access="netadmin" help="Clear counters of all PoE Ports">
+      <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE" optional="true"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_poe clear_poe_port_counters ${__params}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Clear PoE Port counters</DESCRIPTION>
+        <USAGE>Use this command to clear counters of all or one PoE port</USAGE>
+        <EXAMPLE summary="Reset PoE port">
+                     sonic-cli# clear poe counters
+                     sonic-cli# clear poe counters Ethernet0
+                 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

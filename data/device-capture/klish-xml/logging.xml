@@ -1,0 +1,190 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <PTYPE name="LOGGING_REMOTE_PORT" method="integer" pattern="1..65535" help="port"/>
+  <PTYPE name="LOG_LEVEL" method="select" pattern="DEBUG INFO WARNING NOTICE ERR CRIT" help="DEBUG|INFO|WARNING|NOTICE|ERR|CRIT"/>
+  <PTYPE name="LOG_TYPE" method="select" pattern="syslog inmem all" help="syslog|inmem|all"/>
+  <PTYPE name="LOGGING_SEVERITY_TYPE" method="select" pattern="debug info notice warning error critical alert emergency" help="debug info notice warning error critical alert emergency"/>
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <!-- clear logging -->
+    <COMMAND help="Clear logging" access="secadmin" name="clear logging">
+      <ACTION builtin="clish_pyobj">sonic_cli_logging get_openconfig_clear_logging infra_reboot.j2</ACTION>
+    </COMMAND>
+    <COMMAND help="Display logging information" name="show logging">
+      <ACTION builtin="clish_pyobj">sonic_cli_logging get_openconfig_system_logging tpcm.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Output of last NUM lines" name="show logging lines">
+      <PARAM name="lines" help="Output of last NUM lines" optional="true" ptype="LOGGING_REMOTE_PORT" default="0"> </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_logging get_openconfig_system_logging tpcm.j2 ${lines} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Total number of logging" name="show logging count">
+      <ACTION builtin="clish_pyobj">sonic_cli_logging get_openconfig_system_logging_count infra_reboot.j2</ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="filter logs" name="show logging filter" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="install_method" help="" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="since" help="Show logs since a given date/time" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="since_date" help="string for date/time" ptype="STRING" default="null"> </PARAM>
+          <PARAM name="level_method" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="level" help="Show logs with a given severity and higher" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="log_level" help="log level" ptype="LOG_LEVEL" default="null"> </PARAM>
+            </PARAM>
+            <PARAM name="severity" help="Show logs with a given severity" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="log_severity" help="log level" ptype="LOG_LEVEL" default="null"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="level" help="Show logs with a given severity and higher" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="log_level" help="log level" ptype="LOG_LEVEL" default="null"> </PARAM>
+          <PARAM name="since" help="Show logs since a given date/time" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="since_date" help="string for date/time" ptype="STRING" default="null"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="severity" help="Show logs with a given severity" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="log_severity" help="log severity" ptype="LOG_LEVEL" default="null"> </PARAM>
+          <PARAM name="since" help="Show logs since a given date/time" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="since_date" help="string for date/time" ptype="STRING" default="null"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="type" help="Log type selection" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="log_type" help="log type" ptype="LOG_TYPE" default="null"> </PARAM>
+          <PARAM name="since" help="Show logs since a given date/time" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="since_date" help="string for date/time" ptype="STRING" default="null"> </PARAM>
+          </PARAM>
+          <PARAM name="level_method" help="" ptype="SUBCOMMAND" mode="switch" optional="true">
+            <PARAM name="level" help="Show logs with a given severity and higher" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="log_level" help="log level" ptype="LOG_LEVEL" default="null"> </PARAM>
+            </PARAM>
+            <PARAM name="severity" help="Show logs with a given severity" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+              <PARAM name="log_severity" help="log level" ptype="LOG_LEVEL" default="null"> </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_logging get_openconfig_system_logging_filter ${log_type} ${log_level} ${log_severity} ${since_date} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show logging servers" help="Display logging server information">
+      <ACTION builtin="clish_pyobj">sonic_cli_logging get_openconfig_system_logging_servers </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Shows list of remote syslog servers are configured</DESCRIPTION>
+        <EXAMPLE>
+                sonic# show logging servers
+                            --------------------------------------------------------------------------------------------------
+                            HOST            PORT      SOURCE-INTERFACE    VRF            MESSAGE-TYPE   SEVERITY    PROTOCOL
+                            --------------------------------------------------------------------------------------------------
+                            30.1.1.1         514       -                  Vrf2             log            -          tcp
+                            40.1.1.1         514       -                   -               log            info       udp
+                            50.1.1.1         514       -                   -               log            info       tls
+ 
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- syslog -->
+    <COMMAND name="logging" access="secadmin" help="Configure syslog"/>
+    <!-- logging security-profile configuration command -->
+    <COMMAND name="logging security-profile" access="secadmin" help="Configure syslog security profile" mode="subcommand" command_tables="sonic-system-syslog:sonic-system-syslog/SYSLOG/global">
+      <PARAM name="security_profile" help="Name of security profile" ptype="STRING" dbpath="sonic-system-syslog:sonic-system-syslog/SYSLOG/global/security_profile"/>
+      <ACTION builtin="clish_pyobj">sonic_cli_logging set_logging_security_profile ${security_profile} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                       Configure security profile for syslog
+                   </DESCRIPTION>
+        <USAGE>
+                       sonic(config)# logging security-profile logsec
+                   </USAGE>
+        <EXAMPLE summary="Logging Security Profile">
+                       sonic# configure
+                       sonic(config)# logging security-profile logsec
+                   </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- logging server configuration commands -->
+    <COMMAND name="logging server" access="secadmin" help="Configure remote syslog server" command_tables="sonic-system-logging:sonic-system-logging/SYSLOG_SERVER/SYSLOG_SERVER_LIST/ipaddress={address}" render_command_cb="logging_server_cmd">
+      <PARAM name="host" help="Hostname or IP address of remote syslog server" ptype="DOMAIN_NAME_OR_IPADDR"> </PARAM>
+      <PARAM name="message-type" help="Configures type of messages remote server receives" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="msgtype" help="" ptype="STRING" mode="switch">
+          <PARAM name="audit" help="Audit Log Messages" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="auditd-system" help="Kernel audit log messages specific to the auditd application" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="event" help="Event Log Messages" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="log" help="System Log Messages" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <PARAM name="remote-port" help="Configures remote server port" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="vrport" help="Port number (default 514)" ptype="LOGGING_REMOTE_PORT"> </PARAM>
+      </PARAM>
+      <PARAM name="protocol" help="Configure protocol to use for sending the messages" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="proto" help="" ptype="STRING" mode="switch">
+          <PARAM name="tcp" help="TCP protocol" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="tls" help="TLS protocol" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+          <PARAM name="udp" help="UDP protocol" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <PARAM name="source-interface" help="Configure source interface" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="iftype" help="Interface type" mode="switch" ptype="SUBCOMMAND">
+          <PARAM name="Ethernet" help="Ethernet interface" ptype="PHY_INTERFACE" mode="subcommand"/>
+          <PARAM name="Loopback" help="Loopback interface" ptype="LOOPBACK_INTERFACE" mode="subcommand"/>
+          <PARAM name="Management" help="Management interface" ptype="MGMT_INTERFACE" mode="subcommand"/>
+          <PARAM name="PortChannel" help="PortChannel interface" ptype="PO_INTERFACE" mode="subcommand"/>
+          <PARAM name="Vlan" help="VLAN interface" ptype="VLAN_INTERFACE" mode="subcommand"/>
+          <PARAM name="SubInterface" help="Subinterface" ptype="PHY_PO_SUB_INTERFACE" mode="subcommand"/>
+        </PARAM>
+      </PARAM>
+      <PARAM name="vrf" help="Configures VRF to use for connection" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="vrf-switch" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="mgmt" help="Management VRF" ptype="SUBCOMMAND" mode="subcommand"/>
+          <PARAM name="vrf-name" help="VRF name (up to 15 characters)" ptype="VRF_NAME"/>
+        </PARAM>
+      </PARAM>
+      <PARAM name="severity" help="Configures the log severity filter for remote syslog server." mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="sev_type" help="level of severity" ptype="LOGGING_SEVERITY_TYPE"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_logging patch_openconfig_system_logging_server_config_host ${host} mtype=${msgtype} rport=${vrport} protocol=${proto} sevlevel=${sev_type} vrf=${mgmt}${vrf-name} ${Ethernet} ${Loopback} ${Management} ${PortChannel} ${Vlan} ${SubInterface}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Configure remote syslog server to forward syslog messages</DESCRIPTION>
+        <EXAMPLE>
+ 			   sonic(config)# logging server 20.1.1.1 severity DEBUG source-interface Ethernet 2 vrf Vrf1
+                sonic(config)#
+            </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no commands -->
+    <COMMAND name="no logging" access="secadmin" help="Unconfigure syslog configuration"/>
+    <!-- no logging security profile -->
+    <COMMAND name="no logging security-profile" access="secadmin" help="Unconfigure Syslog security profile" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION builtin="clish_pyobj">sonic_cli_logging delete_logging_security_profile </ACTION>
+    </COMMAND>
+    <COMMAND name="no logging server" access="secadmin" help="Unconfigure syslog server configuration">
+      <PARAM name="host" help="Hostname or IP address of remote syslog server" ptype="DOMAIN_NAME_OR_IPADDR"> </PARAM>
+      <PARAM name="attribute" help="" ptype="STRING" mode="switch" optional="true">
+        <PARAM name="remote-port" help="Unconfigure syslog server port" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="source-interface" help="Unconfigure source interface" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vrf" help="Unconfigure VRF to use for connection" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="severity" help="Unconfigure severity level to use for connection" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="protocol" help="Unconfigure protocol to use for sending messages" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_logging delete_openconfig_system_looging_server_config_host ${host} ${attribute}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>Unconfigure given syslog server</DESCRIPTION>
+        <EXAMPLE>
+                sonic(config)# no logging server 30.1.1.1
+                sonic(config)# 
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

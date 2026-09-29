@@ -1,0 +1,272 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<!-- Copyright 2019 Dell, Inc.  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at  http://www.apache.org/licenses/LICENSE-2.0  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License. -->
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <!--=======================================================-->
+  <!-- show ipvx static-anycast-gateway -->
+  <!--=======================================================-->
+  <VIEW name="enable-view">
+    <COMMAND help="Display IPv4 SAG information" name="show ip static-anycast-gateway">
+      <ACTION builtin="clish_pyobj"> sonic_cli_show_sag get_ip_sag show_ip_sag.j2 None</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays IPv4 static-anycast-gateway information.
+         </DESCRIPTION>
+        <EXAMPLE summary="Display IPv4 SAG information">
+           sonic# show ip static-anycast-gateway
+           Configured Anycast Gateway MAC address: 00:22:33:44:55:66
+           IPv4 Anycast Gateway MAC address: enable
+           Total number of gateway: 3
+           Total number of gateway admin UP: 3
+           Total number of gateway oper UP: 3
+           Interfaces Gateway Address      Vrf        Admin/Oper
+           ---------- ---------------      ------     ----------
+           Vlan3      30.30.1.1/24                       up/up
+           Vlan5      50.0.0.1/24                        up/up
+           Vlan54     54.1.1.1/24                        up/up
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND help="Display IPv6 SAG information" name="show ipv6 static-anycast-gateway">
+      <ACTION builtin="clish_pyobj"> sonic_cli_show_sag get_ipv6_sag show_ip_sag.j2 None</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Displays IPv6 static-anycast-gateway information.
+         </DESCRIPTION>
+        <EXAMPLE summary="Display IPv6 SAG information">
+           sonic# show ipv6 static-anycast-gateway
+           Configured Anycast Gateway MAC address: 00:22:33:44:55:66
+           IPv6 Anycast Gateway MAC address: enable
+           Total number of gateway: 2
+           Total number of gateway admin UP: 2
+           Total number of gateway oper UP: 2
+           Interfaces Gateway Address      Vrf        Admin/Oper
+           ---------- ---------------      ------     ----------
+           Vlan3      30::1/64                           up/up
+           Vlan5      50::1/64                           up/up
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : interface -->
+  <VIEW name="configure-vlan-view">
+    <!-- ip static-anycast-gateway -->
+    <COMMAND name="ip anycast-address" access="netadmin" help="Configure IPv4 static anycast gateway" command_keys="ifname=*,table_distinguisher=IPv4" command_tables="sonic-sag:sonic-sag/SAG/SAG_LIST/ifname={vlan_name},table_distinguisher={table_distinguisher}" render_command_cb="sag4_config">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IP_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv4_sag_ipv4_config_static_anycast_gateway ${vlan_name} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures IPv4 Static Anycast Gateway Address for an Interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Configures IPv4 Static Anycast Gateway Address for an Interface">
+           sonic(conf-if-Vlan5)# ip anycast-address 50.0.0.1/24
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip static-anycast-gateway -->
+    <COMMAND name="no ip anycast-address" access="netadmin" help="Unconfigure IPv4 static anycast gateway">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IP_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag del_llist_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv4_sag_ipv4_config_static_anycast_gateway ${vlan_name} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Removes IPv4 Static Anycast Gateway Address from an Interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Removes IPv4 Static Anycast Gateway Address from an Interface">
+           sonic(conf-if-Vlan5)# no ip anycast-address 50.0.0.1/24
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ipv6 anycast-address -->
+    <COMMAND name="ipv6 anycast-address" access="netadmin" help="Configure IPv6 static anycast gateway" command_keys="ifname=*,table_distinguisher=IPv6" command_tables="sonic-sag:sonic-sag/SAG/SAG_LIST/ifname={vlan_name},table_distinguisher={table_distinguisher}" render_command_cb="sag6_config">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IPV6_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv6_sag_ipv6_config_static_anycast_gateway ${vlan_name} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures IPv6 Static Anycast Gateway Address for an Interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Configures IPv6 Static Anycast Gateway Address for an Interface">
+           sonic(conf-if-Vlan5)# ipv6 anycast-address 50::1/64
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ipv6 anycast-address -->
+    <COMMAND name="no ipv6 anycast-address" access="netadmin" help="Unconfigure IPv6 static anycast gateway">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IPV6_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag del_llist_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv6_sag_ipv6_config_static_anycast_gateway ${vlan_name} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Removes IPv6 Static Anycast Gateway Address from an Interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Removes IPv6 Static Anycast Gateway Address from an Interface">
+           sonic(conf-if-Vlan5)# no ipv6 anycast-address 50::1/64
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!--MODE : sub-interface -->
+  <VIEW name="configure-subif-view">
+    <!-- ip static-anycast-gateway -->
+    <COMMAND name="ip anycast-address" access="netadmin" help="Configure IPv4 static anycast gateway" command_keys="ifname=*,table_distinguisher=IPv4" command_tables="sonic-sag:sonic-sag/SAG/SAG_LIST/ifname={iface},table_distinguisher={table_distinguisher}" render_command_cb="sag4_config">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IP_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv4_sag_ipv4_config_static_anycast_gateway ${iface} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures IPv4 Static Anycast Gateway Address for an Ethernet sub-interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Configures IPv4 Static Anycast Gateway Address for an Ethernet sub-interface">
+           sonic(conf-if-Eth5.1)# ip anycast-address 50.0.0.1/24
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip static-anycast-gateway -->
+    <COMMAND name="no ip anycast-address" access="netadmin" help="Unconfigure IPv4 static anycast gateway">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IP_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag del_llist_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv4_sag_ipv4_config_static_anycast_gateway ${iface} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Removes IPv4 Static Anycast Gateway Address from an Ethernet sub-interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Removes IPv4 Static Anycast Gateway Address from an Ethernet sub-interface">
+           sonic(conf-if-Eth5.1)# no ip anycast-address 50.0.0.1/24
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- ipv6 anycast-address -->
+    <COMMAND name="ipv6 anycast-address" access="netadmin" help="Configure IPv6 static anycast gateway" command_keys="ifname=*,table_distinguisher=IPv6" command_tables="sonic-sag:sonic-sag/SAG/SAG_LIST/ifname={iface},table_distinguisher={table_distinguisher}" render_command_cb="sag6_config">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IPV6_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv6_sag_ipv6_config_static_anycast_gateway ${iface} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Configures IPv6 Static Anycast Gateway Address for an Ethernet sub-interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Configures IPv6 Static Anycast Gateway Address for an Ethernet sub-interface">
+           sonic(conf-if-Eth5.1)# ipv6 anycast-address 50::1/64
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ipv6 anycast-address -->
+    <COMMAND name="no ipv6 anycast-address" access="netadmin" help="Unconfigure IPv6 static anycast gateway">
+      <PARAM name="anycast-addr" help="Anycast gateway address" ptype="IPV6_ADDR_MASK"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag del_llist_openconfig_interfaces_ext_interfaces_interface_subinterfaces_subinterface_ipv6_sag_ipv6_config_static_anycast_gateway ${iface} ${anycast-addr}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+           Removes IPv6 Static Anycast Gateway Address from an Ethernet sub-interface.
+         </DESCRIPTION>
+        <EXAMPLE summary="Removes IPv6 Static Anycast Gateway Address from an Ethernet sub-interface">
+           sonic(conf-if-Eth5.1)# no ipv6 anycast-address 50::1/64
+         </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- ip anycast-mac-address -->
+    <COMMAND name="ip anycast-mac-address" access="netadmin" help="Configure anycast gateway MAC address" command_keys="table_distinguisher=IP" command_tables="sonic-sag:sonic-sag/SAG_GLOBAL/SAG_GLOBAL_LIST/table_distinguisher={table_distinguisher}">
+      <PARAM name="anycast_mac_sub_cmds" help="Set mac address and enable/disable router mac for forwarding" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="anycast-mac" help="Anycast gateway MAC address" ptype="MAC_ADDR" dbpath="sonic-sag:sonic-sag/SAG_GLOBAL/SAG_GLOBAL_LIST/gwmac"> </PARAM>
+        <PARAM name="router-mac-for-forwarding" help="Set Router MAC address as Source MAC for forwarding" ptype="SUBCOMMAND" mode="subcommand" dbpath="sonic-sag:sonic-sag/SAG_GLOBAL/SAG_GLOBAL_LIST/rmac-forwarding=enable"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_network_instance_ext_network_instances_network_instance_global_sag_config_anycast_mac ${anycast-mac} ${router-mac-for-forwarding}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Configures MAC address for all the Static Anycast Gateway Addresses on the system.
+               Set Source MAC address to use for forwarding
+             </DESCRIPTION>
+        <EXAMPLE summary="Configures MAC address for all the Static Anycast Gateway Addresses on the system">
+               sonic-cli(config)# ip anycast-mac-address 00:22:33:44:55:66
+             </EXAMPLE>
+        <EXAMPLE summary="Set Router MAC address as Source MAC for forwarding">
+               sonic-cli(config)# ip anycast-mac-address router-mac-for-forwarding
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no ip anycast-mac-address -->
+    <COMMAND name="no ip anycast-mac-address" help="Unconfigure anycast gateway MAC address">
+      <PARAM name="anycast_mac_sub_cmds" help="Set mac address and enable/disable router mac for forwarding" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="anycast-mac" help="Anycast gateway MAC address" ptype="MAC_ADDR"> </PARAM>
+        <PARAM name="router-mac-for-forwarding" help="Set Anycast MAC address as Source MAC for forwarding" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag delete_openconfig_network_instance_ext_network_instances_network_instance_global_sag_config_anycast_mac ${anycast-mac} ${router-mac-for-forwarding}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+               Removes MAC address for all the Static Anycast Gateway Addresses on the system.
+               Set Source MAC address to use for forwarding
+             </DESCRIPTION>
+        <EXAMPLE summary="Configures MAC address for all the Static Anycast Gateway Addresses on the system">
+               sonic-cli(config)# no ip anycast-mac-address
+             </EXAMPLE>
+        <EXAMPLE summary="Set Anycast MAC address as Source MAC for forwarding">
+               sonic-cli(config)# no ip anycast-mac-address router-mac-for-forwarding
+             </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ip anycast-address" access="netadmin" help="Enable/Disable IPv4 anycast gateway" command_keys="table_distinguisher=IP" command_tables="sonic-sag:sonic-sag/SAG_GLOBAL/SAG_GLOBAL_LIST/table_distinguisher={table_distinguisher}" render_command_cb="sag4_global">
+      <PARAM name="anycast_sub_cmds" help="Enable/Disable IPv4 anycast gateway" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="enable" help="Enable IPv4 Anycast Gateway" ptype="SUBCOMMAND" mode="subcommand" default="x"> </PARAM>
+        <PARAM name="disable" help="Disable IPv4 Anycast Gateway" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_network_instance_ext_network_instances_network_instance_global_sag_config_ipv4_enable ${enable}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Enable/Disable IPv4 Static Anycast Gateway functionality. By default it is enabled.
+           </DESCRIPTION>
+        <EXAMPLE summary="Enable IPv4 Static Anycast Gateway">
+             sonic(config)# ip anycast-address enable
+           </EXAMPLE>
+        <EXAMPLE summary="Disable IPv4 Static Anycast Gateway">
+             sonic(config)# ip anycast-address disable
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ipv6 anycast-address" access="netadmin" help="Enable/Disable IPv6 Anycast Gateway" command_keys="table_distinguisher=IP" command_tables="sonic-sag:sonic-sag/SAG_GLOBAL/SAG_GLOBAL_LIST/table_distinguisher={table_distinguisher}" render_command_cb="sag6_global">
+      <PARAM name="anycast_sub_cmds" help="Enable/Disable IPv6 Anycast Gateway" ptype="SUBCOMMAND" mode="switch">
+        <PARAM name="enable" help="Enable IPv6 Anycast Gateway" ptype="SUBCOMMAND" mode="subcommand" default="x"> </PARAM>
+        <PARAM name="disable" help="Disable IPv6 Anycast Gateway" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_sag patch_openconfig_network_instance_ext_network_instances_network_instance_global_sag_config_ipv6_enable ${enable}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             Enable/Disable IPv6 Static Anycast Gateway functionality. By default it is enabled.
+           </DESCRIPTION>
+        <EXAMPLE summary="Enable IPv6 Static Anycast Gateway">
+             sonic(config)# ipv6 anycast-address enable
+           </EXAMPLE>
+        <EXAMPLE summary="Disable IPv6 Static Anycast Gateway">
+             sonic(config)# ipv6 anycast-address disable
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-range-view">
+    <COMMAND name="no ip anycast-address" access="netadmin" help="Unconfigure IPv4 static anycast gateway">
+      <ACTION builtin="clish_pyobj">sonic_cli_if_range unconfig_if_range_aycast_gateway_address iflist=${iflist} IPv4</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Removes all the Static IPv4 Anycast Gateway Addresses on the vlans that fall in the range
+               </DESCRIPTION>
+        <EXAMPLE summary="Unconfigure IPv4 Anycast Gateway Addresses on the vlans">
+                 sonic-cli(config-if-range-vl**)# no ip anycast-address
+               </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ipv6 anycast-address" access="netadmin" help="Unconfigure IPv6 static anycast gateway">
+      <ACTION builtin="clish_pyobj">sonic_cli_if_range unconfig_if_range_aycast_gateway_address iflist=${iflist} IPv6</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                 Removes all the Static IPv6 Anycast Gateway Addresses on the vlans that fall in the range
+               </DESCRIPTION>
+        <EXAMPLE summary="Unconfigure IPv6 Anycast Gateway Addresses on the vlans">
+                 sonic-cli(config-if-range-vl**)# no ipv6 anycast-address
+               </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>

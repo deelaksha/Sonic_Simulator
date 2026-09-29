@@ -1,0 +1,200 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <!--=========================================================================-->
+  <VIEW name="enable-view">
+    <!--show ecn -->
+    <COMMAND name="show qos wred-policy" help="Display configured WRED policies" mode="subcommand" ptype="SUBCOMMAND">
+      <PARAM name="name" help="Name of the WRED policy" optional="true" ptype="STRING_32"> </PARAM>
+      <ACTION> if test "${name}" = "" ; then
+ python3 $SONIC_CLI_ROOT/sonic_cli_wred.py get_openconfig_qos_qos_wred_profiles show_wred.j2
+ else
+ python3 $SONIC_CLI_ROOT/sonic_cli_wred.py get_openconfig_qos_qos_wred_profiles_wred_profile ${name} show_wred.j2
+ fi
+ </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <DOCGEN>
+        <DESCRIPTION>
+           This command displays WRED policies configured on the device.
+         </DESCRIPTION>
+        <USAGE>
+           User configures WRED policies to use it in interface queues.
+           This command enables users to display the WRED policies configured on this device.
+           User can provide WRED profile name optional CLI key to display only that profile.
+           If profile name is not specified, all policies will be displayed by this command.
+         </USAGE>
+        <EXAMPLE summary="The following command displays all WRED policies            configured in device">
+           sonic# show qos wred-policy
+           ---------------------------------------------------
+           Profile                : test
+           ---------------------------------------------------
+           Profile                : wred-green
+           ecn                    : ecn_all
+           green-min-threshold    : 100  KBytes
+           green-max-threshold    : 200  KBytes
+           greep-drop-rate        : 50
+         </EXAMPLE>
+      </DOCGEN>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <!-- WRED -->
+    <COMMAND name="qos wred-policy" access="netadmin" help="WRED/ECN Configuration" mode="subcommand" ptype="SUBCOMMAND" view="configure-wred-view" viewid="prof_id=${name}" view_keys="wname=*" view_tables="sonic-wred-profile:sonic-wred-profile/WRED_PROFILE/WRED_PROFILE_LIST/name={wname}">
+      <PARAM name="name" help="WRED Policy" ptype="STRING_32" dbpath="sonic-wred-profile:sonic-wred-profile/WRED_PROFILE/WRED_PROFILE_LIST/name"> </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_wred patch_list_openconfig_qos_qos_wred_profiles ${name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             This command creates WRED policy
+           </DESCRIPTION>
+        <USAGE>
+              Use this command to create WRED policy.
+           </USAGE>
+        <EXAMPLE summary="The following command creates WRED policy named wred-green">
+             sonic# configure terminal
+             sonic(config)# qos wred-policy wred-green
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- no WRED -->
+    <COMMAND name="no qos wred-policy" access="netadmin" help="Unconfigure a WRED policy">
+      <PARAM name="name" help="Name of the WRED policy" ptype="STRING_32"> </PARAM>
+      <ACTION builtin="clish_restcl"> oper=DELETE url=/restconf/data/openconfig-qos:qos/wred-profiles/wred-profile=${name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+             This command deletes WRED policy
+           </DESCRIPTION>
+        <USAGE>
+              Use this command to delete WRED policy.
+           </USAGE>
+        <EXAMPLE summary="The following command deletes WRED policy named wred-green">
+             sonic# configure terminal
+             sonic(config)# no qos wred-policy wred-green
+           </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-wred-view" prompt="${SYSTEM_NAME}(${__config_mode}-wred-${prof_id})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+            	  <ACTION builtin="clish_nested_up"/>
+  </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+                 <ACTION builtin="clish_exit_session"/>
+             </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="Display wred-policy configuration">
+      <ACTION builtin="clish_pyobj">sonic_cli_show_config show_view views=configure-wred view_keys="wname=${prof_id}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="green" access="netadmin" help="Green drop precedence" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="qos_wred_policy_green">
+      <PARAM name="minimum-threshold" help="Minimum threshold keyword" mode="subcommand" ptype="SUBCOMMAND">
+        <PARAM name="min-threshold" help="Specify the minimum threshold in KB" ptype="QoS_THRESHOLD"/>
+        <PARAM name="maximum-threshold" help="Maximum threshold keyword" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="max-threshold" help="Specify the maximum threshold in KB" ptype="QoS_THRESHOLD"/>
+          <PARAM name="drop-probability" help="Maximum drop rate keyword" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="max-drop-rate" help="Specify maximum in drop rate in percent" ptype="PERCENT"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION builtin="clish_pyobj">sonic_cli_wred patch_openconfig_qos_qos_wred_profiles_wred_profile_config_green ${prof_id} ${min-threshold} ${max-threshold} ${max-drop-rate}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                This command to configure WRED minimum, maximum thresholds
+                and drop probability for color green.
+               </DESCRIPTION>
+        <USAGE>
+                 Use this command to configure WRED minimum, maximum and drop probability for green color packets.
+               </USAGE>
+        <EXAMPLE summary="The following command to configure WRED thresholds for green color           packets">
+                 sonic(conf-wred-wred-green)# random-detect color green minimum-threshold 100 maximum-threshold 200 drop-probability 50
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!--============= This is currently unsupported =============================== <COMMAND name="yellow" help="Yellow drop precedence" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="qos_wred_policy_yellow" > <PARAM name="minimum-threshold" help="Minimum threshold keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="min-threshold" help="Specify the minimum threshold in KB" ptype="QoS_THRESHOLD"/> <PARAM name="maximum-threshold" help="Maximum threshold keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="max-threshold" help="Specify the maximum threshold in KB" ptype="QoS_THRESHOLD"/> <PARAM name="drop-probability" help="Maximum drop rate keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="max-drop-rate" help="Specify maximum in drop rate in percent" ptype="PERCENT"/> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_wred.py patch_openconfig_qos_qos_wred_profiles_wred_profile_config_yellow ${prof_id} ${min-threshold} ${max-threshold} ${max-drop-rate}&#xA; </ACTION>             <DOCGEN>
+               <DESCRIPTION>
+                This command to configure WRED minimum, maximum thresholds
+                and drop probability for color yellow.
+               </DESCRIPTION>
+               <USAGE>
+                 Use this command to configure WRED minimum, maximum and drop probability for yellow color packets.
+               </USAGE>
+               <EXAMPLE summary="The following command to configure WRED thresholds for yellow color 
+         packets">
+                 sonic(conf-wred-wred-green)# green minimum-threshold 100 maximum-threshold 200 drop-probability 50
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> <COMMAND name="red" help="Red drop precedence" mode="subcommand" ptype="SUBCOMMAND" render_command_cb="qos_wred_policy_red" > <PARAM name="minimum-threshold" help="Minimum threshold keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="min-threshold" help="Specify the minimum threshold in KB" ptype="QoS_THRESHOLD"/> <PARAM name="maximum-threshold" help="Maximum threshold keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="max-threshold" help="Specify the maximum threshold in KB" ptype="QoS_THRESHOLD"/> <PARAM name="drop-probability" help="Maximum drop rate keyword" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="max-drop-rate" help="Specify maximum in drop rate in percent" ptype="PERCENT"/> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_wred.py patch_openconfig_qos_qos_wred_profiles_wred_profile_config_red ${prof_id} ${min-threshold} ${max-threshold} ${max-drop-rate}&#xA; </ACTION>             <DOCGEN>
+               <DESCRIPTION>
+                This command to configure WRED minimum, maximum thresholds
+                and drop probability for color red.
+               </DESCRIPTION>
+               <USAGE>
+                 Use this command to configure WRED minimum, maximum and drop probability for red color packets.
+               </USAGE>
+               <EXAMPLE summary="The following command to configure WRED thresholds for red color 
+         packets">
+                 sonic(conf-wred-wred-green)# green minimum-threshold 100 maximum-threshold 200 drop-probability 50
+              </EXAMPLE>
+ </DOCGEN> </COMMAND> ========================================================================= -->
+    <COMMAND name="no" access="netadmin" help="Delete WRED policy">
+      <PARAM name="no_select" help="no options" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="green" help="Green drop precedence" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <!--============= This is currently unsupported =============================== <PARAM name="yellow" help="Yellow drop precedence" mode="subcommand" ptype="SUBCOMMAND" > </PARAM> <PARAM name="red" help="Red drop precedence" mode="subcommand" ptype="SUBCOMMAND" > </PARAM> ========================================================================= -->
+      </PARAM>
+      <ACTION builtin="clish_pyobj"> sonic_cli_wred delete_openconfig_qos_qos_wred_profiles_wred_profile_config ${prof_id} ${no_select} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                This command to unconfigure WRED minimum, maximum thresholds
+                and drop probability for color green.
+               </DESCRIPTION>
+        <USAGE>
+                 Use this command to unconfigure WRED minimum, maximum and drop probability for green color packets.
+               </USAGE>
+        <EXAMPLE summary="The following command to unconfigure WRED thresholds for green color           packets">
+                 sonic(conf-wred-wred-green)# no random-detect color green
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="ecn" access="netadmin" help="Configure ecn for the policy">
+      <PARAM name="ecn" help="Configure ecn mode" ptype="ECN_LIMITED_OPTION"/>
+      <ACTION builtin="clish_pyobj"> sonic_cli_wred patch_openconfig_qos_qos_wred_profiles_wred_profile_config_ecn ${prof_id} ${ecn} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                This command to enable ECN based on color.
+                This commands support options as none/green/all.
+                Option "none" to disable ECN. Option "green" for ECN for green color alone. 
+                Option "all" to enable ECN on all configured colors.
+               </DESCRIPTION>
+        <USAGE>
+                 Use this command to configure ECN for color.
+               </USAGE>
+        <EXAMPLE summary="The following command to enable ECN for green color packets">
+                 sonic(conf-wred-wred-green)# ecn green
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no ecn" access="netadmin" help="Unconfigure ecn for the profile">
+      <ACTION builtin="clish_pyobj"> sonic_cli_wred delete_openconfig_qos_qos_wred_profiles_wred_profile_config_ecn ${prof_id}</ACTION>
+      <DOCGEN>
+        <DESCRIPTION>
+                This command to disbale ECN.
+               </DESCRIPTION>
+        <USAGE>
+                 Use this command to disable ECN.
+               </USAGE>
+        <EXAMPLE summary="The following command to disable ECN">
+                 sonic(conf-wred-wred-green)#no ecn
+              </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+</CLISH_MODULE>
