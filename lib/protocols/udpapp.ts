@@ -5,6 +5,8 @@
  * lives in the Simulation; this module holds the payload builders + the SERVER
  * receive handlers, invoked from host.ts when a UDP frame arrives.
  */
+import { receiveSflow } from "../sflow/collector";
+import { receiveTrafficUdp } from "./traffic";
 import { Device } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
 import { Frame, NtpPayload, DhcpPayload, DhcpMessageType, DnsPayload } from "../models/packet";
@@ -111,6 +113,8 @@ export function handleUdp(ctx: SimContext, device: Device, ingress: NetInterface
   if (frame.ntp) return handleNtp(ctx, device, ingress, frame);
   if (frame.dhcp) return handleDhcp(ctx, device, ingress, frame);
   if (frame.dns) return handleDns(ctx, device, ingress, frame);
+  if (receiveSflow(ctx, device, ingress, frame)) return;
+  if (receiveTrafficUdp(ctx, device, ingress, frame)) return;
   // Unknown UDP service.
   ctx.emit({
     type: "FRAME_DROPPED",

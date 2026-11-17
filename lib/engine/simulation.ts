@@ -18,7 +18,8 @@ import { buildArpRequest } from "../protocols/arp";
 import { SimContext, CaptureDir } from "./context";
 import { SimEvent, EmitInput } from "./events";
 import { nextEventId } from "./ids";
-import { switchForward } from "../protocols/switch";
+import { switchForward, switchInject, sviVlanId } from "../protocols/switch";
+import { sflowSample, countCast } from "../sflow/agent";
 import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
 import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES } from "../protocols/icmp";
@@ -125,16 +126,22 @@ export class Simulation implements SimContext {
   private echoReplies: { deviceId: string; frame: Frame }[] = [];
   private udpReplies: { deviceId: string; frame: Frame }[] = [];
   private icmpId: number;
+  private wallBase: number;
 
-  constructor(state: NetworkState, opts?: { startClock?: number; icmpId?: number }) {
+  constructor(state: NetworkState, opts?: { startClock?: number; icmpId?: number; wallBase?: number }) {
     this.state = state;
     this.clock = opts?.startClock ?? 0;
     this.icmpId = opts?.icmpId ?? 1000;
+    this.wallBase = (opts?.wallBase ?? 0) - this.clock;
   }
 
   // --- SimContext ---
   now(): number {
     return this.clock;
+  }
+
+  wallNow(): number {
+    return this.wallBase + this.clock;
   }
 
   advance(ms: number): void {
@@ -158,7 +165,7 @@ export class Simulation implements SimContext {
   }
 
   capture(deviceId: string, interfaceId: string, dir: CaptureDir, frame: Frame): void {
-    this.captures.push({ deviceId, interfaceId, dir, timeMs: this.clock, frame: cloneFrame(frame) });
+    this.captures.push({ deviceId, interfaceId, dir, timeMs: this.wallNow(), frame: cloneFrame(frame) });
   }
 
   recordEchoReply(deviceId: string, frame: Frame): void {
@@ -382,7 +389,18 @@ export class Simulation implements SimContext {
 
     iface.statistics.txFrames += 1;
     iface.statistics.txBytes += frame.meta.sizeBytes;
+    countCast(iface.statistics, "tx", frame.ethernet.dstMac);
     this.capture(deviceId, interfaceId, "tx", frame);
+
+    // A switch SVI has no cable: the CPU hands the frame to the kernel Bridge,
+    // which delivers it into the VLAN.
+    const sviVid = isSwitch(device.type) ? sviVlanId(iface) : null;
+    if (sviVid !== null) {
+      switchInject(this, device, sviVid, frame);
+      return;
+    }
+
+    if (isSwitch(device.type) && !iface.management) sflowSample(this, device, iface, frame, "tx");
 
     const peer = getPeer(this.state, deviceId, interfaceId);
     if (!peer) {
@@ -459,6 +477,7 @@ export class Simulation implements SimContext {
 
     iface.statistics.rxFrames += 1;
     iface.statistics.rxBytes += frame.meta.sizeBytes;
+    countCast(iface.statistics, "rx", frame.ethernet.dstMac);
     this.capture(deviceId, interfaceId, "rx", frame);
 
     this.emit({
@@ -472,7 +491,11 @@ export class Simulation implements SimContext {
       frame,
     });
 
-    if (isSwitch(device.type)) {
+    if (isSwitch(device.type) && iface.management) {
+      // Out-of-band management port: terminates on the switch's own IP stack.
+      hostReceive(this, device, iface, frame);
+    } else if (isSwitch(device.type)) {
+      sflowSample(this, device, iface, frame, "rx");
       switchForward(this, device, iface, frame);
     } else if (isRouter(device.type)) {
       routerReceive(this, device, iface, frame);

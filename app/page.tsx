@@ -30,6 +30,12 @@ export default function LabPage() {
     if (Object.keys(s.network.devices).length === 0) s.loadSample();
   }, []);
 
+  // hsflowd runs on wall time: poll counters / flush samples once per second.
+  useEffect(() => {
+    const t = setInterval(() => useLabStore.getState().sflowTick(), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div className="flex h-screen min-w-[900px] flex-col bg-[#0b0e14] text-[#e6edf3]">
       {/* top bar */}
@@ -58,7 +64,7 @@ export default function LabPage() {
             <section className="min-w-0 flex-1">
               <TopologyCanvas />
             </section>
-            <aside className="w-80 shrink-0 border-l border-edge bg-panel">
+            <aside className="shrink-0 border-l border-edge bg-panel">
               <Inspector />
             </aside>
           </div>

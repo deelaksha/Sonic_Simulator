@@ -18,9 +18,10 @@ export function DeviceNode({ data, selected }: NodeProps) {
   const device = (data as DeviceNodeData).device;
   const visual = deviceVisual(device.type);
   const primaryIp = device.interfaces.find((i) => i.ipv4.length)?.ipv4[0];
-  // Management (eth0) + logical interfaces (SVI/Loopback/PortChannel) are not
-  // cablable physical ports — no canvas handle.
+  // Logical interfaces (SVI/Loopback/PortChannel) are not cablable — no handle.
+  // The out-of-band management port (eth0) gets its own handle on top.
   const ports = device.interfaces.filter((i) => !i.management && !i.logical);
+  const mgmt = device.interfaces.find((i) => i.management);
   const n = ports.length;
 
   return (
@@ -44,6 +45,15 @@ export function DeviceNode({ data, selected }: NodeProps) {
         </div>
       )}
 
+      {mgmt && (
+        <Handle
+          id={mgmt.id}
+          type="source"
+          position={Position.Top}
+          title={`${mgmt.name} (management, ${mgmt.connectedTo ? mgmt.operState : "not cabled"})`}
+          style={{ background: mgmt.connectedTo ? "#38bdf8" : "#334155", borderRadius: 2 }}
+        />
+      )}
       {ports.map((iface, idx) => {
         const left = ((idx + 1) / (n + 1)) * 100;
         return (

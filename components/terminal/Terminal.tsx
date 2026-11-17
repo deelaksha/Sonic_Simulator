@@ -16,7 +16,8 @@ type Entry = { text: string; kind: "input" | "output"; lineKind?: LineKind };
 
 // Commands that feel like a running process — output is revealed line-by-line
 // and can be interrupted with Ctrl+C.
-const STREAM_CMDS = new Set(["ping", "ping6", "traceroute", "tracepath", "tcpdump", "ntpdate", "dhclient", "ospf", "bgp"]);
+// tcpdump is not here: it is a live capture the store keeps feeding (liveCaptures).
+const STREAM_CMDS = new Set(["ping", "ping6", "traceroute", "tracepath", "ntpdate", "dhclient", "ospf", "bgp"]);
 const STREAM_MS = 240;
 const IP_SUBS = ["addr", "link", "route", "neigh"];
 
@@ -74,6 +75,9 @@ export function Terminal() {
   const pushHistory = useLabStore((s) => s.pushHistory);
   const focusNonce = useLabStore((s) => s.terminalFocusNonce);
   const cliOverride = useLabStore((s) => (s.selectedDeviceId ? s.cliMode[s.selectedDeviceId] : undefined));
+  // A running tcpdump owns this device's terminal until -c count or Ctrl+C.
+  const capturing = useLabStore((s) => (s.selectedDeviceId ? !!s.liveCaptures[s.selectedDeviceId] : false));
+  const stopLiveCapture = useLabStore((s) => s.stopLiveCapture);
 
   const [input, setInput] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -313,6 +317,11 @@ export function Terminal() {
         if (e.shiftKey) return; // Ctrl+Shift+C → let the browser copy
         if (typeof window !== "undefined" && window.getSelection()?.toString()) return; // copy selection
         e.preventDefault();
+        if (capturing && selectedDeviceId) {
+          appendTerminal(selectedDeviceId, [{ text: "^C", kind: "output", lineKind: "muted" }]);
+          stopLiveCapture(selectedDeviceId);
+          return;
+        }
         if (running) {
           cancelRun(true);
           return;
@@ -330,7 +339,7 @@ export function Terminal() {
         return;
       }
 
-      if (running) return; // foreground process owns the terminal
+      if (running || capturing) return; // foreground process owns the terminal
 
       if (e.key === "Enter") {
         e.preventDefault();
@@ -477,7 +486,7 @@ export function Terminal() {
         ))}
 
         {/* live prompt line — hidden while a foreground process runs */}
-        {!running && (
+        {!running && !capturing && (
           <div className="whitespace-pre-wrap break-all">
             {modal ? (
               <span className="text-green-400">{promptText} </span>

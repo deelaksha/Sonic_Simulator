@@ -81,7 +81,8 @@ export function createDevice(opts: CreateDeviceOptions): Device {
  * preserved. Switches have no IP routing table.
  */
 export function rebuildConnectedRoutes(device: Device): void {
-  if (!isHost(device.type) && !isRouter(device.type)) {
+  // Switches route too: SONiC installs connected routes for eth0 and every SVI.
+  if (!isHost(device.type) && !isRouter(device.type) && !isSwitch(device.type)) {
     device.routingTable = [];
     return;
   }

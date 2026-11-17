@@ -58,6 +58,9 @@ export type SimEventType =
   | "VRRP_MASTER"
   | "VRRP_FAILOVER"
   // command-level summary
+  | "SFLOW_SAMPLE"
+  | "SFLOW_DATAGRAM"
+  | "TCP_SEGMENT"
   | "PING_RESULT";
 
 export interface LinkTraversal {

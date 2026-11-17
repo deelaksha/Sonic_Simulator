@@ -1,0 +1,58 @@
+    171 counter sample (4)
+    168 enterprise 0, Unknown (1005)
+    168 enterprise 0, Generic counter (1)
+      3 enterprise 0, Unknown (2010)
+      3 enterprise 0, Unknown (2009)
+      3 enterprise 0, Unknown (2008)
+      3 enterprise 0, Unknown (2007)
+      3 enterprise 0, Unknown (2006)
+      3 enterprise 0, Unknown (2005)
+      3 enterprise 0, Unknown (2004)
+      3 enterprise 0, Unknown (2003)
+      3 enterprise 0, Unknown (2001)
+      3 enterprise 0, Unknown (2000)
+====
+11:24:10.074006 IP (tos 0x0, ttl 64, id 14436, offset 0, flags [DF], proto UDP (17), length 1352)
+    192.168.200.204.35796 > 192.168.200.16.6343: [bad udp cksum 0x1774 -> 0x3f48!] sFlowv5, IPv4 agent 192.168.200.204, agent-id 100000, seqnum 831, uptime 520336, samples 9, length 1324
+	expanded counter sample (4), length 136, seqnum 104, type 0, idx 53, records 2
+	    enterprise 0, Unknown (1005) length 16
+	    enterprise 0, Generic counter (1) length 88
+	      ifindex 53, iftype 6, ifspeed 100000000000, ifdirection 0 (unknown)
+	      ifstatus 0, adminstatus: down, operstatus: down
+	      In octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      In errors 0, unknown protos 0
+	      Out octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      Out errors 0, promisc mode 0
+	expanded counter sample (4), length 136, seqnum 104, type 0, idx 49, records 2
+	    enterprise 0, Unknown (1005) length 16
+	    enterprise 0, Generic counter (1) length 88
+	      ifindex 49, iftype 6, ifspeed 100000000000, ifdirection 0 (unknown)
+	      ifstatus 0, adminstatus: down, operstatus: down
+	      In octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      In errors 0, unknown protos 0
+	      Out octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      Out errors 0, promisc mode 0
+	expanded counter sample (4), length 136, seqnum 104, type 0, idx 48, records 2
+	    enterprise 0, Unknown (1005) length 16
+	    enterprise 0, Generic counter (1) length 88
+	      ifindex 48, iftype 6, ifspeed 25000000000, ifdirection 0 (unknown)
+	      ifstatus 0, adminstatus: down, operstatus: down
+	      In octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      In errors 0, unknown protos 0
+	      Out octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      Out errors 0, promisc mode 0
+	expanded counter sample (4), length 136, seqnum 104, type 0, idx 47, records 2
+	    enterprise 0, Unknown (1005) length 16
+	    enterprise 0, Generic counter (1) length 88
+	      ifindex 47, iftype 6, ifspeed 25000000000, ifdirection 0 (unknown)
+	      ifstatus 0, adminstatus: down, operstatus: down
+	      In octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      In errors 0, unknown protos 0
+	      Out octets 0, unicast pkts 0, multicast pkts 0, broadcast pkts 0, discards 0
+	      Out errors 0, promisc mode 0
+	expanded counter sample (4), length 136, seqnum 104, type 0, idx 46, records 2
+	    enterprise 0, Unknown (1005) length 16
+index
+1
+ifindex
+87

@@ -14,7 +14,7 @@ terminal, or `help <command>` for details.
 | `ip route` | `ip route`, `ip route add default via 192.168.1.1`, `ip route add 10.0.0.0/8 via X`, `ip route del ...` | show + static/default routes |
 | `ip neigh` | `ip neigh` | neighbour (ARP) cache |
 | `arp` | `arp`, `arp -a` | ARP cache (Linux + BSD styles) |
-| `tcpdump` | `tcpdump -i eth0`, `tcpdump -i eth0 icmp`, `tcpdump -i eth0 host 192.168.1.20`, `-c N`, `-e` | reads the capture buffer |
+| `tcpdump` | `tcpdump -i eth0 -nn`, `-i any`, `-c N`, `-e`, `-v`, `-X`, pcap filters (`udp port 6343`, `src host …`, `net …`, `and/or/not`) | live capture until `-c N` or Ctrl+C (`sudo` required on SONiC switches) |
 | `route` | `route`, `route -n` | legacy routing table |
 | `ifconfig` | `ifconfig` | legacy interface view (incl. RX/TX counters) |
 | `hostname` | `hostname` | device hostname |
@@ -30,14 +30,20 @@ pc1$ ip route                                # connected route now present
 # Change the IP in the GUI, run `ip addr` again — it reflects the change.
 ```
 
-## tcpdump is a real consumer (spec §19, §60)
+## tcpdump is a live capture (spec §19, §60)
 
-The capture buffer is populated by the engine as frames cross each interface.
-Because the simulation is turn-based, the workflow is: run traffic (e.g. `ping`),
-then `tcpdump -i eth0 icmp` to inspect what was captured.
+`tcpdump` prints its banner and keeps running. Every frame the engine records on
+the interface from then on (from any terminal, the Traffic tab or the sFlow
+agent) is printed as it happens; packets from before tcpdump started are not
+shown. It ends after `-c N` matches or on Ctrl+C with the usual summary.
 
 ```
-pc1$ tcpdump -i eth0 icmp
-12:00:00.004 IP 192.168.1.10 > 192.168.1.20: ICMP echo request, id 1000, seq 1, length 64
-12:00:00.008 IP 192.168.1.20 > 192.168.1.10: ICMP echo reply,   id 1000, seq 1, length 64
+admin@sw1:~$ sudo tcpdump -i any -nn port 6343
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on any, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144 bytes
+17:23:57.436000 eth0  Out IP 192.168.200.204.43737 > 192.168.200.16.6343: sFlowv5, IPv4 agent 192.168.200.204, agent-id 100000, length 1252
+^C
+1 packet captured
+1 packet received by filter
+0 packets dropped by kernel
 ```

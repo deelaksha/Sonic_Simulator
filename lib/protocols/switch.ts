@@ -12,6 +12,7 @@ import { BROADCAST_MAC, NULL_MAC, isBroadcast, isMulticast } from "../models/mac
 import { DOT1Q_BYTES } from "./ethernet";
 import { SimContext } from "../engine/context";
 import { MacTableRow } from "../engine/events";
+import { routerReceive } from "./router";
 
 /** Snapshot the MAC table with port NAMES for the inspector (spec §7). */
 function macTableSnapshot(sw: Device, highlightMac?: string): MacTableRow[] {
@@ -134,9 +135,59 @@ export function switchForward(
     }
   }
 
+  // --- Switch CPU (SVI): frames for the VlanN router MAC are punted to the
+  // switch's own IP stack; broadcasts are punted AND flooded (kernel Bridge). ---
+  const svi = sviFor(sw, vid);
+  if (svi) {
+    const dstMac = frame.ethernet.dstMac;
+    if (dstMac === svi.mac) {
+      punt(ctx, sw, svi, frame);
+      return;
+    }
+    if (isBroadcast(dstMac)) punt(ctx, sw, svi, frame);
+  }
+
+  forwardInVlan(ctx, sw, ingress, vid, frame);
+}
+
+/** A switch's SVI (logical `VlanN` interface) for a VLAN, if configured and up. */
+export function sviFor(sw: Device, vid: number): NetInterface | undefined {
+  return sw.interfaces.find((i) => i.logical && i.name === `Vlan${vid}` && i.adminState === "up");
+}
+
+/** VLAN id of a switch SVI interface (`Vlan100` → 100), or null. */
+export function sviVlanId(iface: NetInterface): number | null {
+  const m = iface.logical ? /^Vlan(\d+)$/.exec(iface.name) : null;
+  return m ? Number(m[1]) : null;
+}
+
+function punt(ctx: SimContext, sw: Device, svi: NetInterface, frame: Frame): void {
+  const untagged = cloneFrame(frame);
+  if (untagged.vlan) {
+    delete untagged.vlan;
+    untagged.meta.sizeBytes = Math.max(64, untagged.meta.sizeBytes - DOT1Q_BYTES);
+  }
+  svi.statistics.rxFrames += 1;
+  svi.statistics.rxBytes += untagged.meta.sizeBytes;
+  ctx.capture(sw.id, svi.id, "rx", untagged);
+  // The SVI is an L3 interface: answer ARP/ping for its address, route the rest.
+  routerReceive(ctx, sw, svi, untagged);
+}
+
+/**
+ * Frame originated by the switch CPU out of an SVI: the kernel Bridge delivers
+ * it into the VLAN (MAC-table lookup / flood, egress tag rules) with no ingress port.
+ */
+export function switchInject(ctx: SimContext, sw: Device, vid: number, frame: Frame): void {
+  forwardInVlan(ctx, sw, null, vid, frame);
+}
+
+function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null, vid: number, frame: Frame): void {
+  const src = frame.ethernet.srcMac;
+  const at = ingress ?? sviFor(sw, vid);
   // --- Destination lookup ---
   const dst = frame.ethernet.dstMac;
-  const candidates = sw.interfaces.filter((i) => i.id !== ingress.id && participates(i, vid));
+  const candidates = sw.interfaces.filter((i) => i.id !== ingress?.id && participates(i, vid));
   const broadcast = isBroadcast(dst) || isMulticast(dst);
   const known = broadcast ? undefined : sw.macTable.find((e) => e.mac === dst && e.vlan === vid);
 
@@ -148,8 +199,8 @@ export function switchForward(
       type: "FRAME_FLOODED",
       deviceId: sw.id,
       deviceName: sw.name,
-      interfaceId: ingress.id,
-      interfaceName: ingress.name,
+      interfaceId: at?.id,
+      interfaceName: at?.name,
       message:
         egressPorts.length > 0
           ? `${sw.name}: flood (${reason}) → ${egressPorts.map((p) => p.name).join(", ")} [VLAN ${vid}]`
@@ -158,7 +209,7 @@ export function switchForward(
       frame,
       detail: {
         kind: "mac-lookup",
-        ingressInterface: ingress.name,
+        ingressInterface: at?.name ?? "CPU",
         sourceMac: src,
         destinationMac: dst,
         vlan: vid,
@@ -170,13 +221,13 @@ export function switchForward(
     });
   } else {
     const port = sw.interfaces.find((i) => i.id === known.interfaceId);
-    if (!port || port.id === ingress.id || !participates(port, vid)) {
+    if (!port || port.id === ingress?.id || !participates(port, vid)) {
       ctx.emit({
         type: "FRAME_DROPPED",
         deviceId: sw.id,
         deviceName: sw.name,
-        interfaceId: ingress.id,
-        interfaceName: ingress.name,
+        interfaceId: at?.id,
+        interfaceName: at?.name,
         message: `${sw.name}: ${dst} known on ingress port — not forwarded`,
         osiLayers: [2],
         frame,
@@ -195,7 +246,7 @@ export function switchForward(
       frame,
       detail: {
         kind: "mac-lookup",
-        ingressInterface: ingress.name,
+        ingressInterface: at?.name ?? "CPU",
         sourceMac: src,
         destinationMac: dst,
         vlan: vid,

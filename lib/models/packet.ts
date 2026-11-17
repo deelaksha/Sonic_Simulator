@@ -188,6 +188,8 @@ export interface Frame {
   ospf?: OspfPayload;
   tcp?: TcpHeader;
   bgp?: BgpPayload;
+  /** sFlow v5 datagram octets carried as the UDP payload (agent → collector). */
+  sflow?: { datagram: number[] };
   meta: FrameMeta;
 }
 

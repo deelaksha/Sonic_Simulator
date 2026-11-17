@@ -319,9 +319,9 @@ export const SONIC_FEATURES: SonicFeature[] = [
     status: "implemented",
     catalogFeatures: ["sflow"],
     sourceFiles: ["sflow.txt"],
-    description: "Sampling, collectors, agent; simulated sFlow records from packet events.",
-    topology: "SW1 → Collector",
-    simReady: false,
+    description: "sflowmgrd sessions, 1-in-N ingress sampling, hsflowd datagrams decoded at a collector.",
+    topology: "H1/H2 — SW1 (VLAN 100) — Collector (eth0)",
+    simReady: true,
   },
   {
     id: "fbs",

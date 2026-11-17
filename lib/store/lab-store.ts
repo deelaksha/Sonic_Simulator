@@ -14,8 +14,14 @@ import { createDevice, rebuildConnectedRoutes, rebuildConnectedRoutes6 } from ".
 import { SONIC_FEATURES } from "../sonic/feature-registry";
 import { addVlan, addMember } from "../models/vlan-ops";
 import { Simulation, SimEvent, CaptureRecord } from "../engine";
-import { execute, CommandContext, LineKind, OutputLine } from "../commands";
-import { cliModeFor, runSonicCli, enterSonicCli, CliStack } from "../commands/sonic-cli";
+import { execute, CommandContext, LineKind, OutputLine, LiveCaptureSpec } from "../commands";
+import { compileFilter, FramePredicate } from "../commands/bpf";
+import { formatCaptureRecord } from "../commands/tcpdump";
+import { TrafficSpec, sendTrafficPacket, validateTrafficSpec, SendFailure } from "../protocols/traffic";
+import { sflowAgentTick } from "../sflow/agent";
+import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
+import { isSwitch } from "../models/device";
+import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
 
 const CAPTURE_LIMIT = 800;
 
@@ -49,6 +55,12 @@ interface LabState {
   /** Per-device sonic-cli mode stack ([] = bash). Switches default to sonic-cli. */
   cliMode: Record<string, CliStack>;
   playback: Playback;
+  /** Running tcpdump sessions, one per device terminal. */
+  liveCaptures: Record<string, LiveCaptureSession>;
+  /** The traffic generator run (null when idle). */
+  traffic: TrafficRun | null;
+  /** Last sFlow agent export problems per switch (diagnostics for the monitor). */
+  sflowErrors: Record<string, string[]>;
   terminalFocusNonce: number;
   deviceSeq: number;
   lineSeq: number;
@@ -86,6 +98,22 @@ interface LabState {
   /** Record a command in the device's history. */
   pushHistory(deviceId: string, command: string): void;
   openTerminal(): void;
+  /** Ctrl+C on a running tcpdump: print the capture summary and end it. */
+  stopLiveCapture(deviceId: string): void;
+  /** Run KLISH lines on a switch from a fresh `exec` stack (GUI-driven config);
+   *  the transcript is echoed into that switch's terminal. Returns error lines. */
+  runCliScript(deviceId: string, lines: string[]): OutputLine[];
+
+  // traffic generator + sFlow agent (wall-clock driven)
+  /** Start generating traffic; returns an error message or null. */
+  startTraffic(spec: TrafficSpec): string | null;
+  stopTraffic(): void;
+  /** One hsflowd tick on every switch (counter polling + datagram export). */
+  sflowTick(): void;
+  setCollector(deviceId: string, listening: boolean, port: number): void;
+  clearCollector(deviceId: string): void;
+  /** Host config helper: put a switch port in an access VLAN (creating it). */
+  setAccessVlan(deviceId: string, ifaceId: string, vlan: number): void;
 
   // timeline playback
   setPlaybackIndex(i: number): void;
@@ -106,6 +134,30 @@ interface LabState {
   importLab(json: string): boolean;
 }
 
+export interface LiveCaptureSession {
+  spec: LiveCaptureSpec;
+  matched: number;
+}
+
+export interface TrafficRun {
+  spec: TrafficSpec;
+  running: boolean;
+  sent: number;
+  failed: number;
+  lastFailure?: SendFailure;
+  /** Drop / unreachable events the engine raised for this run, with counts. */
+  drops: Record<string, number>;
+  startedAtMs: number;
+  /** Destination host counters at start, to report deltas. */
+  dstBaseline?: { deviceId: string; packets: number };
+}
+
+/** Compiled tcpdump filters (functions stay out of the serializable state). */
+const capturePredicates = new Map<string, FramePredicate>();
+let trafficTimer: ReturnType<typeof setTimeout> | null = null;
+/** Cap on packets simulated per generator tick (keeps the UI responsive). */
+const TRAFFIC_BATCH_MAX = 200;
+
 const TYPE_SHORT: Record<DeviceType, string> = {
   pc: "PC",
   server: "SRV",
@@ -124,7 +176,111 @@ function nextName(network: NetworkState, type: DeviceType): string {
   return `${short}${count + 1}`;
 }
 
-export const useLabStore = create<LabState>((set, get) => ({
+export const useLabStore = create<LabState>((set, get) => {
+  const summary = (n: number) => [
+    { text: "", kind: "output" as const },
+    { text: `${n} packet${n === 1 ? "" : "s"} captured`, kind: "output" as const, lineKind: "muted" as LineKind },
+    { text: `${n} packet${n === 1 ? "" : "s"} received by filter`, kind: "output" as const, lineKind: "muted" as LineKind },
+    { text: "0 packets dropped by kernel", kind: "output" as const, lineKind: "muted" as LineKind },
+  ];
+
+  /** Stream newly recorded frames into every running tcpdump session. */
+  const feedCaptures = (fresh: CaptureRecord[]) => {
+    const sessions = get().liveCaptures;
+    const ids = Object.keys(sessions);
+    if (!ids.length || !fresh.length) return;
+    const next = { ...sessions };
+    for (const id of ids) {
+      const sess = { ...next[id] };
+      const pred = capturePredicates.get(id);
+      const dev = get().network.devices[id];
+      if (!pred || !dev) continue;
+      const out: { text: string; kind: "output" }[] = [];
+      let done = false;
+      for (const rec of fresh) {
+        if (rec.deviceId !== id) continue;
+        if (sess.spec.interfaceIds && !sess.spec.interfaceIds.includes(rec.interfaceId)) continue;
+        if (!pred(rec.frame)) continue;
+        for (const text of formatCaptureRecord(rec, dev, sess.spec)) out.push({ text, kind: "output" });
+        sess.matched += 1;
+        if (sess.spec.count && sess.matched >= sess.spec.count) {
+          done = true;
+          break;
+        }
+      }
+      if (out.length) get().appendTerminal(id, out);
+      if (done) {
+        get().appendTerminal(id, summary(sess.matched));
+        capturePredicates.delete(id);
+        delete next[id];
+      } else {
+        next[id] = sess;
+      }
+    }
+    set({ liveCaptures: next });
+  };
+
+  /** Run a wall-clock-stamped simulation on a draft and commit it. */
+  const commitSim = <T,>(fn: (sim: Simulation, net: NetworkState) => T, timeline: boolean): T => {
+    const state = get();
+    const draft = structuredClone(state.network);
+    const sim = new Simulation(draft, { wallBase: Date.now() });
+    const value = fn(sim, draft);
+    set({
+      network: draft,
+      captures: [...state.captures, ...sim.captures].slice(-CAPTURE_LIMIT),
+      ...(timeline && sim.events.length
+        ? { events: sim.events, playback: { index: 0, playing: false }, selectedEventId: undefined }
+        : {}),
+    });
+    feedCaptures(sim.captures);
+    return value;
+  };
+
+  const stopTrafficTimer = () => {
+    if (trafficTimer) clearTimeout(trafficTimer);
+    trafficTimer = null;
+  };
+
+  const trafficTick = () => {
+    trafficTimer = null;
+    const run = get().traffic;
+    if (!run?.running) return;
+    const { spec } = run;
+    const remaining = spec.continuous ? Infinity : spec.count - run.sent - run.failed;
+    if (remaining <= 0) {
+      set({ traffic: { ...run, running: false } });
+      return;
+    }
+    // Intervals under 50 ms are simulated as batches every 50 ms of wall time.
+    const perTick = spec.intervalMs >= 50 ? 1 : spec.intervalMs === 0 ? TRAFFIC_BATCH_MAX : Math.round(50 / spec.intervalMs);
+    const batch = Math.min(TRAFFIC_BATCH_MAX, remaining, Math.max(1, perTick));
+    let sent = 0;
+    let failed = 0;
+    let lastFailure = run.lastFailure;
+    const drops = { ...run.drops };
+    commitSim((sim, net) => {
+      const src = net.devices[spec.srcDeviceId];
+      for (let k = 0; k < batch; k++) {
+        const r = src ? sendTrafficPacket(sim, src, spec, run.sent + run.failed + k + 1) : { ok: false, reason: "no-device" as const };
+        if (r.ok) sent += 1;
+        else {
+          failed += 1;
+          lastFailure = r.reason;
+        }
+      }
+      for (const e of sim.events) {
+        if (e.type !== "FRAME_DROPPED" && e.type !== "ICMP_UNREACHABLE") continue;
+        if (drops[e.message] !== undefined || Object.keys(drops).length < 8) drops[e.message] = (drops[e.message] ?? 0) + 1;
+      }
+    }, batch <= 5);
+    const updated: TrafficRun = { ...run, sent: run.sent + sent, failed: run.failed + failed, lastFailure, drops };
+    const finished = !spec.continuous && updated.sent + updated.failed >= spec.count;
+    set({ traffic: { ...updated, running: !finished } });
+    if (!finished) trafficTimer = setTimeout(trafficTick, Math.max(50, spec.intervalMs));
+  };
+
+  return {
   network: { devices: {}, connections: [] },
   labName: "Untitled Lab",
   events: [],
@@ -133,6 +289,9 @@ export const useLabStore = create<LabState>((set, get) => ({
   terminalHistory: {},
   cliMode: {},
   playback: { index: 0, playing: false },
+  liveCaptures: {},
+  traffic: null,
+  sflowErrors: {},
   terminalFocusNonce: 0,
   deviceSeq: 1,
   lineSeq: 1,
@@ -292,25 +451,31 @@ export const useLabStore = create<LabState>((set, get) => ({
     if (!device) return { output: [], clear: false };
 
     const captures = [...state.captures];
+    const fresh: CaptureRecord[] = [];
     const ctx: CommandContext = {
       device,
       network: draft,
       captures,
       runSim(fn) {
-        const sim = new Simulation(draft);
+        const sim = new Simulation(draft, { wallBase: Date.now() });
         const value = fn(sim);
         captures.push(...sim.captures);
+        fresh.push(...sim.captures);
         return { value, events: sim.events };
       },
     };
 
     // Route through sonic-cli when the device is in a modal CLI mode; otherwise
     // the plain bash/Click shell. `sonic-cli` at the bash prompt enters the CLI.
-    const stack = cliModeFor(device, state.cliMode[deviceId]);
+    // tcpdump is a Linux process: it always runs through the shell path so it
+    // can stay attached to the terminal.
+    const capture = /^(sudo\s+)?tcpdump\b/.test(input.trim());
+    const stack = capture ? [] : cliModeFor(device, state.cliMode[deviceId]);
     let output: OutputLine[];
     let clear = false;
     let events;
     let nextStack: CliStack | undefined = state.cliMode[deviceId];
+    let live: LiveCaptureSpec | undefined;
 
     if (stack.length === 0) {
       if (input.trim() === "sonic-cli") {
@@ -322,6 +487,7 @@ export const useLabStore = create<LabState>((set, get) => ({
         output = result.output;
         clear = !!result.clear;
         events = result.events;
+        live = result.liveCapture;
       }
     } else {
       const r = runSonicCli(input, stack, ctx);
@@ -340,8 +506,124 @@ export const useLabStore = create<LabState>((set, get) => ({
       playback: events ? { index: 0, playing: false } : state.playback,
       cliMode: nextStack === undefined ? state.cliMode : { ...state.cliMode, [deviceId]: nextStack },
     });
+    feedCaptures(fresh);
+    if (live) {
+      capturePredicates.set(deviceId, compileFilter(live.filter));
+      set({ liveCaptures: { ...get().liveCaptures, [deviceId]: { spec: live, matched: 0 } } });
+    }
 
     return { output, clear };
+  },
+
+  runCliScript(deviceId, lines) {
+    const draft = structuredClone(get().network);
+    const device = draft.devices[deviceId];
+    if (!device) return [];
+    const ctx: CommandContext = {
+      device,
+      network: draft,
+      captures: [],
+      runSim(fn) {
+        const sim = new Simulation(draft, { wallBase: Date.now() });
+        return { value: fn(sim), events: sim.events };
+      },
+    };
+    const user = device.config.hostname.toLowerCase().replace(/\s+/g, "-");
+    const transcript: { text: string; kind: "input" | "output"; lineKind?: LineKind }[] = [
+      { text: "# applied from the sFlow tab", kind: "output", lineKind: "muted" },
+    ];
+    const errors: OutputLine[] = [];
+    let stack: CliStack = ["exec"];
+    for (const l of lines) {
+      transcript.push({ text: `${cliPrompt(stack, user)} ${l}`, kind: "input" });
+      const r = runSonicCli(l, stack, ctx);
+      for (const o of r.output) {
+        transcript.push({ text: o.text, kind: "output", lineKind: o.kind });
+        if (o.kind === "error") errors.push(o);
+      }
+      stack = r.toBash ? ["exec"] : r.stack;
+    }
+    set({ network: draft });
+    get().appendTerminal(deviceId, transcript);
+    return errors;
+  },
+
+  stopLiveCapture(deviceId) {
+    const sess = get().liveCaptures[deviceId];
+    if (!sess) return;
+    capturePredicates.delete(deviceId);
+    const next = { ...get().liveCaptures };
+    delete next[deviceId];
+    set({ liveCaptures: next });
+    get().appendTerminal(deviceId, summary(sess.matched));
+  },
+
+  startTraffic(spec) {
+    const error = validateTrafficSpec(spec);
+    if (error) return error;
+    const src = get().network.devices[spec.srcDeviceId];
+    if (!src) return "select a source host";
+    if (isSwitch(src.type)) return "the source must be a host, not a switch";
+    stopTrafficTimer();
+    set({ traffic: { spec, running: true, sent: 0, failed: 0, drops: {}, startedAtMs: Date.now() } });
+    trafficTick();
+    return null;
+  },
+
+  stopTraffic() {
+    stopTrafficTimer();
+    const run = get().traffic;
+    if (run) set({ traffic: { ...run, running: false } });
+  },
+
+  sflowTick() {
+    const switches = Object.values(get().network.devices).filter(
+      (d) => isSwitch(d.type) && ((d.config.features?.sflow as { enabled?: boolean } | undefined)?.enabled || d.config.features?.["sflow-agent"]),
+    );
+    if (!switches.length) return;
+    // Dry-run on a throwaway copy first so idle seconds don't re-render the app.
+    const probe = structuredClone(get().network);
+    const probeSim = new Simulation(probe, { wallBase: Date.now() });
+    const now = Date.now();
+    let changed = false;
+    for (const d of switches) {
+      const before = JSON.stringify(d.config.features?.["sflow-agent"] ?? null);
+      const r = sflowAgentTick(probeSim, probe.devices[d.id], now);
+      if (r.datagrams || r.errors.length || JSON.stringify(probe.devices[d.id].config.features?.["sflow-agent"] ?? null) !== before) changed = true;
+    }
+    if (!changed) return;
+    const errors: Record<string, string[]> = {};
+    commitSim((sim, net) => {
+      for (const d of switches) errors[d.id] = sflowAgentTick(sim, net.devices[d.id], now).errors;
+    }, false);
+    set({ sflowErrors: { ...get().sflowErrors, ...errors } });
+  },
+
+  setCollector(deviceId, listening, port) {
+    const next = structuredClone(get().network);
+    const dev = next.devices[deviceId];
+    if (!dev) return;
+    if (listening) startCollector(dev, port);
+    else stopCollector(dev);
+    set({ network: next });
+  },
+
+  clearCollector(deviceId) {
+    const next = structuredClone(get().network);
+    const dev = next.devices[deviceId];
+    if (!dev) return;
+    resetCollector(dev);
+    set({ network: next });
+  },
+
+  setAccessVlan(deviceId, ifaceId, vlan) {
+    const next = structuredClone(get().network);
+    const dev = next.devices[deviceId];
+    const iface = dev?.interfaces.find((i) => i.id === ifaceId);
+    if (!dev || !iface) return;
+    addVlan(dev, vlan);
+    addMember(dev, vlan, iface.name, false);
+    set({ network: next });
   },
 
   appendTerminal(deviceId, entries) {
@@ -402,7 +684,12 @@ export const useLabStore = create<LabState>((set, get) => ({
   },
 
   newLab() {
+    stopTrafficTimer();
+    capturePredicates.clear();
     set({
+      liveCaptures: {},
+      traffic: null,
+      sflowErrors: {},
       network: { devices: {}, connections: [] },
       labName: "Untitled Lab",
       events: [],
@@ -495,6 +782,42 @@ export const useLabStore = create<LabState>((set, get) => ({
       case "vlan":
         get().loadVlanLab();
         return;
+
+      case "sflow": {
+        // Mirrors the live SONiC-VS bench: H1/H2 on 25G Ethernet0/1 in VLAN 100,
+        // collector on the out-of-band management network (eth0).
+        get().newLab();
+        const h1 = get().addDevice("pc", { x: 60, y: 60 });
+        const h2 = get().addDevice("pc", { x: 60, y: 360 });
+        const sw = get().addDevice("switch", { x: 380, y: 210 }, 4);
+        const col = get().addDevice("server", { x: 640, y: 40 });
+        const net = structuredClone(get().network);
+        for (const p of net.devices[sw].interfaces) if (!p.management && !p.logical) p.speed = 25000;
+        net.devices[col].name = "COLLECTOR";
+        net.devices[col].config.hostname = "collector";
+        set({ network: net });
+        get().setInterfaceIp(h1, `${h1}-if0`, "192.168.100.11", 24);
+        get().setInterfaceIp(h2, `${h2}-if0`, "192.168.100.12", 24);
+        get().setInterfaceIp(sw, `${sw}-mgmt`, "192.168.200.204", 24);
+        get().setInterfaceIp(col, `${col}-if0`, "192.168.200.16", 24);
+        get().connect(h1, `${h1}-if0`, sw, `${sw}-if0`);
+        get().connect(h2, `${h2}-if0`, sw, `${sw}-if1`);
+        get().connect(col, `${col}-if0`, sw, `${sw}-mgmt`);
+        get().setAccessVlan(sw, `${sw}-if0`, 100);
+        get().setAccessVlan(sw, `${sw}-if1`, 100);
+        get().setCollector(col, true, 6343);
+        set({ labName: "sFlow: H1/H2 — SW (VLAN 100) — collector on eth0", selectedDeviceId: sw });
+        hint(sw, [
+          "sFlow lab — configure the agent, generate traffic, watch the collector",
+          "1. configure terminal → sflow enable → sflow collector 192.168.200.16 6343",
+          "   sflow polling-interval 5 → interface Ethernet 0 → sflow sampling-rate 256",
+          "   (or use the sFlow tab → 'Apply to switch')",
+          "2. exit to bash and run: sudo tcpdump -i any -nn port 6343   (Ctrl+C stops)",
+          "3. Traffic tab: H1 → 192.168.100.12, UDP, e.g. 2000 packets",
+          "4. sFlow tab: datagrams / FLOW / COUNTER samples decoded at COLLECTOR",
+        ]);
+        return;
+      }
 
       case "bgp": {
         const { r1, r2 } = twoRouterCore();
@@ -750,7 +1073,12 @@ export const useLabStore = create<LabState>((set, get) => ({
         const n = parseInt(d.id.replace(/\D/g, ""), 10);
         return Number.isFinite(n) ? Math.max(m, n) : m;
       }, 0);
+      stopTrafficTimer();
+      capturePredicates.clear();
       set({
+        liveCaptures: {},
+        traffic: null,
+        sflowErrors: {},
         network: { devices, connections: data.connections ?? [] },
         labName: data.name ?? "Imported Lab",
         events: [],
@@ -767,4 +1095,5 @@ export const useLabStore = create<LabState>((set, get) => ({
       return false;
     }
   },
-}));
+};
+});

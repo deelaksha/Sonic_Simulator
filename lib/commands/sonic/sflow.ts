@@ -1,101 +1,72 @@
 /**
- * sFlow SONiC feature module. Config-plane only (simulated CONFIG_DB): commands
- * mutate per-device feature state and `show sflow ...` renders SOLELY from that
- * stored state. There is no sampling/record generation — the packet engine has
- * no sFlow hook yet — so this module NEVER fabricates sampled datagrams/counters.
+ * sFlow SONiC feature — Click `config sflow …` / `show sflow …`. The config is
+ * the simulated CONFIG_DB (SFLOW / SFLOW_COLLECTOR / SFLOW_SESSION, see
+ * lib/sflow/agent.ts); `show sflow interface` renders the APPL_DB sessions that
+ * sflowmgrd derives from it, and the data plane (lib/sflow/agent.ts) samples
+ * and exports from the same state.
  *
- * Commands are the SONiC click `config sflow` family (path ["sflow", ...]). The
- * fields, ranges and render forms are taken from sflow.txt, whose KLISH transcript
- * drives the equivalent click commands:
- *
- *   config sflow enable                              <- sflow enable            (TC-2)
- *   config sflow disable                             <- no sflow enable         (TC-4)
- *   config sflow collector add <name> <ip> [--port n]<- sflow collector <ip> [port n] (TC-8/12/16)
- *   config sflow collector del <name>                <- no sflow collector <ip> (TC-10)
- *   config sflow agent-id add <intf>                 <- sflow agent-id <intf>   (TC-20/22)
- *   config sflow agent-id del                        <- no sflow agent-id       (TC-24)
- *   config sflow polling-interval <n>                <- sflow polling-interval n (TC-38)
- *   config sflow interface enable <intf>             <- interface X / sflow enable      (TC-26)
- *   config sflow interface disable <intf>            <- interface X / no sflow enable   (TC-29)
- *   config sflow interface sample-rate <intf> <rate> <- interface X / sflow sampling-rate n (TC-58/60)
- *   show sflow                                       <- show sflow              (TC-1/3/9/68)
- *   show sflow interface [<intf>]                    <- show sflow interface    (TC-28/35/97)
- *
- * From sflow.txt: default collector UDP port 6343 and VRF "default" (TC-9); the
- * collector line renders "Name: <name> IP addr: <ip> UDP port: <port> VRF:
- * default"; max 2 collectors (TC-69); UDP port 1-65535 (TC-73/74); polling
- * interval 0 or 5-300 (TC-40/42/44/45); interface sample-rate 256-8388608
- * (TC-53/54/62/63); an enabled interface with no explicit rate shows the default
- * 4294967295 (TC-28/105); an empty interface survey prints "No sFlow interfaces
- * configured" (TC-97).
+ * Behaviour and messages follow sonic-utilities (sonic-buildimage
+ * 202505-smci-dev-oc):
+ *   config/main.py  — polling 0|5-300, sample-rate 256-8388608|default,
+ *                     collector name ≤16 chars, port 0-65535, vrf default|mgmt,
+ *                     max 2 collectors, agent-id must be deleted before re-adding
+ *   show/sflow.py   — `ljust(30)` global block, natsorted 4-column grid of
+ *                     APPL_DB SFLOW_SESSION_TABLE rows
  */
-import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
+import { CommandContext, CommandResult, OutputLine, line, err } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
-import { featureState, peekFeatureState } from "../../models/feature-state";
 import { isValidIpv4 } from "../../models/ip";
 import { interfaceByName } from "../../models/device";
+import {
+  DEFAULT_COLLECTOR_PORT,
+  SampleDirection,
+  SflowState,
+  peekSflowState,
+  sflowSessions,
+  sflowState,
+} from "../../sflow/agent";
 
-interface SflowCollector {
-  name: string;
-  ip: string;
-  port: number;
+export const MAX_COLLECTORS = 2;
+export const SAMPLE_RATE_RANGE = { min: 256, max: 8388608 };
+const COLLECTOR_NAME_MAX = 16;
+
+/** Accept IPv4 (validated) or an IPv6 literal. */
+export function isCollectorIp(ip: string): boolean {
+  return isValidIpv4(ip) || /^[0-9a-fA-F:]+$/.test(ip) && ip.includes(":");
 }
 
-interface SflowInterface {
-  enabled: boolean;
-  sampleRate?: number;
+/** Valid polling intervals: 0 (disable) or 5..300 (sonic-sflow.yang). */
+export function isValidPolling(n: number): boolean {
+  return n === 0 || (n >= 5 && n <= 300);
 }
 
-interface SflowState {
-  enabled: boolean;
-  collectors: SflowCollector[];
-  agentId: string | undefined;
-  pollingInterval: number | undefined;
-  interfaces: Record<string, SflowInterface>;
-}
-
-/** Default collector UDP port (sflow.txt TC-9). */
-const DEFAULT_PORT = 6343;
-/** UDP port range (sflow.txt TC-73/74). */
-const PORT_RANGE = { min: 1, max: 65535 };
-/** At most 2 collectors (sflow.txt TC-69). */
-const MAX_COLLECTORS = 2;
-/** Interface sample-rate range (sflow.txt TC-53/54). */
-const SAMPLE_RATE_RANGE = { min: 256, max: 8388608 };
-/** Rate shown for an enabled interface with no explicit rate (sflow.txt TC-28). */
-const DEFAULT_SAMPLE_RATE = 4294967295;
-
-function state(ctx: CommandContext): SflowState {
-  return featureState<SflowState>(ctx.device, "sflow", () => ({
-    enabled: false,
-    collectors: [],
-    agentId: undefined,
-    pollingInterval: undefined,
-    interfaces: {},
-  }));
-}
-
-/** Accept IPv4 (validated) or an IPv6 literal (contains ':', sflow.txt TC-16). */
-function isCollectorIp(ip: string): boolean {
-  return isValidIpv4(ip) || ip.includes(":");
-}
-
-/** Value of a `--flag <value>` option, or undefined if absent. */
 function flagValue(args: string[], flag: string): string | undefined {
   const i = args.indexOf(flag);
   return i >= 0 && i + 1 < args.length ? args[i + 1] : undefined;
 }
 
-/** Parse an integer token; null if missing or not an integer. */
 function parseIntTok(tok: string | undefined): number | null {
   if (tok === undefined || tok === "") return null;
   const n = Number(tok);
   return Number.isInteger(n) ? n : null;
 }
 
-/** Valid polling intervals: 0 (disable) or 5..300 (sflow.txt TC-40/42/44/45). */
-function isValidPolling(n: number): boolean {
-  return n === 0 || (n >= 5 && n <= 300);
+/** Natural sort (natsorted): Ethernet2 before Ethernet10. */
+export function natCompare(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+/** python-tabulate `tablefmt='grid'`: headers get MIN_PADDING 2, numeric columns right-aligned. */
+export function gridTable(header: string[], rows: string[][]): string[] {
+  const numeric = header.map((_, c) => rows.length > 0 && rows.every((r) => /^-?\d+(\.\d+)?$/.test(r[c] ?? "")));
+  const width = header.map((h, c) => Math.max(h.length + 2, ...rows.map((r) => (r[c] ?? "").length)));
+  const sep = (ch: string) => "+" + width.map((w) => ch.repeat(w + 2)).join("+") + "+";
+  const fmt = (cells: string[]) =>
+    "|" + cells.map((v, c) => " " + (numeric[c] ? v.padStart(width[c]) : v.padEnd(width[c])) + " ").join("|") + "|";
+  const out = [sep("-"), fmt(header), sep("=")];
+  for (const r of rows) out.push(fmt(r), sep("-"));
+  if (!rows.length) out.push(sep("-"));
+  return out;
 }
 
 const config: SonicCmd[] = [
@@ -103,49 +74,45 @@ const config: SonicCmd[] = [
     path: ["sflow", "enable"],
     summary: "Enable sFlow globally",
     run(_args, ctx): CommandResult {
-      state(ctx).enabled = true;
-      return { output: [muted("sFlow enabled")] };
+      sflowState(ctx.device).enabled = true;
+      return { output: [] };
     },
   },
   {
     path: ["sflow", "disable"],
     summary: "Disable sFlow globally",
     run(_args, ctx): CommandResult {
-      state(ctx).enabled = false;
-      return { output: [muted("sFlow disabled")] };
+      sflowState(ctx.device).enabled = false;
+      return { output: [] };
     },
   },
   {
     path: ["sflow", "collector", "add"],
-    summary: "Add an sFlow collector (--port defaults to 6343, max 2 collectors)",
+    summary: "Add an sFlow collector: <name> <ip> [--port n] [--vrf default|mgmt] (max 2)",
     run(args, ctx): CommandResult {
       const pos = positional(args);
-      const name = pos[0];
-      const ip = pos[1];
-      if (!name || !ip) return { output: [err("Usage: config sflow collector add <name> <ip> [--port <port>]")] };
-      if (!isCollectorIp(ip)) return { output: [err(`config sflow collector add: invalid IP address '${ip}'`)] };
-      let port = DEFAULT_PORT;
+      const [name, ip] = pos;
+      if (!name || !ip) return { output: [err("Usage: config sflow collector add <name> <ip> [--port <port>] [--vrf <vrf>]")] };
+      if (name.length > COLLECTOR_NAME_MAX) return { output: [err("Collector name must not exceed 16 characters")] };
+      if (!isCollectorIp(ip)) return { output: [err(`Invalid IP address ${ip}`)] };
+      let port = DEFAULT_COLLECTOR_PORT;
       const portTok = flagValue(args, "--port");
       if (portTok !== undefined) {
         const p = parseIntTok(portTok);
-        if (p === null || p < PORT_RANGE.min || p > PORT_RANGE.max) {
-          return { output: [err(`config sflow collector add: port must be ${PORT_RANGE.min}-${PORT_RANGE.max} (got '${portTok}')`)] };
-        }
+        if (p === null || p < 0 || p > 65535) return { output: [err("Collector port number must be between 0 and 65535")] };
         port = p;
       }
-      const st = state(ctx);
+      const vrf = flagValue(args, "--vrf") ?? "default";
+      if (vrf !== "default" && vrf !== "mgmt") return { output: [err("VRF name must be either default or mgmt")] };
+      const st = sflowState(ctx.device);
       const existing = st.collectors.find((c) => c.name === name);
       if (existing) {
-        // Re-adding an existing collector name updates it (idempotent, sflow.txt TC-76).
-        existing.ip = ip;
-        existing.port = port;
+        Object.assign(existing, { ip, port, vrf });
       } else {
-        if (st.collectors.length >= MAX_COLLECTORS) {
-          return { output: [err(`%Error: Max elements limit ${MAX_COLLECTORS} reached`)] };
-        }
-        st.collectors.push({ name, ip, port });
+        if (st.collectors.length >= MAX_COLLECTORS) return { output: [err("Only 2 collectors can be configured, please delete one")] };
+        st.collectors.push({ name, ip, port, vrf });
       }
-      return { output: [muted(`sFlow collector ${name} (${ip} udp ${port}) configured`)] };
+      return { output: [] };
     },
   },
   {
@@ -154,11 +121,10 @@ const config: SonicCmd[] = [
     run(args, ctx): CommandResult {
       const name = positional(args)[0];
       if (!name) return { output: [err("Usage: config sflow collector del <name>")] };
-      const st = state(ctx);
-      const before = st.collectors.length;
+      const st = sflowState(ctx.device);
+      if (!st.collectors.some((c) => c.name === name)) return { output: [err(`Invalid collector name ${name}`)] };
       st.collectors = st.collectors.filter((c) => c.name !== name);
-      // Deleting a non-existent collector is a silent no-op (sflow.txt TC-78).
-      return { output: [muted(st.collectors.length < before ? `sFlow collector ${name} deleted` : `sFlow collector ${name} not configured (no-op)`)] };
+      return { output: [] };
     },
   },
   {
@@ -167,17 +133,20 @@ const config: SonicCmd[] = [
     run(args, ctx): CommandResult {
       const intf = positional(args)[0];
       if (!intf) return { output: [err("Usage: config sflow agent-id add <interface>")] };
-      // sflow.txt TC-82: the interface is stored verbatim without existence validation.
-      state(ctx).agentId = intf;
-      return { output: [muted(`sFlow agent-id set to ${intf}`)] };
+      const st = sflowState(ctx.device);
+      if (st.agentId) return { output: [err("Agent already configured. Please delete it first.")] };
+      st.agentId = intf;
+      return { output: [] };
     },
   },
   {
     path: ["sflow", "agent-id", "del"],
     summary: "Clear the sFlow agent-id",
     run(_args, ctx): CommandResult {
-      state(ctx).agentId = undefined;
-      return { output: [muted("sFlow agent-id cleared")] };
+      const st = sflowState(ctx.device);
+      if (!st.agentId) return { output: [err("sFlow agent not configured.")] };
+      st.agentId = undefined;
+      return { output: [] };
     },
   },
   {
@@ -185,103 +154,131 @@ const config: SonicCmd[] = [
     summary: "Set the sFlow counter polling interval (0 or 5-300 seconds)",
     run(args, ctx): CommandResult {
       const n = parseIntTok(positional(args)[0]);
-      if (n === null || !isValidPolling(n)) {
-        return { output: [err("config sflow polling-interval: interval must be 0 or 5-300")] };
-      }
-      state(ctx).pollingInterval = n;
-      return { output: [muted(`sFlow polling-interval set to ${n}`)] };
+      if (n === null || !isValidPolling(n)) return { output: [err("Polling interval must be between 5-300 (0 to disable)")] };
+      sflowState(ctx.device).pollingInterval = n;
+      return { output: [] };
+    },
+  },
+  {
+    path: ["sflow", "sample-direction"],
+    summary: "Set the global sample direction (rx | tx | both)",
+    run(args, ctx): CommandResult {
+      const dir = positional(args)[0];
+      if (!dir) return { output: [err("Usage: config sflow sample-direction <rx|tx|both>")] };
+      if (!isDirection(dir)) return { output: [err(`Error: Direction ${dir} is invalid`)] };
+      sflowState(ctx.device).direction = dir;
+      return { output: [] };
+    },
+  },
+  {
+    path: ["sflow", "interface", "sample-direction"],
+    summary: "Set an interface's (or 'all') sample direction (rx | tx | both)",
+    run(args, ctx): CommandResult {
+      const [intf, dir] = positional(args);
+      if (!intf || !dir) return { output: [err("Usage: config sflow interface sample-direction <interface|all> <rx|tx|both>")] };
+      if (intf !== "all" && !interfaceByName(ctx.device, intf)) return { output: [err("Invalid interface name")] };
+      if (!isDirection(dir)) return { output: [err(`Error: Direction ${dir} is invalid`)] };
+      const st = sflowState(ctx.device);
+      if (intf === "all") st.allDirection = dir;
+      else (st.interfaces[intf] ??= {}).direction = dir;
+      return { output: [] };
     },
   },
   {
     path: ["sflow", "interface", "enable"],
-    summary: "Enable sFlow on an interface",
-    run(args, ctx): CommandResult {
-      const intf = positional(args)[0];
-      if (!intf) return { output: [err("Usage: config sflow interface enable <interface>")] };
-      if (!interfaceByName(ctx.device, intf)) return { output: [err(`config sflow interface enable: no such interface '${intf}'`)] };
-      const st = state(ctx);
-      const entry = (st.interfaces[intf] ??= { enabled: false });
-      entry.enabled = true;
-      return { output: [muted(`sFlow enabled on ${intf}`)] };
-    },
+    summary: "Enable sFlow on an interface (or 'all')",
+    run: (args, ctx) => setIntfAdmin(args, ctx, true),
   },
   {
     path: ["sflow", "interface", "disable"],
-    summary: "Disable sFlow on an interface",
-    run(args, ctx): CommandResult {
-      const intf = positional(args)[0];
-      if (!intf) return { output: [err("Usage: config sflow interface disable <interface>")] };
-      if (!interfaceByName(ctx.device, intf)) return { output: [err(`config sflow interface disable: no such interface '${intf}'`)] };
-      const st = state(ctx);
-      const entry = (st.interfaces[intf] ??= { enabled: false });
-      entry.enabled = false;
-      return { output: [muted(`sFlow disabled on ${intf}`)] };
-    },
+    summary: "Disable sFlow on an interface (or 'all')",
+    run: (args, ctx) => setIntfAdmin(args, ctx, false),
   },
   {
     path: ["sflow", "interface", "sample-rate"],
-    summary: "Set the sFlow sample rate on an interface (256-8388608)",
+    summary: "Set an interface's sample rate (256-8388608 or 'default' = port speed)",
     run(args, ctx): CommandResult {
-      const pos = positional(args);
-      const intf = pos[0];
-      if (!intf) return { output: [err("Usage: config sflow interface sample-rate <interface> <rate>")] };
-      if (!interfaceByName(ctx.device, intf)) return { output: [err(`config sflow interface sample-rate: no such interface '${intf}'`)] };
-      const rate = parseIntTok(pos[1]);
-      if (rate === null || rate < SAMPLE_RATE_RANGE.min || rate > SAMPLE_RATE_RANGE.max) {
-        return { output: [err(`config sflow interface sample-rate: rate must be ${SAMPLE_RATE_RANGE.min}-${SAMPLE_RATE_RANGE.max} (got '${pos[1]}')`)] };
+      const [intf, rateTok] = positional(args);
+      if (!intf || !rateTok) return { output: [err("Usage: config sflow interface sample-rate <interface> <rate|default>")] };
+      if (!interfaceByName(ctx.device, intf)) return { output: [err(`Invalid interface name ${intf}`)] };
+      const st = sflowState(ctx.device);
+      const entry = (st.interfaces[intf] ??= {});
+      if (rateTok === "default") {
+        delete entry.sampleRate;
+        return { output: [] };
       }
-      const st = state(ctx);
-      const entry = (st.interfaces[intf] ??= { enabled: false });
+      const rate = parseIntTok(rateTok);
+      if (rate === null || rate < SAMPLE_RATE_RANGE.min || rate > SAMPLE_RATE_RANGE.max) {
+        return { output: [err("Error: Sample rate must be between 256 and 8388608 or default")] };
+      }
       entry.sampleRate = rate;
-      return { output: [muted(`sFlow sample-rate on ${intf} set to ${rate}`)] };
+      return { output: [] };
     },
   },
 ];
 
-function renderGlobal(ctx: CommandContext): OutputLine[] {
-  const st = peekFeatureState<SflowState>(ctx.device, "sflow");
-  const enabled = st?.enabled ?? false;
-  const polling = st?.pollingInterval;
-  const agentId = st?.agentId;
-  const collectors = st?.collectors ?? [];
+function isDirection(d: string): d is SampleDirection {
+  return d === "rx" || d === "tx" || d === "both";
+}
+
+function setIntfAdmin(args: string[], ctx: CommandContext, up: boolean): CommandResult {
+  const intf = positional(args)[0];
+  if (!intf) return { output: [err(`Usage: config sflow interface ${up ? "enable" : "disable"} <interface|all>`)] };
+  const st = sflowState(ctx.device);
+  if (intf === "all") {
+    st.allInterfaces = up;
+    return { output: [] };
+  }
+  if (!interfaceByName(ctx.device, intf)) return { output: [err(`Invalid interface name ${intf}`)] };
+  (st.interfaces[intf] ??= {}).enabled = up;
+  return { output: [] };
+}
+
+function renderGlobal(st: SflowState | undefined): OutputLine[] {
+  const label = (s: string) => `  ${s}:`.padEnd(30);
+  const collectors = [...(st?.collectors ?? [])].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const out: OutputLine[] = [
+    line(""),
     line("sFlow Global Information:"),
-    line(`sFlow Admin State: ${enabled ? "up" : "down"}`),
-    line(`sFlow Polling Interval: ${polling !== undefined ? polling : "default"}`),
-    line(`sFlow AgentID: ${agentId ?? "default"}`),
-    line(`${collectors.length} ${collectors.length === 1 ? "Collector" : "Collectors"} configured:`),
+    line(label("sFlow Admin State") + (st?.enabled ? "up" : "down")),
+    line(label("sFlow Sample Direction") + (st?.direction ?? "rx")),
+    line(label("sFlow Polling Interval") + (st?.pollingInterval ?? "default")),
+    line(label("sFlow AgentID") + (st?.agentId ?? "default")),
+    line(""),
+    line(`  ${collectors.length} Collectors configured:`),
   ];
   for (const c of collectors) {
-    out.push(line(`Name: ${c.name} IP addr: ${c.ip} UDP port: ${c.port} VRF: default`));
+    out.push(
+      line(
+        `    Name: ${c.name}`.padEnd(30) + `IP addr: ${c.ip} `.padEnd(25) + `UDP port: ${c.port}`.padEnd(17) + `VRF: ${c.vrf}`,
+      ),
+    );
   }
   return out;
 }
 
-function renderInterfaces(ctx: CommandContext, only?: string): OutputLine[] {
-  const st = peekFeatureState<SflowState>(ctx.device, "sflow");
-  const names = Object.keys(st?.interfaces ?? {})
-    .filter((n) => (only ? n === only : true))
-    .sort();
-  const out: OutputLine[] = [line("sFlow interface configurations")];
-  if (names.length === 0) {
-    out.push(muted("No sFlow interfaces configured"));
-    return out;
-  }
-  for (const n of names) {
-    const cfg = st!.interfaces[n];
-    const rate = cfg.sampleRate ?? DEFAULT_SAMPLE_RATE;
-    out.push(line(`| ${n} | ${cfg.enabled ? "up" : "down"} | ${rate} |`));
-  }
-  return out;
+function renderInterfaces(ctx: CommandContext): OutputLine[] {
+  const rows = sflowSessions(ctx.device)
+    .sort((a, b) => natCompare(a.port, b.port))
+    .map((s) => [s.port, s.adminState, String(s.sampleRate), s.direction]);
+  return [
+    line(""),
+    line("sFlow interface configurations"),
+    ...gridTable(["Interface", "Admin State", "Sampling Rate", "Sampling Direction"], rows).map((t) => line(t)),
+  ];
 }
 
 const show: SonicCmd[] = [
   {
     path: ["sflow", "interface"],
-    summary: "Show sFlow interface configuration (optionally one interface)",
-    run: (args, ctx) => ({ output: renderInterfaces(ctx, positional(args)[0]) }),
+    summary: "Show sFlow interface sessions (APPL_DB)",
+    run: (_args, ctx) => ({ output: renderInterfaces(ctx) }),
   },
-  { path: ["sflow"], summary: "Show sFlow global configuration", run: (_a, ctx) => ({ output: renderGlobal(ctx) }) },
+  {
+    path: ["sflow"],
+    summary: "Show sFlow global configuration",
+    run: (_a, ctx) => ({ output: renderGlobal(peekSflowState(ctx.device)) }),
+  },
 ];
 
 export const sflowModule: SonicFeatureModule = { id: "sflow", config, show };

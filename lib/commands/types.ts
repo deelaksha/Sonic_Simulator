@@ -21,6 +21,21 @@ export interface CommandResult {
   events?: SimEvent[];
   /** When true, the terminal clears its scrollback. */
   clear?: boolean;
+  /** A long-running capture (tcpdump) the store keeps feeding until -c / Ctrl+C. */
+  liveCapture?: LiveCaptureSpec;
+}
+
+export interface LiveCaptureSpec {
+  deviceId: string;
+  /** Interface ids to watch; null = every interface (`-i any`). */
+  interfaceIds: string[] | null;
+  filter: string;
+  /** Stop after this many matched packets (-c). */
+  count?: number;
+  showEther: boolean;
+  verbose: boolean;
+  hex: boolean;
+  anyIface: boolean;
 }
 
 export interface CommandContext {
@@ -32,6 +47,8 @@ export interface CommandContext {
   captures: CaptureRecord[];
   /** Run a simulation against `network`, appending its captures to the log. */
   runSim<T>(fn: (sim: Simulation) => T): { value: T; events: SimEvent[] };
+  /** Set by `sudo` — the command runs as root. */
+  privileged?: boolean;
 }
 
 export interface CommandHandler {

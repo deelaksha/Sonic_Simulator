@@ -18,6 +18,11 @@ export interface InterfaceStats {
   txBytes: number;
   rxDropped: number;
   txDropped: number;
+  /** Broadcast/multicast split (sFlow generic counters); absent in older labs. */
+  rxBroadcast?: number;
+  rxMulticast?: number;
+  txBroadcast?: number;
+  txMulticast?: number;
 }
 
 export interface NetInterface {

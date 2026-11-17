@@ -3,8 +3,12 @@ import { useEffect, useState } from "react";
 import { useLabStore } from "@/lib/store/lab-store";
 import { DeviceConfigPanel } from "./DeviceConfigPanel";
 import { PacketInspector } from "./PacketInspector";
+import { TrafficPanel } from "./TrafficPanel";
+import { SflowPanel } from "./SflowPanel";
 
-type Tab = "device" | "packet";
+type Tab = "device" | "packet" | "traffic" | "sflow";
+
+const TAB_LABEL: Record<Tab, string> = { device: "Device", packet: "Packet", traffic: "Traffic", sflow: "sFlow" };
 
 export function Inspector() {
   const selectedDeviceId = useLabStore((s) => s.selectedDeviceId);
@@ -16,13 +20,15 @@ export function Inspector() {
     if (selectedEventId) setTab("packet");
   }, [selectedEventId]);
   useEffect(() => {
-    if (selectedDeviceId) setTab("device");
+    if (selectedDeviceId) setTab((t) => (t === "traffic" || t === "sflow" ? t : "device"));
   }, [selectedDeviceId]);
 
+  // The monitoring tabs carry tables, so the inspector widens for them.
+  const wide = tab === "traffic" || tab === "sflow";
   return (
-    <div className="flex h-full flex-col">
+    <div className={`flex h-full flex-col ${wide ? "w-[30rem]" : "w-80"}`}>
       <div className="flex border-b border-edge">
-        {(["device", "packet"] as Tab[]).map((t) => (
+        {(["device", "packet", "traffic", "sflow"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -30,12 +36,12 @@ export function Inspector() {
               tab === t ? "border-b-2 border-accent-2 text-accent-2" : "text-[#6b7789] hover:text-[#c9d3de]"
             }`}
           >
-            {t === "device" ? "Device" : "Packet"}
+            {TAB_LABEL[t]}
           </button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto">
-        {tab === "device" ? <DeviceConfigPanel /> : <PacketInspector />}
+        {tab === "device" ? <DeviceConfigPanel /> : tab === "packet" ? <PacketInspector /> : tab === "traffic" ? <TrafficPanel /> : <SflowPanel />}
       </div>
     </div>
   );

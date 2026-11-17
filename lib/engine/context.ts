@@ -19,6 +19,9 @@ export interface SimContext {
   /** Current simulated clock (ms). */
   now(): number;
 
+  /** Wall-clock epoch ms of the current simulated instant (capture timestamps). */
+  wallNow(): number;
+
   /** Advance the simulated clock. */
   advance(ms: number): void;
 

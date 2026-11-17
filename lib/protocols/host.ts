@@ -11,6 +11,7 @@ import { handleArpFrame } from "./arp";
 import { handleIcmpLocal } from "./icmp";
 import { handleUdp } from "./udpapp";
 import { hostReceiveV6 } from "./ipv6";
+import { countIcmpDelivery, receiveTrafficTcp } from "./traffic";
 
 export function hostReceive(
   ctx: SimContext,
@@ -75,11 +76,13 @@ export function hostReceive(
   }
 
   if (frame.icmp) {
+    if (frame.icmp.type === "echo-request") countIcmpDelivery(device, frame);
     handleIcmpLocal(ctx, device, ingress, frame);
     return;
   }
 
-  // TCP/UDP delivery arrives in a later MVP.
+  if (receiveTrafficTcp(ctx, device, ingress, frame)) return;
+
   ctx.emit({
     type: "FRAME_DROPPED",
     deviceId: device.id,

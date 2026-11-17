@@ -28,7 +28,7 @@ const sudoCommand: CommandHandler = {
     if (args.length === 0) return { output: [err("usage: sudo <command> ...")] };
     const sub = resolveCommand(args[0]);
     if (!sub) return { output: [err(`sudo: ${args[0]}: command not found`)] };
-    return sub.run(args.slice(1), ctx);
+    return sub.run(args.slice(1), { ...ctx, privileged: true });
   },
 };
 
