@@ -29,7 +29,8 @@ function etherPrefix(f: Frame): string {
   const len = wireLength(f);
   const src = f.ethernet.srcMac.toLowerCase();
   const dst = f.ethernet.dstMac.toLowerCase();
-  const et = (t: string) => (t === "ARP" ? "ARP (0x0806)" : t === "IPv6" ? "IPv6 (0x86dd)" : "IPv4 (0x0800)");
+  const et = (t: string) =>
+    t === "ARP" ? "ARP (0x0806)" : t === "IPv6" ? "IPv6 (0x86dd)" : t === "IPv4" ? "IPv4 (0x0800)" : `Unknown (0x${(f.ethernet.typeCode ?? 0).toString(16).padStart(4, "0")})`;
   if (f.vlan) return `${src} > ${dst}, ethertype 802.1Q (0x8100), length ${len}: vlan ${f.vlan.vlanId}, p ${f.vlan.priority}, ethertype ${et(f.ethernet.etherType)}, `;
   return `${src} > ${dst}, ethertype ${et(f.ethernet.etherType)}, length ${len}: `;
 }
@@ -102,6 +103,8 @@ export function formatPacket(f: Frame, opts: { showEther?: boolean; verbose?: bo
       const flags = t.flags.map((x) => TCP_FLAG_CHARS[x] ?? "").join("").replace(/^\.(.+)$/, "$1.");
       const payload = Math.max(0, ipLen - 40);
       what = `Flags [${flags || "none"}], seq ${t.seq}${t.flags.includes("ACK") ? `, ack ${t.ack}` : ""}, win ${t.window}, length ${payload}`;
+    } else if (ip.protocol === "OTHER") {
+      what = `ip-proto-${ip.protocolNumber ?? 0} ${ipLen - 20}`;
     } else {
       what = `${ip.protocol}, length ${ipLen - 20}`;
     }
@@ -109,6 +112,8 @@ export function formatPacket(f: Frame, opts: { showEther?: boolean; verbose?: bo
   } else {
     body = f.meta.summary;
   }
+  // Packets built by the packet engine: -v adds the engine's full decode.
+  if (opts.verbose && f.rawL3 && !f.sflow) extra.push(`\t[decoded] ${f.meta.summary}`);
   const out = [(opts.showEther ? etherPrefix(f) : "") + body, ...extra];
   if (opts.hex) out.push(...hexDump(f));
   return out;

@@ -169,6 +169,9 @@ export function routerReceive(
     bgp: frame.bgp,
     upperBytes: upperBytesOf(frame),
     summary: frame.meta.summary,
+    // Engine-built packets keep their bytes across the hop (TTL is re-applied on the wire).
+    rawL3: frame.rawL3,
+    protocolNumber: ip.protocolNumber,
   });
 
   if (!res.ok) {

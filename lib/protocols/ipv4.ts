@@ -45,6 +45,10 @@ export interface IpOutputOpts {
   bgp?: BgpPayload;
   /** Override the destination MAC (e.g. broadcast for DHCP); default resolves via ARP. */
   dstMacOverride?: string;
+  /** Engine-built packet bytes (IP header onward) to carry verbatim (Frame.rawL3). */
+  rawL3?: number[];
+  /** IP protocol number when protocol is "OTHER". */
+  protocolNumber?: number;
   upperBytes: number; // bytes above the IP header (L4 + data)
   summary: string;
 }
@@ -99,6 +103,7 @@ export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): I
     ttl: opts.ttl,
     protocol: opts.protocol,
     identification: opts.identification,
+    ...(opts.protocolNumber !== undefined ? { protocolNumber: opts.protocolNumber } : {}),
   };
 
   const frame = buildFrame(
@@ -106,11 +111,12 @@ export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): I
       srcMac: egress.mac,
       dstMac: mac,
       etherType: "IPv4",
-      payloadBytes: IPV4_HEADER_BYTES + opts.upperBytes,
+      payloadBytes: opts.rawL3 ? opts.rawL3.length : IPV4_HEADER_BYTES + opts.upperBytes,
       summary: opts.summary,
     },
     { ipv4, icmp: opts.icmp, udp: opts.udp, ntp: opts.ntp, dhcp: opts.dhcp, dns: opts.dns, tcp: opts.tcp, bgp: opts.bgp },
   );
+  if (opts.rawL3) frame.rawL3 = opts.rawL3;
 
   ctx.emit({
     type: "IP_PACKET_CREATED",

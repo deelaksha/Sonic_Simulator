@@ -133,6 +133,8 @@ export interface Ip6OutputOpts {
   icmp6?: Icmp6Payload;
   upperBytes: number;
   summary: string;
+  /** Engine-built packet bytes (IPv6 header onward) to carry verbatim (Frame.rawL3). */
+  rawL3?: number[];
 }
 
 export interface Ip6OutputResult {
@@ -163,7 +165,7 @@ export function ip6Output(ctx: SimContext, device: Device, opts: Ip6OutputOpts):
       srcMac: egress.mac,
       dstMac: mac,
       etherType: "IPv6",
-      payloadBytes: IPV6_HEADER_BYTES + opts.upperBytes,
+      payloadBytes: opts.rawL3 ? opts.rawL3.length : IPV6_HEADER_BYTES + opts.upperBytes,
       summary: opts.summary,
     },
     {
@@ -171,6 +173,7 @@ export function ip6Output(ctx: SimContext, device: Device, opts: Ip6OutputOpts):
       icmp6: opts.icmp6,
     },
   );
+  if (opts.rawL3) frame.rawL3 = opts.rawL3;
   ctx.emit({
     type: "IP_PACKET_CREATED",
     deviceId: device.id,
@@ -341,5 +344,6 @@ export function routerReceiveV6(ctx: SimContext, device: Device, ingress: NetInt
     icmp6: frame.icmp6,
     upperBytes: ICMP6_ECHO_TOTAL,
     summary: frame.meta.summary,
+    rawL3: frame.rawL3,
   });
 }

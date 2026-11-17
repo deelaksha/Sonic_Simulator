@@ -11,7 +11,11 @@ import { Device, isHost, isSwitch, findInterface } from "@/lib/models/device";
 import { NetInterface } from "@/lib/models/interface";
 import { NetworkState } from "@/lib/models/topology";
 import { isValidIpv4, isValidPrefix } from "@/lib/models/ip";
-import { TrafficProtocol, peekTrafficSink } from "@/lib/protocols/traffic";
+import { TrafficProtocol, TrafficSink, peekTrafficSink } from "@/lib/protocols/traffic";
+import { LayerSpec } from "@/lib/packetgen/engine";
+import { packetEngine } from "@/lib/packetgen/browser";
+import { bytesToFrame } from "@/lib/packetgen/frame";
+import { PacketBuilder, TEMPLATES, withAddressing } from "./PacketBuilder";
 
 const input = "rounded border border-edge bg-panel px-1.5 py-1 text-[11px] outline-none focus:border-accent-2";
 
@@ -118,6 +122,10 @@ export function TrafficPanel() {
   const [interval, setIntervalMs] = useState("100");
   const [continuous, setContinuous] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stack, setStack] = useState<LayerSpec[]>(TEMPLATES["DNS query"]);
+  const [building, setBuilding] = useState(false);
+  /** Which delivery counter the last engine-built packet lands in. */
+  const [engineSink, setEngineSink] = useState<keyof TrafficSink | null>(null);
 
   // Default the source to the selected host (or the first host).
   useEffect(() => {
@@ -135,20 +143,34 @@ export function TrafficPanel() {
   }, [src, hosts, dstIp]);
 
   const running = !!traffic?.running;
-  const start = () => {
-    setError(
-      startTraffic({
-        srcDeviceId: srcId,
-        dstIp: dstIp.trim(),
-        protocol,
-        srcPort: Number(srcPort),
-        dstPort: Number(dstPort),
-        size: Number(size),
-        count: Number(count),
-        intervalMs: Number(interval),
-        continuous,
-      }),
-    );
+  const common = {
+    srcDeviceId: srcId,
+    dstIp: dstIp.trim(),
+    srcPort: Number(srcPort),
+    dstPort: Number(dstPort),
+    size: Number(size),
+    count: Number(count),
+    intervalMs: Number(interval),
+    continuous,
+  };
+  const start = async () => {
+    if (protocol !== "engine") return setError(startTraffic({ ...common, protocol }));
+    const nic = src?.interfaces[0];
+    if (!nic) return setError("select a source host");
+    setBuilding(true);
+    setError(null);
+    try {
+      const built = await packetEngine().build(
+        withAddressing(stack, { srcMac: nic.mac, dstMac: dst?.interfaces[0]?.mac, srcIp: nic.ipv4[0]?.address, dstIp: dstIp.trim() || undefined }),
+      );
+      const f = bytesToFrame(built.bytes, built.summary);
+      setEngineSink(f.udp ? "udp" : f.tcp ? "tcp" : f.icmp ? "icmp" : null);
+      setError(startTraffic({ ...common, protocol: "engine", packet: { bytes: Array.from(built.bytes), summary: built.summary } }));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBuilding(false);
+    }
   };
 
   // Path counters straight from the simulated interfaces.
@@ -157,7 +179,8 @@ export function TrafficPanel() {
   const dstNic = dst?.interfaces[0];
   const egress = switchPort(network, dstNic);
   const sink = dst ? peekTrafficSink(dst) : undefined;
-  const proto = traffic?.spec.protocol ?? protocol;
+  const specProto = traffic?.spec.protocol ?? protocol;
+  const proto: keyof TrafficSink | null = specProto === "engine" ? engineSink : specProto;
 
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -193,14 +216,24 @@ export function TrafficPanel() {
           </div>
           <span className="text-[#6b7789]">Protocol</span>
           <div className="flex gap-2">
-            {(["icmp", "udp", "tcp"] as TrafficProtocol[]).map((p) => (
-              <label key={p} className="flex items-center gap-1 text-[#c9d3de]">
+            {(["icmp", "udp", "tcp", "engine"] as TrafficProtocol[]).map((p) => (
+              <label key={p} className="flex items-center gap-1 text-[#c9d3de]" title={p === "engine" ? "Any protocol, built by the packet engine (Scapy)" : undefined}>
                 <input type="radio" checked={protocol === p} onChange={() => setProtocol(p)} disabled={running} />
-                {p.toUpperCase()}
+                {p === "engine" ? "Any (Scapy)" : p.toUpperCase()}
               </label>
             ))}
           </div>
-          {protocol !== "icmp" && (
+          {protocol === "engine" && (
+            <div className="col-span-2">
+              <PacketBuilder
+                stack={stack}
+                onChange={setStack}
+                disabled={running}
+                addressing={{ srcMac: src?.interfaces[0]?.mac ?? "02:00:00:00:00:00", dstMac: dst?.interfaces[0]?.mac, srcIp: src?.interfaces[0]?.ipv4[0]?.address, dstIp: dstIp.trim() || undefined }}
+              />
+            </div>
+          )}
+          {(protocol === "udp" || protocol === "tcp") && (
             <>
               <span className="text-[#6b7789]">Src / dst port</span>
               <div className="flex gap-1">
@@ -209,8 +242,12 @@ export function TrafficPanel() {
               </div>
             </>
           )}
-          <span className="text-[#6b7789]">Payload bytes</span>
-          <input className={input} value={size} onChange={(e) => setSize(e.target.value)} disabled={running} />
+          {protocol !== "engine" && (
+            <>
+              <span className="text-[#6b7789]">Payload bytes</span>
+              <input className={input} value={size} onChange={(e) => setSize(e.target.value)} disabled={running} />
+            </>
+          )}
           <span className="text-[#6b7789]">Count</span>
           <div className="flex items-center gap-2">
             <input className={`${input} w-20`} value={count} onChange={(e) => setCount(e.target.value)} disabled={running || continuous} />
@@ -228,14 +265,15 @@ export function TrafficPanel() {
               Stop
             </button>
           ) : (
-            <button onClick={start} className="rounded border border-green-500/50 bg-green-500/15 px-3 py-1 text-[11px] text-green-300">
-              Start
+            <button onClick={start} disabled={building} className="rounded border border-green-500/50 bg-green-500/15 px-3 py-1 text-[11px] text-green-300">
+              {building ? "Building…" : "Start"}
             </button>
           )}
           {error && <span className="text-[10px] text-red-400">{error}</span>}
         </div>
         <p className="mt-1.5 text-[10px] leading-relaxed text-[#5f6b7a]">
-          TCP sends SYNs; a host with no listener answers RST,ACK. Intervals under 50 ms are simulated in batches.
+          TCP sends SYNs; a host with no listener answers RST,ACK. &quot;Any (Scapy)&quot; packets are built once and sent as built — the
+          engine crafts packets, it does not run protocol state machines. Intervals under 50 ms are simulated in batches.
         </p>
       </Section>
 
@@ -276,7 +314,7 @@ export function TrafficPanel() {
           {egress ? egress.port.statistics.txFrames : dst ? "not cabled" : "—"}
         </Row>
         <Row label={`${dst?.name ?? "destination"} ${dstNic?.name ?? ""} rx`}>{dstNic?.statistics.rxFrames ?? "—"}</Row>
-        <Row label={`${dst?.name ?? "destination"} ${proto.toUpperCase()} delivered`}>{sink ? sink[proto].packets : 0}</Row>
+        {proto && <Row label={`${dst?.name ?? "destination"} ${proto.toUpperCase()} delivered`}>{sink ? sink[proto].packets : 0}</Row>}
         {dstIp && !dst && <div className="mt-1 text-[10px] text-amber-400">No host in the lab owns {dstIp}.</div>}
         <p className="mt-1 text-[10px] text-[#5f6b7a]">Counters are cumulative (they include ARP and other traffic).</p>
       </Section>

@@ -16,9 +16,12 @@ import { longestPrefixMatch } from "../models/route";
 import { findInterface } from "../models/device";
 import { SimContext } from "../engine/context";
 import { ipOutput, IpOutputResult } from "./ipv4";
+import { ip6Output } from "./ipv6";
 import { ICMP_HEADER_BYTES } from "./icmp";
+import { bytesToFrame } from "../packetgen/frame";
 
-export type TrafficProtocol = "icmp" | "udp" | "tcp";
+/** "engine" = a packet built by the packet engine (lib/packetgen), any protocol. */
+export type TrafficProtocol = "icmp" | "udp" | "tcp" | "engine";
 
 export interface TrafficSpec {
   srcDeviceId: string;
@@ -32,6 +35,8 @@ export interface TrafficSpec {
   count: number;
   intervalMs: number;
   continuous: boolean;
+  /** protocol "engine": the full frame as built, as seen leaving the source host. */
+  packet?: { bytes: number[]; summary: string };
 }
 
 export interface TrafficSink {
@@ -117,15 +122,65 @@ export function receiveTrafficTcp(ctx: SimContext, device: Device, ingress: NetI
   return true;
 }
 
-export type SendFailure = NonNullable<IpOutputResult["reason"]> | "no-src-ip" | "iface-down" | "no-device";
+export type SendFailure = NonNullable<IpOutputResult["reason"]> | "ndp-failed" | "no-src-ip" | "iface-down" | "no-device";
 
 export interface SendResult {
   ok: boolean;
   reason?: SendFailure;
 }
 
+/**
+ * Send one engine-built packet. Untagged IPv4/IPv6 is routed like any host
+ * traffic (route lookup + ARP/NDP pick the next-hop MAC); anything else —
+ * non-IP protocols (LLDP, LACP, MPLS…) or an 802.1Q-tagged frame — leaves the
+ * host NIC exactly as built.
+ */
+function sendEnginePacket(ctx: SimContext, src: Device, packet: NonNullable<TrafficSpec["packet"]>): SendResult {
+  const f = bytesToFrame(Uint8Array.from(packet.bytes), packet.summary);
+  if (f.ipv4 && !f.vlan) {
+    const ip = f.ipv4;
+    const r = ipOutput(ctx, src, {
+      srcIp: ip.srcIp,
+      dstIp: ip.dstIp,
+      ttl: ip.ttl,
+      protocol: ip.protocol,
+      protocolNumber: ip.protocolNumber,
+      identification: ip.identification,
+      icmp: f.icmp,
+      udp: f.udp,
+      tcp: f.tcp,
+      rawL3: f.rawL3,
+      upperBytes: 0,
+      summary: packet.summary,
+    });
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+  if (f.ipv6 && !f.vlan) {
+    const ip = f.ipv6;
+    const r = ip6Output(ctx, src, {
+      srcIp: ip.srcIp,
+      dstIp: ip.dstIp,
+      hopLimit: ip.hopLimit,
+      nextHeader: ip.nextHeader,
+      icmp6: f.icmp6,
+      rawL3: f.rawL3,
+      upperBytes: 0,
+      summary: packet.summary,
+    });
+    return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  }
+  const nic = src.interfaces.find((i) => i.adminState === "up" && !i.logical);
+  if (!nic) return { ok: false, reason: "iface-down" };
+  ctx.transmit(src.id, nic.id, f);
+  return { ok: true };
+}
+
 /** Send ONE generated packet (sequence number `seq`) from the spec's source host. */
 export function sendTrafficPacket(ctx: SimContext, src: Device, spec: TrafficSpec, seq: number): SendResult {
+  if (spec.protocol === "engine") {
+    if (!spec.packet) return { ok: false, reason: "no-device" };
+    return sendEnginePacket(ctx, src, spec.packet);
+  }
   const match = longestPrefixMatch(src.routingTable, spec.dstIp);
   if (!match) return { ok: false, reason: "no-route" };
   const egress = findInterface(src, match.route.interfaceId);
@@ -174,9 +229,12 @@ export function sendTrafficPacket(ctx: SimContext, src: Device, spec: TrafficSpe
 
 /** Validate a spec; returns an error string or null. */
 export function validateTrafficSpec(spec: TrafficSpec): string | null {
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(spec.dstIp)) return `invalid destination IP '${spec.dstIp}'`;
+  if (spec.protocol === "engine") {
+    if (!spec.packet?.bytes.length) return "build the packet first";
+    if (spec.packet.bytes.length > 9216) return "packet larger than 9216 bytes (jumbo MTU)";
+  } else if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(spec.dstIp)) return `invalid destination IP '${spec.dstIp}'`;
   for (const [k, v] of [["source port", spec.srcPort], ["destination port", spec.dstPort]] as const) {
-    if (spec.protocol !== "icmp" && (!Number.isInteger(v) || v < 1 || v > 65535)) return `${k} must be 1-65535`;
+    if ((spec.protocol === "udp" || spec.protocol === "tcp") && (!Number.isInteger(v) || v < 1 || v > 65535)) return `${k} must be 1-65535`;
   }
   if (!Number.isInteger(spec.size) || spec.size < 0 || spec.size > 9000) return "packet size must be 0-9000 bytes";
   if (!spec.continuous && (!Number.isInteger(spec.count) || spec.count < 1 || spec.count > 100000)) return "count must be 1-100000";

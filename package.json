@@ -4,6 +4,9 @@
   "private": true,
   "description": "Hands-on interactive networking learning platform (simulation engine + topology builder + Linux terminal + packet inspector)",
   "scripts": {
+    "vendor:packet-engine": "node scripts/vendor-packet-engine.mjs",
+    "predev": "node scripts/vendor-packet-engine.mjs",
+    "prebuild": "node scripts/vendor-packet-engine.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -16,6 +19,7 @@
   "dependencies": {
     "@xyflow/react": "^12.3.5",
     "next": "14.2.15",
+    "pyodide": "0.26.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "zustand": "^4.5.5"

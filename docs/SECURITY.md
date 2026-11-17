@@ -36,6 +36,16 @@ instead of crashing the app.
   files on the server.
 - The host's real interfaces, namespaces, and system config are never touched.
 
+## Packet engine (Scapy in the browser)
+
+The multi-protocol packet engine is CPython + Scapy compiled to WebAssembly
+(Pyodide) and runs in a **Web Worker in the visitor's browser** — nothing runs
+on the server. Its runtime is self-hosted from `/packet-engine/` (no CDN or PyPI
+fetch at runtime). User input never reaches Python as code: the UI sends JSON
+layer stacks, unknown protocols/fields are rejected, and address fields must be
+literals (Scapy would otherwise try hostname resolution or expand ranges into
+many packets). Built packets are capped at 9216 bytes.
+
 ## Future "Real Linux Lab Mode" (spec §43)
 
 The architecture leaves room for a future advanced mode backed by real Linux

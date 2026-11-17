@@ -50,8 +50,27 @@ export function frameToBytes(frame: Frame): Uint8Array {
   const total = wireLength(frame);
   const out: number[] = [...macBytes(frame.ethernet.dstMac), ...macBytes(frame.ethernet.srcMac)];
   if (frame.vlan) out.push(0x81, 0x00, ...u16(((frame.vlan.priority & 7) << 13) | (frame.vlan.vlanId & 0xfff)));
-  out.push(...u16(ETHERTYPE[frame.ethernet.etherType] ?? 0));
+  out.push(...u16(frame.ethernet.typeCode ?? ETHERTYPE[frame.ethernet.etherType] ?? 0));
   const l2 = out.length;
+
+  if (frame.rawL3) {
+    // Engine-built packet: the L2 header is rebuilt (it changes per hop: MACs,
+    // 802.1Q tag), the rest is carried as built with TTL/hop-limit re-applied.
+    const l3 = [...frame.rawL3];
+    if (frame.ipv4 && l3.length >= 20) {
+      const ihl = (l3[0] & 0x0f) * 4;
+      l3[8] = frame.ipv4.ttl & 0xff;
+      l3[10] = l3[11] = 0;
+      const ck = inetChecksum(l3.slice(0, ihl));
+      l3[10] = ck >> 8;
+      l3[11] = ck & 0xff;
+    } else if (frame.ipv6 && l3.length >= 40) {
+      l3[7] = frame.ipv6.hopLimit & 0xff;
+    }
+    out.push(...l3);
+    while (out.length < total) out.push(0);
+    return Uint8Array.from(out);
+  }
 
   if (frame.arp) {
     const a = frame.arp;

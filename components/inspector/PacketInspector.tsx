@@ -4,6 +4,7 @@ import { useLabStore } from "@/lib/store/lab-store";
 import { describeFrame } from "@/lib/models/packet";
 import { OsiPanel } from "./OsiPanel";
 import { MacLookupView, RouteLookupView, ArpLookupView, EncapsulationView } from "./LookupViews";
+import { EngineDecode } from "./EngineDecode";
 
 export function PacketInspector() {
   const events = useLabStore((s) => s.events);
@@ -49,6 +50,7 @@ export function PacketInspector() {
       {event.frame ? (
         <>
           <EncapsulationView frame={event.frame} />
+          {event.frame.rawL3 && <EngineDecode frame={event.frame} />}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-[11px] text-[#8b98a5]">
               <span>Frame #{event.frame.id}</span>

@@ -25,3 +25,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vendored packet engine runtime (scripts/vendor-packet-engine.mjs)
+/public/packet-engine/

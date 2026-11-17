@@ -7,12 +7,15 @@
  * other way around.
  */
 
-export type EtherType = "IPv4" | "IPv6" | "ARP";
+/** "Other" = an EtherType the engine does not model (LLDP, LACP, MPLS, …); see typeCode. */
+export type EtherType = "IPv4" | "IPv6" | "ARP" | "Other";
 
 export interface EthernetHeader {
   srcMac: string;
   dstMac: string;
   etherType: EtherType;
+  /** Numeric EtherType when etherType is "Other". */
+  typeCode?: number;
 }
 
 /** 802.1Q VLAN tag (spec §8). Present only on tagged frames (trunk links). */
@@ -31,7 +34,8 @@ export interface ArpPayload {
   targetIp: string;
 }
 
-export type IpProtocol = "ICMP" | "TCP" | "UDP" | "OSPF";
+/** "OTHER" = an IP protocol the engine does not model (GRE, SCTP, IGMP, …); see protocolNumber. */
+export type IpProtocol = "ICMP" | "TCP" | "UDP" | "OSPF" | "OTHER";
 
 export interface Ipv4Header {
   srcIp: string;
@@ -39,6 +43,8 @@ export interface Ipv4Header {
   ttl: number;
   protocol: IpProtocol;
   identification: number;
+  /** IP protocol number when protocol is "OTHER". */
+  protocolNumber?: number;
 }
 
 export type IcmpType = "echo-request" | "echo-reply" | "time-exceeded" | "dest-unreachable";
@@ -52,7 +58,7 @@ export interface IcmpPayload {
   errorInfo?: string;
 }
 
-export type Ipv6NextHeader = "ICMPv6" | "UDP" | "TCP";
+export type Ipv6NextHeader = "ICMPv6" | "UDP" | "TCP" | "OTHER";
 
 export interface Ipv6Header {
   srcIp: string;
@@ -190,6 +196,13 @@ export interface Frame {
   bgp?: BgpPayload;
   /** sFlow v5 datagram octets carried as the UDP payload (agent → collector). */
   sflow?: { datagram: number[] };
+  /**
+   * Bytes after the Ethernet/802.1Q header for frames built by the packet
+   * engine (lib/packetgen). The typed headers above are parsed from them and
+   * drive forwarding; these bytes are what goes on the wire, so any protocol
+   * the engine can build crosses the simulated network intact.
+   */
+  rawL3?: number[];
   meta: FrameMeta;
 }
 
@@ -220,8 +233,14 @@ const ETHERTYPE_HEX: Record<EtherType, string> = {
   IPv4: "0x0800",
   ARP: "0x0806",
   IPv6: "0x86DD",
+  Other: "",
 };
-const IP_PROTO_NUM: Record<IpProtocol, number> = { ICMP: 1, TCP: 6, UDP: 17, OSPF: 89 };
+const IP_PROTO_NUM: Record<IpProtocol, number> = { ICMP: 1, TCP: 6, UDP: 17, OSPF: 89, OTHER: 0 };
+
+function etherTypeLabel(e: EthernetHeader): string {
+  if (e.etherType === "Other") return `0x${(e.typeCode ?? 0).toString(16).padStart(4, "0").toUpperCase()}`;
+  return `${ETHERTYPE_HEX[e.etherType]} (${e.etherType})`;
+}
 const ICMP_TYPE_NUM: Record<IcmpType, number> = {
   "echo-request": 8,
   "echo-reply": 0,
@@ -243,7 +262,7 @@ export function describeFrame(f: Frame): InspectorLayer[] {
         label: "Type",
         value: f.vlan
           ? "0x8100 (802.1Q)"
-          : `${ETHERTYPE_HEX[f.ethernet.etherType]} (${f.ethernet.etherType})`,
+          : etherTypeLabel(f.ethernet),
       },
     ],
   });
@@ -257,7 +276,7 @@ export function describeFrame(f: Frame): InspectorLayer[] {
         { label: "Priority", value: String(f.vlan.priority) },
         {
           label: "Encapsulated",
-          value: `${ETHERTYPE_HEX[f.ethernet.etherType]} (${f.ethernet.etherType})`,
+          value: etherTypeLabel(f.ethernet),
         },
       ],
     });
@@ -291,7 +310,10 @@ export function describeFrame(f: Frame): InspectorLayer[] {
         { label: "Source", value: f.ipv4.srcIp },
         { label: "Destination", value: f.ipv4.dstIp },
         { label: "TTL", value: String(f.ipv4.ttl) },
-        { label: "Protocol", value: `${IP_PROTO_NUM[f.ipv4.protocol]} (${f.ipv4.protocol})` },
+        {
+          label: "Protocol",
+          value: f.ipv4.protocol === "OTHER" ? String(f.ipv4.protocolNumber ?? 0) : `${IP_PROTO_NUM[f.ipv4.protocol]} (${f.ipv4.protocol})`,
+        },
         { label: "Identification", value: String(f.ipv4.identification) },
       ],
     });
