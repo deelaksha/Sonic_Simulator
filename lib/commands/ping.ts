@@ -82,25 +82,31 @@ function primarySrc(ctx: CommandContext): string {
 export const pingCommand: CommandHandler = {
   name: "ping",
   summary: "Test IP reachability using ICMP Echo Request/Reply",
-  usage: "ping [-c count] <destination>",
+  usage: "ping [-c count] [-s size] <destination>",
   help: [
     "PING",
     "",
     "Usage:",
-    "  ping [-c count] <destination>",
+    "  ping [-c count] [-s size] <destination>",
+    "",
+    "Options:",
+    "  -c count  Number of packets to send (1-5000, default 4)",
+    "  -s size   Number of data bytes to send (0-65507, default 56)",
     "",
     "Purpose:",
     "  Tests IP reachability using ICMP Echo Request/Reply.",
     "",
     "Watch:",
-    "  L2 Ethernet · ARP · L3 IP · ICMP · Routing",
+    "  L2 Ethernet · ARP · L3 IP · ICMP · Routing · sFlow sampling",
   ],
   run(args, ctx): CommandResult {
     const a = [...args];
     const countStr = takeFlagValue(a, "-c");
-    const count = countStr ? Math.max(1, Math.min(20, parseInt(countStr, 10) || 4)) : 4;
+    const count = countStr ? Math.max(1, Math.min(5000, parseInt(countStr, 10) || 4)) : 4;
+    const sizeStr = takeFlagValue(a, "-s");
+    const size = sizeStr ? Math.max(0, Math.min(65507, parseInt(sizeStr, 10) || 56)) : 56;
     const target = firstPositional(a);
-    if (!target) return { output: [err("ping: usage: ping [-c count] <destination>")] };
+    if (!target) return { output: [err("ping: usage: ping [-c count] [-s size] <destination>")] };
 
     // Resolve a hostname to an IP via DNS first (like a real host), then ping it.
     let dst = target;
@@ -116,10 +122,10 @@ export const pingCommand: CommandHandler = {
       pre.push(muted(`; resolved ${target} → ${dst} (DNS ${dnsRun.value.server})`));
     }
 
-    const { value: summary, events: pingEvents } = ctx.runSim((sim) => sim.runPing(ctx.device.id, dst, { count }));
+    const { value: summary, events: pingEvents } = ctx.runSim((sim) => sim.runPing(ctx.device.id, dst, { count, size }));
     const events = [...(dnsEvents as never[]), ...(pingEvents ?? [])];
     const out: OutputLine[] = [...pre];
-    out.push(line(`PING ${target} (${dst}) 56(84) bytes of data.`));
+    out.push(line(`PING ${target} (${dst}) ${size}(${size + 28}) bytes of data.`));
 
     // A missing route fails the same way for every probe — report it once.
     if (summary.replies.length > 0 && summary.replies.every((r) => r.reason === "no-route")) {
@@ -129,11 +135,34 @@ export const pingCommand: CommandHandler = {
       return { output: out, events };
     }
 
-    for (const r of summary.replies) {
-      if (r.success) {
-        out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} ttl=${r.ttl} time=${r.rttMs} ms`, "success"));
-      } else {
-        out.push(failureLine(r, ctx));
+    if (count <= 20) {
+      for (const r of summary.replies) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} ttl=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(failureLine(r, ctx));
+        }
+      }
+    } else {
+      const firstFew = summary.replies.slice(0, 3);
+      for (const r of firstFew) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} ttl=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(failureLine(r, ctx));
+        }
+      }
+      const skipped = count - 6;
+      if (skipped > 0) {
+        out.push(muted(`... [${skipped} probes transmitted in background] ...`));
+      }
+      const lastFew = summary.replies.slice(-3);
+      for (const r of lastFew) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} ttl=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(failureLine(r, ctx));
+        }
       }
     }
 

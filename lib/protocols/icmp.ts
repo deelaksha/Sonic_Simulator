@@ -43,6 +43,7 @@ export function handleIcmpLocal(
       message: `${device.name}: echo request from ${ip.srcIp} → sending echo reply`,
       osiLayers: [3],
     });
+    const reqUpper = Math.max(ICMP_HEADER_BYTES, (frame.meta?.sizeBytes ?? (ICMP_ECHO_TOTAL + 34)) - 34);
     ipOutput(ctx, device, {
       srcIp: ip.dstIp, // reply comes from the address that was pinged
       dstIp: ip.srcIp,
@@ -50,7 +51,7 @@ export function handleIcmpLocal(
       protocol: "ICMP",
       identification: icmp.identifier,
       icmp: reply,
-      upperBytes: ICMP_ECHO_TOTAL,
+      upperBytes: reqUpper,
       summary: `ICMP echo reply id ${icmp.identifier} seq ${icmp.sequence}`,
     });
     return;

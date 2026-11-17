@@ -23,7 +23,7 @@ import { sflowSample, countCast } from "../sflow/agent";
 import { dispatchL2, isLinkLocalControl } from "../control";
 import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
-import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES } from "../protocols/icmp";
+import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES, ICMP_HEADER_BYTES } from "../protocols/icmp";
 import { ipOutput, routeTableSnapshot } from "../protocols/ipv4";
 import { buildFrame, DOT1Q_BYTES } from "../protocols/ethernet";
 import { BROADCAST_MAC, normalizeMac, isBroadcast, isMulticast } from "../models/mac";
@@ -154,8 +154,13 @@ export class Simulation implements SimContext {
     return this.steps <= MAX_STEPS;
   }
 
+  resetSteps(): void {
+    this.steps = 0;
+  }
+
   emit(e: EmitInput): void {
     this.seq += 1;
+    if (this.events.length >= 2500) return;
     this.events.push({
       ...e,
       id: nextEventId(),
@@ -166,6 +171,7 @@ export class Simulation implements SimContext {
   }
 
   capture(deviceId: string, interfaceId: string, dir: CaptureDir, frame: Frame): void {
+    if (this.captures.length >= 1000) return;
     this.captures.push({ deviceId, interfaceId, dir, timeMs: this.wallNow(), frame: cloneFrame(frame) });
   }
 
@@ -596,16 +602,18 @@ export class Simulation implements SimContext {
   }
 
   // --- Ping orchestration ---
-  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number }): PingSummary {
+  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number; size?: number }): PingSummary {
     const count = opts?.count ?? 4;
     const ttl = opts?.ttl ?? 64;
+    const size = opts?.size ?? 56;
     const src = this.state.devices[srcDeviceId];
     const replies: PingReply[] = [];
     this.announceVrrp(); // ensure switches point virtual-MAC → the CURRENT master (handles failover)
 
     if (src) {
       for (let seq = 1; seq <= count; seq++) {
-        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl));
+        this.resetSteps(); // reset runaway hop guard per probe
+        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl, size));
         this.advance(5); // small spacing so timestamps differ between probes
       }
     }
@@ -622,7 +630,7 @@ export class Simulation implements SimContext {
     return { dstIp, transmitted: replies.length, received, replies };
   }
 
-  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number): PingReply {
+  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number, size: number = 56): PingReply {
     // Silent lookup to pick the source address (the egress interface's IP).
     const match = longestPrefixMatch(src.routingTable, dstIp);
     if (!match) {
@@ -666,7 +674,7 @@ export class Simulation implements SimContext {
       protocol: "ICMP",
       identification: id,
       icmp,
-      upperBytes: ICMP_ECHO_TOTAL,
+      upperBytes: ICMP_HEADER_BYTES + size,
       summary: `ICMP echo request id ${id} seq ${seq}`,
     });
 
@@ -683,7 +691,7 @@ export class Simulation implements SimContext {
         fromIp: reply.ipv4.srcIp,
         ttl: reply.ipv4.ttl,
         rttMs: this.clock - start,
-        bytes: ICMP_ECHO_DATA_BYTES + 8,
+        bytes: size + 8,
       };
     }
     return { seq, success: false, reason: "timeout" };
@@ -793,6 +801,7 @@ export class Simulation implements SimContext {
     const replies: PingReply[] = [];
     if (src) {
       for (let seq = 1; seq <= count; seq++) {
+        this.resetSteps();
         replies.push(this.ping6Once(src, dstIp, this.icmpId, seq, hop));
         this.advance(5);
       }

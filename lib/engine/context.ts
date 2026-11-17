@@ -38,6 +38,9 @@ export interface SimContext {
   /** Loop/recursion guard. Returns false once the step budget is exhausted. */
   step(): boolean;
 
+  /** Reset loop/recursion step counter (e.g. between independent packet probes). */
+  resetSteps(): void;
+
   /** A host received an ICMP echo reply addressed to it (ping success signal). */
   recordEchoReply(deviceId: string, frame: Frame): void;
 

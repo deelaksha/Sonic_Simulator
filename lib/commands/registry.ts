@@ -21,6 +21,7 @@ import { sonicClearCommand } from "./sonic/arpnd";
 import { SNMP_CLIENT_COMMANDS } from "./snmpclient";
 import { ssCommand } from "./ss";
 import { curlCommand } from "./curl";
+import { trafficCommand } from "./traffic";
 
 const sudoCommand: CommandHandler = {
   name: "sudo",
@@ -78,6 +79,7 @@ export const COMMANDS: CommandHandler[] = [
   ifconfigCommand,
   ssCommand,
   curlCommand,
+  trafficCommand,
   hostnameCommand,
   clearCommand,
   helpCommand,

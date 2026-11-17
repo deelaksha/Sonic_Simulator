@@ -6,14 +6,17 @@
  * No fake animation — the MAC table is authoritative and drives every decision.
  */
 import { Device } from "../models/device";
-import { NetInterface } from "../models/interface";
+import { NetInterface, ownsIp } from "../models/interface";
 import { Frame, cloneFrame } from "../models/packet";
 import { BROADCAST_MAC, NULL_MAC, isBroadcast, isMulticast, normalizeMac } from "../models/mac";
-import { DOT1Q_BYTES } from "./ethernet";
+import { DOT1Q_BYTES, buildFrame } from "./ethernet";
 import { SimContext } from "../engine/context";
 import { MacTableRow } from "../engine/events";
 import { routerReceive } from "./router";
 import { getStpPortState } from "./stp-daemon";
+import { buildArpReply } from "./arp";
+import { echoPayload, ICMP_ECHO_TOTAL } from "./icmp";
+import { IPV4_HEADER_BYTES } from "./ipv4";
 
 /** Snapshot the MAC table with port NAMES for the inspector (spec §7). */
 function macTableSnapshot(sw: Device, highlightMac?: string): MacTableRow[] {
@@ -162,6 +165,62 @@ export function switchForward(
     }
     // Broadcast and multicast (ARP, OSPF 224.0.0.5, …) reach the CPU and are flooded.
     if (isBroadcast(dstMac) || isMulticast(dstMac)) punt(ctx, sw, svi, frame);
+  } else if (vid === 1) {
+    // In-band switch CPU fallback for default untagged VLAN 1:
+    // If a connected front-panel device pings the switch's IP (e.g. 192.168.100.1),
+    // allow the switch CPU to respond to ARP and ICMP Echo directly on the ingress port.
+    const dstMac = frame.ethernet.dstMac;
+    const isArpForSwitch = frame.arp?.op === "request" && sw.interfaces.some((i) => ownsIp(i, frame.arp!.targetIp));
+    const isIpForSwitch = frame.ipv4 && sw.interfaces.some((i) => ownsIp(i, frame.ipv4!.dstIp));
+
+    if (isArpForSwitch) {
+      const reply = buildArpReply(ingress.mac, frame.arp!.targetIp, frame.arp!.senderMac, frame.arp!.senderIp);
+      ctx.emit({
+        type: "ARP_REPLY",
+        deviceId: sw.id,
+        deviceName: sw.name,
+        interfaceId: ingress.id,
+        interfaceName: ingress.name,
+        message: `${sw.name}: ${frame.arp!.targetIp} is-at ${ingress.mac} → ${frame.arp!.senderIp}`,
+        osiLayers: [2],
+        frame: reply,
+      });
+      ctx.transmit(sw.id, ingress.id, reply);
+    } else if (frame.ipv4 && isIpForSwitch && normalizeMac(dstMac) === normalizeMac(ingress.mac)) {
+      if (frame.icmp?.type === "echo-request") {
+        const replyIcmp = echoPayload("echo-reply", frame.icmp.identifier, frame.icmp.sequence);
+        ctx.emit({
+          type: "ICMP_ECHO_REPLY",
+          deviceId: sw.id,
+          deviceName: sw.name,
+          interfaceId: ingress.id,
+          interfaceName: ingress.name,
+          message: `${sw.name}: echo request from ${frame.ipv4.srcIp} → sending echo reply`,
+          osiLayers: [3],
+        });
+        const replyFrame = buildFrame(
+          {
+            srcMac: ingress.mac,
+            dstMac: frame.ethernet.srcMac,
+            etherType: "IPv4",
+            payloadBytes: ICMP_ECHO_TOTAL + IPV4_HEADER_BYTES,
+            summary: `ICMP echo reply id ${frame.icmp.identifier} seq ${frame.icmp.sequence}`,
+          },
+          {
+            ipv4: {
+              srcIp: frame.ipv4.dstIp,
+              dstIp: frame.ipv4.srcIp,
+              ttl: 64,
+              protocol: "ICMP",
+              identification: frame.icmp.identifier,
+            },
+            icmp: replyIcmp,
+          },
+        );
+        ctx.transmit(sw.id, ingress.id, replyFrame);
+        return;
+      }
+    }
   }
 
   forwardInVlan(ctx, sw, ingress, vid, frame);

@@ -42,18 +42,42 @@ export const ping6Command: CommandHandler = {
   run(args, ctx): CommandResult {
     const a = [...args];
     const countStr = takeFlagValue(a, "-c");
-    const count = countStr ? Math.max(1, Math.min(20, parseInt(countStr, 10) || 4)) : 4;
+    const count = countStr ? Math.max(1, Math.min(5000, parseInt(countStr, 10) || 4)) : 4;
     const dst = firstPositional(a);
     if (!dst) return { output: [err("ping6: usage: ping6 [-c count] <ipv6-destination>")] };
     if (!isValidIpv6(dst)) return { output: [err(`ping6: ${dst}: invalid IPv6 address`)] };
 
     const { value: summary, events } = ctx.runSim((sim) => sim.runPing6(ctx.device.id, dst, { count }));
     const out: OutputLine[] = [line(`PING ${dst}(${dst}) 56 data bytes`)];
-    for (const r of summary.replies) {
-      if (r.success) {
-        out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} hlim=${r.ttl} time=${r.rttMs} ms`, "success"));
-      } else {
-        out.push(err(`icmp_seq=${r.seq} ${r.reason === "ndp-failed" ? "no neighbour (NDP failed)" : r.reason}`));
+
+    if (count <= 20) {
+      for (const r of summary.replies) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} hlim=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(err(`icmp_seq=${r.seq} ${r.reason === "ndp-failed" ? "no neighbour (NDP failed)" : r.reason}`));
+        }
+      }
+    } else {
+      const firstFew = summary.replies.slice(0, 3);
+      for (const r of firstFew) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} hlim=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(err(`icmp_seq=${r.seq} ${r.reason === "ndp-failed" ? "no neighbour (NDP failed)" : r.reason}`));
+        }
+      }
+      const skipped = count - 6;
+      if (skipped > 0) {
+        out.push(muted(`... [${skipped} probes transmitted in background] ...`));
+      }
+      const lastFew = summary.replies.slice(-3);
+      for (const r of lastFew) {
+        if (r.success) {
+          out.push(line(`${r.bytes} bytes from ${r.fromIp}: icmp_seq=${r.seq} hlim=${r.ttl} time=${r.rttMs} ms`, "success"));
+        } else {
+          out.push(err(`icmp_seq=${r.seq} ${r.reason === "ndp-failed" ? "no neighbour (NDP failed)" : r.reason}`));
+        }
       }
     }
     const loss = summary.transmitted
