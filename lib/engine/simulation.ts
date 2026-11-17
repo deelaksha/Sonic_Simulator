@@ -25,8 +25,8 @@ import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
 import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES } from "../protocols/icmp";
 import { ipOutput, routeTableSnapshot } from "../protocols/ipv4";
-import { buildFrame } from "../protocols/ethernet";
-import { BROADCAST_MAC } from "../models/mac";
+import { buildFrame, DOT1Q_BYTES } from "../protocols/ethernet";
+import { BROADCAST_MAC, normalizeMac, isBroadcast, isMulticast } from "../models/mac";
 import { rebuildConnectedRoutes } from "../models/factory";
 import {
   NTP_PORT,
@@ -401,10 +401,56 @@ export class Simulation implements SimContext {
       return;
     }
 
+    // Routed sub-interface (e.g. Ethernet0.10): tag frame with 802.1Q and transmit via parent interface
+    if (iface.logical && iface.name.includes(".")) {
+      const [parentName, subVidStr] = iface.name.split(".");
+      const parent = device.interfaces.find((i) => i.name === parentName);
+      if (parent) {
+        const vid = iface.vlan?.accessVlan ?? Number(subVidStr);
+        const tagged = cloneFrame(frame);
+        tagged.vlan = { vlanId: vid, priority: 0 };
+        tagged.meta.sizeBytes += DOT1Q_BYTES;
+        this.transmit(deviceId, parent.id, tagged);
+        return;
+      }
+    }
+
     if (isSwitch(device.type) && !iface.management) sflowSample(this, device, iface, frame, "tx");
 
     const peer = getPeer(this.state, deviceId, interfaceId);
     if (!peer) {
+      // Out-of-band management network: if an uncabled management port (eth0)
+      // transmits, deliver across the shared out-of-band management network
+      // (192.168.100.0/24) to all other devices' management ports.
+      if (iface.management) {
+        const dst = frame.ethernet.dstMac;
+        const normDst = normalizeMac(dst);
+
+        // Link-local control frames (LLDP 01:80:C2:00:00:0E, STP 01:80:C2:00:00:00, LACP, etc.)
+        // are strictly link-local and must never cross the out-of-band management fabric.
+        if (!normDst.startsWith("01:80:C2")) {
+          const broadcast = isBroadcast(dst);
+          let delivered = false;
+
+          for (const otherDev of Object.values(this.state.devices)) {
+            if (otherDev.id === deviceId || otherDev.state === "down") continue;
+            for (const otherIface of otherDev.interfaces) {
+              if (!otherIface.management || otherIface.adminState !== "up") continue;
+              // If the other management interface is cabled to an explicit physical connection,
+              // do not inject phantom fallback frames.
+              if (getPeer(this.state, otherDev.id, otherIface.id)) continue;
+
+              if (broadcast || normalizeMac(otherIface.mac) === normDst) {
+                delivered = true;
+                this.advance(LINK_LATENCY_MS);
+                this.deliverToDevice(otherDev.id, otherIface.id, cloneFrame(frame));
+              }
+            }
+          }
+          if (delivered) return;
+        }
+      }
+
       this.emit({
         type: "FRAME_DROPPED",
         deviceId,
@@ -514,6 +560,27 @@ export class Simulation implements SimContext {
     if (isSwitch(device.type) && iface.management) {
       // Out-of-band management port: terminates on the switch's own IP stack.
       hostReceive(this, device, iface, frame);
+    } else if (frame.vlan && (isRouter(device.type) || isSwitch(device.type))) {
+      // Routed 802.1Q sub-interfaces (Router-on-a-stick): match tagged frame to sub-interface
+      const vid = frame.vlan.vlanId;
+      const subif = device.interfaces.find(
+        (i) => i.logical && (i.name === `${iface.name}.${vid}` || (i.name.startsWith(`${iface.name}.`) && i.vlan?.accessVlan === vid)),
+      );
+      if (subif && subif.adminState === "up") {
+        const untagged = cloneFrame(frame);
+        delete untagged.vlan;
+        untagged.meta.sizeBytes = Math.max(64, untagged.meta.sizeBytes - DOT1Q_BYTES);
+        subif.statistics.rxFrames += 1;
+        subif.statistics.rxBytes += untagged.meta.sizeBytes;
+        countCast(subif.statistics, "rx", untagged.ethernet.dstMac);
+        this.capture(deviceId, subif.id, "rx", untagged);
+        routerReceive(this, device, subif, untagged);
+      } else if (isSwitch(device.type)) {
+        sflowSample(this, device, iface, frame, "rx");
+        switchForward(this, device, iface, frame);
+      } else {
+        routerReceive(this, device, iface, frame);
+      }
     } else if (isSwitch(device.type) && iface.ipv4.length > 0 && !iface.logical) {
       // A front-panel port with an IP address is a routed (L3) port.
       sflowSample(this, device, iface, frame, "rx");

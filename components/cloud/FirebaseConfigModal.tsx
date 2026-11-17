@@ -22,6 +22,7 @@ export function FirebaseConfigModal({ open, onClose, onSaved }: Props) {
   const [storageBucket, setStorageBucket] = useState("");
   const [messagingSenderId, setMessagingSenderId] = useState("");
   const [appId, setAppId] = useState("");
+  const [measurementId, setMeasurementId] = useState("");
   const [pasteJson, setPasteJson] = useState("");
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -37,6 +38,7 @@ export function FirebaseConfigModal({ open, onClose, onSaved }: Props) {
         setStorageBucket(cfg.storageBucket || "");
         setMessagingSenderId(cfg.messagingSenderId || "");
         setAppId(cfg.appId || "");
+        setMeasurementId(cfg.measurementId || "");
       }
       setStatusMessage(null);
     }
@@ -68,6 +70,7 @@ export function FirebaseConfigModal({ open, onClose, onSaved }: Props) {
       if (parsed.storageBucket) setStorageBucket(parsed.storageBucket);
       if (parsed.messagingSenderId) setMessagingSenderId(parsed.messagingSenderId);
       if (parsed.appId) setAppId(parsed.appId);
+      if (parsed.measurementId) setMeasurementId(parsed.measurementId);
 
       setRawMode(false);
       setStatusMessage({ type: "info", text: "Configuration parsed from snippet. Click 'Test & Save' below." });
@@ -92,6 +95,7 @@ export function FirebaseConfigModal({ open, onClose, onSaved }: Props) {
       storageBucket: storageBucket.trim() || undefined,
       messagingSenderId: messagingSenderId.trim() || undefined,
       appId: appId.trim() || "",
+      measurementId: measurementId.trim() || undefined,
     };
 
     try {

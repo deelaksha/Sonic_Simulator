@@ -58,7 +58,7 @@ export function createDevice(opts: CreateDeviceOptions): Device {
     mgmt.ipv4 = [{ address: "192.168.100.1", prefix: 24 }];
     interfaces.push(mgmt);
   }
-  return {
+  const dev: Device = {
     id: opts.id,
     name: opts.name,
     type: opts.type,
@@ -73,6 +73,8 @@ export function createDevice(opts: CreateDeviceOptions): Device {
     state: "up",
     ui: { x: opts.x, y: opts.y },
   };
+  rebuildConnectedRoutes(dev);
+  return dev;
 }
 
 /**

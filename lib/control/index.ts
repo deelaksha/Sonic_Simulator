@@ -8,5 +8,6 @@ import "../protocols/bfd-daemon";
 import "../protocols/ospf-daemon";
 import "../protocols/bgp-daemon";
 import "../protocols/snmp-daemon";
+import "../protocols/stp-daemon";
 
 export * from "./daemon";

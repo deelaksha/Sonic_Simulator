@@ -87,8 +87,28 @@ function logicalMac(device: Device): string {
  * already exist.
  */
 function ensureInterface(device: Device, name: string): boolean {
-  if (device.interfaces.some((i) => i.name === name)) return true;
-  if (name.startsWith("Ethernet") || name.startsWith("Management")) return false; // physical/mgmt: must exist
+  if (device.interfaces.some((i) => i.name.toLowerCase() === name.toLowerCase())) return true;
+  if (name.includes(".")) {
+    const parentName = name.split(".")[0];
+    const parent = device.interfaces.find(
+      (i) =>
+        i.name.toLowerCase() === parentName.toLowerCase() ||
+        i.name.toLowerCase() === parentName.replace(/^Ethernet/i, "eth").toLowerCase() ||
+        i.name.toLowerCase() === parentName.replace(/^eth/i, "Ethernet").toLowerCase(),
+    );
+    if (!parent) return false;
+    const subVid = Number(name.split(".")[1]);
+    const normalizedName = `${parent.name}.${subVid}`;
+    if (device.interfaces.some((i) => i.name === normalizedName)) return true;
+    const iface = createInterface(`${device.id}-${normalizedName.toLowerCase()}`, normalizedName, parent.mac);
+    iface.logical = true;
+    iface.operState = parent.operState;
+    iface.vlan.mode = "access";
+    if (Number.isFinite(subVid)) iface.vlan.accessVlan = subVid;
+    device.interfaces.push(iface);
+    return true;
+  }
+  if (name.startsWith("Ethernet") || name.startsWith("Management") || name.startsWith("eth")) return false; // physical/mgmt: must exist
   const iface = createInterface(`${device.id}-${name.toLowerCase()}`, name, logicalMac(device));
   iface.logical = true;
   iface.operState = name.startsWith("PortChannel") ? "down" : "up"; // LAG down until members; SVI/Loopback up
@@ -96,12 +116,13 @@ function ensureInterface(device: Device, name: string): boolean {
   return true;
 }
 
-/** Normalise "Ethernet 24" / "Ethernet24" / "Vlan 10" → "Ethernet24" / "Vlan10". */
+/** Normalise "Ethernet 24" / "Ethernet24" / "Ethernet 0.10" / "Vlan 10" → "Ethernet24" / "Ethernet0.10" / "Vlan10". */
 function ifName(parts: string[]): string | null {
-  const m = parts.join("").match(/^([a-zA-Z]+)(\d+)$/);
+  const m = parts.join("").match(/^([a-zA-Z]+)(\d+)(?:\.(\d+))?$/);
   if (!m) return null;
   const type = IF_TYPES[m[1].toLowerCase()];
-  return type ? `${type}${m[2]}` : null;
+  if (!type) return null;
+  return m[3] !== undefined ? `${type}${m[2]}.${m[3]}` : `${type}${m[2]}`;
 }
 
 export function runSonicCli(input: string, stack: CliStack, ctx: CommandContext): SonicCliResult {
@@ -149,7 +170,7 @@ function dispatch(raw: string, stack: CliStack, ctx: CommandContext, delegate: D
     }
     return stay(out);
   }
-  if (["ping", "ping6", "traceroute", "tracepath", "tcpdump"].includes(cmd)) {
+  if (["ping", "ping6", "traceroute", "tracepath", "tcpdump", "curl", "ss", "netstat"].includes(cmd)) {
     return stay(delegate(raw));
   }
   if (cmd === "write" || cmd === "copy" || cmd === "commit") {
@@ -218,6 +239,18 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
     }
     if (!ensureInterface(ctx.device, name)) {
       return stay([err(`% Interface ${name} does not exist on this device.`)]);
+    }
+    if (name.includes(".")) {
+      const parentName = name.split(".")[0];
+      const parent = ctx.device.interfaces.find(
+        (i) =>
+          i.name.toLowerCase() === parentName.toLowerCase() ||
+          i.name.toLowerCase() === parentName.replace(/^Ethernet/i, "eth").toLowerCase() ||
+          i.name.toLowerCase() === parentName.replace(/^eth/i, "Ethernet").toLowerCase(),
+      );
+      const subVid = Number(name.split(".")[1]);
+      const actualName = parent ? `${parent.name}.${subVid}` : name;
+      return { output: [], stack: [...stack, `gv:configure-subif-view|config-subif-${actualName}|${actualName}`] };
     }
     return { output: [], stack: [...stack, `if-${name}`] };
   }

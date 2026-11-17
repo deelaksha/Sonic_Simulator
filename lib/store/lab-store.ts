@@ -353,6 +353,7 @@ export const useLabStore = create<LabState>((set, get) => {
       let host = 1;
       while (used.has(`192.168.100.${host}`)) host++;
       mgmt.ipv4 = [{ address: `192.168.100.${host}`, prefix: 24 }];
+      rebuildConnectedRoutes(device);
     }
     const next = structuredClone(network);
     next.devices[id] = device;

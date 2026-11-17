@@ -49,6 +49,23 @@ export function prefixToMask(prefix: number): string {
   return intToIp(prefixToMaskInt(prefix));
 }
 
+export function maskToPrefix(mask: string): number | null {
+  if (!isValidIpv4(mask)) return null;
+  const n = ipToInt(mask);
+  let count = 0;
+  let seenZero = false;
+  for (let i = 31; i >= 0; i--) {
+    const bit = (n >>> i) & 1;
+    if (bit === 1) {
+      if (seenZero) return null;
+      count++;
+    } else {
+      seenZero = true;
+    }
+  }
+  return count;
+}
+
 export function networkInt(ip: string, prefix: number): number {
   return (ipToInt(ip) & prefixToMaskInt(prefix)) >>> 0;
 }

@@ -5,7 +5,7 @@
 import { Device } from "../models/device";
 import { NetInterface, ownsIp } from "../models/interface";
 import { Frame } from "../models/packet";
-import { isBroadcast } from "../models/mac";
+import { isBroadcast, normalizeMac } from "../models/mac";
 import { SimContext } from "../engine/context";
 import { handleArpFrame } from "./arp";
 import { handleIcmpLocal } from "./icmp";
@@ -37,7 +37,7 @@ export function hostReceive(
 
   // NIC address filter: accept our unicast or broadcast only.
   const dstMac = frame.ethernet.dstMac;
-  if (!isBroadcast(dstMac) && dstMac !== ingress.mac) {
+  if (!isBroadcast(dstMac) && normalizeMac(dstMac) !== normalizeMac(ingress.mac)) {
     ctx.emit({
       type: "FRAME_DROPPED",
       deviceId: device.id,

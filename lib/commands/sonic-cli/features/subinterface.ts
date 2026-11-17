@@ -28,6 +28,8 @@ import { OutputLine, line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpList } from "../config-plane";
 import { Device } from "../../../models/device";
+import { isValidIpv4, maskToPrefix } from "../../../models/ip";
+import { rebuildConnectedRoutes } from "../../../models/factory";
 
 const ID = "subinterface";
 const KEY = "subifs";
@@ -57,14 +59,48 @@ function clearField(device: Device, name: string, field: OptField): void {
 registerModal({
   id: "subinterface",
   views: ["configure-subif-view"],
-  keywords: ["encapsulation", "mtu", "description", "shutdown"],
+  keywords: ["encapsulation", "mtu", "description", "shutdown", "ip"],
   run({ head, isNo, args, viewctx, ctx }) {
     const name = viewctx ?? "";
     if (!name) return { output: [err("% subinterface context required")] };
+    const devIface = ctx.device.interfaces.find((i) => i.name === name);
+
+    if (head === "ip") {
+      const sub = (args[0] ?? "").toLowerCase();
+      if (sub !== "address") return null;
+      if (isNo) {
+        if (devIface) {
+          devIface.ipv4 = [];
+          rebuildConnectedRoutes(ctx.device);
+        }
+        return { output: [] };
+      }
+      const rawIp = args[1] ?? "";
+      let ip: string;
+      let prefix: number;
+      if (rawIp.includes("/")) {
+        const [ipPart, prefixPart] = rawIp.split("/");
+        ip = ipPart;
+        prefix = Number(prefixPart);
+      } else {
+        ip = rawIp;
+        prefix = maskToPrefix(args[2] ?? "255.255.255.0") ?? 24;
+      }
+      if (!isValidIpv4(ip) || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+        return { output: [err("% Invalid IP address format. Use <ip>/<prefix> or <ip> <netmask>.")] };
+      }
+      if (devIface) {
+        devIface.ipv4 = [{ address: ip, prefix }];
+        devIface.operState = "up";
+        rebuildConnectedRoutes(ctx.device);
+      }
+      return { output: [] };
+    }
 
     if (head === "encapsulation") {
       if (isNo) {
         clearField(ctx.device, name, "vlan");
+        if (devIface) devIface.vlan.accessVlan = 1;
         return { output: [] };
       }
       if ((args[0] ?? "").toLowerCase() !== "dot1q" || (args[1] ?? "").toLowerCase() !== "vlan-id")
@@ -72,6 +108,11 @@ registerModal({
       const id = Number(args[2]);
       if (!Number.isInteger(id) || id < 1 || id > 4094) return { output: [err("% VLAN ID must be 1-4094")] };
       setField(ctx.device, name, "vlan", id);
+      if (devIface) {
+        devIface.vlan.mode = "access";
+        devIface.vlan.accessVlan = id;
+        devIface.vlan.allowedVlans = [id];
+      }
       return { output: [] };
     }
 
@@ -99,6 +140,11 @@ registerModal({
 
     if (head === "shutdown") {
       setField(ctx.device, name, "admin", isNo ? "up" : "down");
+      if (devIface) {
+        devIface.adminState = isNo ? "up" : "down";
+        devIface.operState = isNo ? "up" : "down";
+        rebuildConnectedRoutes(ctx.device);
+      }
       return { output: [] };
     }
 
@@ -145,15 +191,18 @@ registerModal({
       line(dash),
     ];
     for (const s of subifs) {
+      const live = ctx.device.interfaces.find((i) => i.name === s.name);
+      const sp = live ? `${live.speed}M` : "-";
+      const ad = live ? live.adminState : cell(s.admin);
       out.push(
         line(
           row(
             cell(s.name),
-            "-", // Speed is operational — not simulated
-            cell(s.mtu),
-            cell(s.vlan),
-            cell(s.admin),
-            s.vlan !== undefined ? "dot1q-encapsulation" : "-",
+            sp,
+            cell(s.mtu ?? 1500),
+            cell(s.vlan ?? (live?.vlan?.accessVlan)),
+            ad,
+            s.vlan !== undefined || live?.vlan ? "dot1q-encapsulation" : "-",
           ),
         ),
       );

@@ -34,6 +34,8 @@ import { line, err, muted, OutputLine } from "../../types";
 import { Device } from "../../../models/device";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpGet, cpUpsert, cpList } from "../config-plane";
+import { getStpBridgeOper } from "../../../protocols/stp-daemon";
+import { NetworkState } from "../../../models/topology";
 
 const intIn = (s: string | undefined, lo: number, hi: number): number | null => {
   const n = Number(s);
@@ -308,14 +310,43 @@ function renderRunning(dev: Device): OutputLine[] {
   return out;
 }
 
-function renderOper(dev: Device): OutputLine[] {
+function renderOper(dev: Device, state?: NetworkState): OutputLine[] {
   const st = cpGet(dev, "stp");
-  const mode = st?.mode as string | undefined;
-  if (!mode) return [muted("% Spanning-tree mode is not configured.")];
-  return [
-    line(`Spanning-tree Mode: ${MODE_HDR[mode] ?? mode}`),
-    muted("% Operational spanning-tree state (bridge/port roles, timers, counters) is not simulated."),
-  ];
+  const mode = (st?.mode as string | undefined) ?? "rpvst";
+  const oper = state ? getStpBridgeOper(state, dev) : undefined;
+  const out: OutputLine[] = [line(`Spanning-tree Mode: ${MODE_HDR[mode] ?? "Rapid-PVST"}`)];
+
+  if (oper) {
+    out.push(line(`Root Bridge ID: ${oper.rootBridgeId}`));
+    if (oper.isRoot) {
+      out.push(line("  This bridge is the root"));
+    } else {
+      const rpName = oper.rootPortId ? dev.interfaces.find((i) => i.id === oper.rootPortId)?.name ?? oper.rootPortId : "None";
+      out.push(line(`  Root Path Cost: ${oper.rootPathCost}, Root Port: ${rpName}`));
+    }
+    out.push(line(`Bridge ID: ${oper.bridgeId}`));
+    out.push(line(`  Hello Time: ${oper.helloTime} sec, Max Age: ${oper.maxAge} sec, Forward Delay: ${oper.forwardDelay} sec`));
+    out.push(line(""));
+
+    const dash = "-".repeat(60);
+    out.push(line("Interface    Role    Status    Cost      Prio.Nbr  Type"));
+    out.push(line(dash));
+
+    const roleMap: Record<string, string> = { Root: "Root", Designated: "Desg", Alternate: "Altn", Disabled: "Disb" };
+    const stateMap: Record<string, string> = { FORWARDING: "FWD", BLOCKING: "BLK", LEARNING: "LRN" };
+
+    const sortedPorts = Object.values(oper.ports).sort((a, b) => a.portNumber - b.portNumber);
+    for (const p of sortedPorts) {
+      const r = (roleMap[p.role] ?? p.role).padEnd(8);
+      const s = (stateMap[p.state] ?? p.state).padEnd(10);
+      const c = String(p.cost).padEnd(10);
+      const pn = `${p.priority}.${p.portNumber}`.padEnd(10);
+      out.push(line(`${p.interfaceName.padEnd(13)}${r}${s}${c}${pn}P2p`));
+    }
+  } else {
+    out.push(muted("% Operational spanning-tree state is initializing."));
+  }
+  return out;
 }
 
 // --- enable-view: show handlers (render ONLY from stored config). -------------
@@ -327,9 +358,7 @@ registerModal({
     const a0 = (args[0] ?? "").toLowerCase();
     const a1 = (args[1] ?? "").toLowerCase();
     if (a0 === "running-configuration" && a1 === "spanning-tree") return { output: renderRunning(ctx.device) };
-    // Only claim the bare `show spanning-tree`; counters/mst/inconsistentports are
-    // operational-only and are not modelled (fall through to the grammar).
-    if (a0 === "spanning-tree" && !args[1]) return { output: renderOper(ctx.device) };
+    if (a0 === "spanning-tree") return { output: renderOper(ctx.device, ctx.network) };
     return null;
   },
 });

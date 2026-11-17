@@ -13,6 +13,7 @@ import { DOT1Q_BYTES } from "./ethernet";
 import { SimContext } from "../engine/context";
 import { MacTableRow } from "../engine/events";
 import { routerReceive } from "./router";
+import { getStpPortState } from "./stp-daemon";
 
 /** Snapshot the MAC table with port NAMES for the inspector (spec §7). */
 function macTableSnapshot(sw: Device, highlightMac?: string): MacTableRow[] {
@@ -75,6 +76,21 @@ export function switchForward(
   ingress: NetInterface,
   frame: Frame,
 ): void {
+  // --- STP Port State Check ---
+  if (getStpPortState(sw, ingress.id, ctx.state) === "BLOCKING") {
+    ctx.emit({
+      type: "FRAME_DROPPED",
+      deviceId: sw.id,
+      deviceName: sw.name,
+      interfaceId: ingress.id,
+      interfaceName: ingress.name,
+      message: `${sw.name}: dropped frame on ${ingress.name} (STP port in BLOCKING state)`,
+      osiLayers: [2],
+      frame,
+    });
+    return;
+  }
+
   const { vid, drop } = classifyIngress(ingress, frame);
   if (vid === null) {
     ctx.emit({
@@ -188,7 +204,9 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
   const at = ingress ?? sviFor(sw, vid);
   // --- Destination lookup ---
   const dst = frame.ethernet.dstMac;
-  const candidates = sw.interfaces.filter((i) => i.id !== ingress?.id && participates(i, vid));
+  const candidates = sw.interfaces.filter(
+    (i) => i.id !== ingress?.id && participates(i, vid) && getStpPortState(sw, i.id, ctx.state) !== "BLOCKING",
+  );
   const broadcast = isBroadcast(dst) || isMulticast(dst);
   const normDst = normalizeMac(dst);
   const known = broadcast ? undefined : sw.macTable.find((e) => normalizeMac(e.mac) === normDst && e.vlan === vid);
@@ -223,7 +241,7 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
     });
   } else {
     const port = sw.interfaces.find((i) => i.id === known.interfaceId);
-    if (!port || port.id === ingress?.id || !participates(port, vid)) {
+    if (!port || port.id === ingress?.id || !participates(port, vid) || getStpPortState(sw, port.id, ctx.state) === "BLOCKING") {
       ctx.emit({
         type: "FRAME_DROPPED",
         deviceId: sw.id,

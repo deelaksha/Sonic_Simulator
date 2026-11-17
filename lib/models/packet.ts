@@ -173,6 +173,22 @@ export interface OspfPayload {
   networks?: OspfNetworkLsa[];
 }
 
+/** STP Configuration BPDU payload (IEEE 802.1D / 802.1w). */
+export interface StpPayload {
+  protocolId: number; // 0 for IEEE 802.1D
+  version: number; // 0 for STP, 2 for RSTP
+  bpduType: number; // 0 for Configuration BPDU, 0x80 for TCN
+  flags: number;
+  rootBridgeId: string;
+  rootPathCost: number;
+  bridgeId: string;
+  portId: string;
+  messageAge: number;
+  maxAge: number;
+  helloTime: number;
+  forwardDelay: number;
+}
+
 export interface FrameMeta {
   sizeBytes: number;
   summary: string; // one-line description for timelines / tcpdump
@@ -194,6 +210,7 @@ export interface Frame {
   ospf?: OspfPayload;
   tcp?: TcpHeader;
   bgp?: BgpPayload;
+  stp?: StpPayload;
   /** sFlow v5 datagram octets carried as the UDP payload (agent → collector). */
   sflow?: { datagram: number[] };
   /**
@@ -481,6 +498,28 @@ export function describeFrame(f: Frame): InspectorLayer[] {
     layers.push({ osiLayer: 7, title: "Dynamic Host Configuration Protocol", unit: "Message", fields });
   }
 
+  if (f.stp) {
+    const s = f.stp;
+    layers.push({
+      osiLayer: 2,
+      title: "Spanning Tree Protocol (IEEE 802.1D)",
+      unit: "BPDU",
+      fields: [
+        { label: "Protocol Identifier", value: "Spanning Tree (0x0000)" },
+        { label: "Protocol Version", value: s.version === 2 ? "Rapid STP (2)" : "STP (0)" },
+        { label: "BPDU Type", value: s.bpduType === 0 ? "Configuration (0x00)" : "Topology Change (0x80)" },
+        { label: "Root Bridge ID", value: s.rootBridgeId },
+        { label: "Root Path Cost", value: String(s.rootPathCost) },
+        { label: "Bridge ID", value: s.bridgeId },
+        { label: "Port ID", value: s.portId },
+        { label: "Message Age", value: `${s.messageAge}s` },
+        { label: "Max Age", value: `${s.maxAge}s` },
+        { label: "Hello Time", value: `${s.helloTime}s` },
+        { label: "Forward Delay", value: `${s.forwardDelay}s` },
+      ],
+    });
+  }
+
   return layers;
 }
 
@@ -491,6 +530,7 @@ export function describeFrame(f: Frame): InspectorLayer[] {
 export function encapsulationStack(f: Frame): string[] {
   const stack: string[] = ["Ethernet Frame"];
   if (f.vlan) stack.push("802.1Q Tag");
+  if (f.stp) stack.push("STP BPDU");
   if (f.arp) stack.push("ARP Message");
   if (f.ipv4) stack.push("IPv4 Packet");
   if (f.icmp) stack.push("ICMP Message");

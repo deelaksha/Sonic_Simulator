@@ -37,6 +37,7 @@ import { fbsModule } from "./fbs";
 import { platformModule } from "./platform";
 import { pboModule } from "./pbo";
 import { ipv6Module } from "./ipv6";
+import { stpModule } from "./stp";
 
 const MODULES: SonicFeatureModule[] = [
   commonModule,
@@ -70,6 +71,7 @@ const MODULES: SonicFeatureModule[] = [
   platformModule,
   pboModule,
   ipv6Module,
+  stpModule,
 ];
 
 const CONFIG_CMDS: SonicCmd[] = MODULES.flatMap((m) => m.config);

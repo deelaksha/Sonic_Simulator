@@ -37,6 +37,24 @@ const SWITCH_SNAPSHOTS_COLLECTION = "sonic_switch_configs";
 const LOCAL_SESSIONS_KEY = "sonic_simulator_local_sessions";
 const LOCAL_SWITCHES_KEY = "sonic_simulator_local_switch_snapshots";
 
+function cleanForFirestore<T>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms = 1200): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Firestore operation timed out")), ms);
+  });
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timer);
+      return res;
+    }),
+    timeoutPromise,
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // Helpers to build summaries and details for switches
 // ---------------------------------------------------------------------------
@@ -186,10 +204,11 @@ export async function saveSession(params: {
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SESSIONS_COLLECTION, sessionId);
-      await setDoc(docRef, {
+      const cleanData = cleanForFirestore({
         ...sessionData,
         firebaseUpdatedAt: serverTimestamp(),
       });
+      await withTimeout(setDoc(docRef, cleanData), 1200);
     } catch (err) {
       console.warn("Failed to write to Firestore, saved to local cache instead", err);
     }
@@ -208,7 +227,7 @@ export async function listSessions(): Promise<CloudSessionListItem[]> {
     try {
       const colRef = collection(db, SESSIONS_COLLECTION);
       const q = query(colRef, orderBy("updatedAt", "desc"));
-      const snapshot = await getDocs(q);
+      const snapshot = await withTimeout(getDocs(q), 1200);
 
       snapshot.forEach((d) => {
         const data = d.data() as CloudSessionData;
@@ -257,7 +276,7 @@ export async function loadSession(sessionId: string): Promise<CloudSessionData |
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SESSIONS_COLLECTION, sessionId);
-      const snapshot = await getDoc(docRef);
+      const snapshot = await withTimeout(getDoc(docRef), 1200);
       if (snapshot.exists()) {
         const data = snapshot.data() as CloudSessionData;
         saveLocalSession(data); // update local cache
@@ -280,10 +299,9 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SESSIONS_COLLECTION, sessionId);
-      await deleteDoc(docRef);
+      await withTimeout(deleteDoc(docRef), 1200);
     } catch (err) {
-      console.error("Failed to delete session from Firestore", err);
-      return false;
+      console.warn("Failed to delete session from Firestore, deleted from local cache", err);
     }
   }
   return true;
@@ -330,7 +348,7 @@ export async function saveSwitchSnapshot(
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SWITCH_SNAPSHOTS_COLLECTION, id);
-      await setDoc(docRef, snapshot);
+      await withTimeout(setDoc(docRef, cleanForFirestore(snapshot)), 1200);
     } catch (err) {
       console.warn("Failed to save switch snapshot to Firestore", err);
     }
@@ -347,7 +365,7 @@ export async function listSwitchSnapshots(): Promise<SwitchSnapshot[]> {
   if (db && isFirebaseConfigured()) {
     try {
       const colRef = collection(db, SWITCH_SNAPSHOTS_COLLECTION);
-      const snapshot = await getDocs(colRef);
+      const snapshot = await withTimeout(getDocs(colRef), 1200);
       snapshot.forEach((d) => {
         const item = d.data() as SwitchSnapshot;
         seenIds.add(item.id);
@@ -368,4 +386,29 @@ export async function listSwitchSnapshots(): Promise<SwitchSnapshot[]> {
   } catch {}
 
   return list.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function deleteSwitchSnapshot(id: string): Promise<boolean> {
+  const storage = getAppStorage();
+  try {
+    const raw = storage.getItem(LOCAL_SWITCHES_KEY);
+    const all: Record<string, SwitchSnapshot> = raw ? JSON.parse(raw) : {};
+    delete all[id];
+    storage.setItem(LOCAL_SWITCHES_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.error(e);
+  }
+
+  const db = getFirestoreDb();
+  if (db && isFirebaseConfigured()) {
+    try {
+      const docRef = doc(db, SWITCH_SNAPSHOTS_COLLECTION, id);
+      await withTimeout(deleteDoc(docRef), 1200);
+    } catch (err) {
+      console.warn("Failed to delete switch snapshot from Firestore", err);
+      return false;
+    }
+  }
+
+  return true;
 }

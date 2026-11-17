@@ -57,6 +57,13 @@ export type SimEventType =
   | "DNS_RESPONSE"
   | "VRRP_MASTER"
   | "VRRP_FAILOVER"
+  // STP (Spanning Tree Protocol)
+  | "STP_BPDU_SENT"
+  | "STP_BPDU_RECEIVED"
+  | "STP_PORT_STATE"
+  // HTTP / curl
+  | "HTTP_REQUEST"
+  | "HTTP_RESPONSE"
   // command-level summary
   | "SFLOW_SAMPLE"
   | "SFLOW_DATAGRAM"
