@@ -28,6 +28,25 @@ function diagnose(ctx: CommandContext, dst: string, reason?: PingFailure): Outpu
         out.push(muted(`  ARP: ${dst} → INCOMPLETE`));
       }
       out.push(muted("The next hop did not answer ARP — check its IP/subnet, cabling, and that it is up."));
+
+      // Educational hint: did the user attempt to ping a switch's out-of-band management IP from a front-panel PC?
+      const mgmtSwitch = Object.values(ctx.network.devices).find((d) =>
+        d.interfaces.some((i) => i.management && i.ipv4.some((a) => a.address === dst)),
+      );
+      if (mgmtSwitch && dev.type === "pc") {
+        out.push(muted(""));
+        out.push(line(`Note: ${dst} is ${mgmtSwitch.name}'s out-of-band management IP (eth0).`, "heading"));
+        out.push(muted("Switch management ports are isolated from front-panel data ports."));
+        const peerPc = Object.values(ctx.network.devices).find(
+          (d) => d.id !== dev.id && d.type === "pc" && d.interfaces.some((i) => i.ipv4.length > 0),
+        );
+        if (peerPc) {
+          const peerIp = peerPc.interfaces[0]?.ipv4[0]?.address;
+          if (peerIp) {
+            out.push(line(`To ping the other host in this network, try:  ping ${peerIp}`, "success"));
+          }
+        }
+      }
       break;
     }
     case "iface-down":

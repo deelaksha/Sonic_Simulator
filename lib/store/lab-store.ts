@@ -780,6 +780,12 @@ export const useLabStore = create<LabState>((set, get) => {
     get().connect(pc1, `${pc1}-if0`, sw1, `${sw1}-if0`);
     get().connect(pc2, `${pc2}-if0`, sw1, `${sw1}-if1`);
     set({ labName: "PC1 — SW1 — PC2", selectedDeviceId: pc1 });
+    get().appendTerminal(pc1, [
+      { text: "Sample lab: PC1 (192.168.100.100) — SW1 — PC2 (192.168.100.101)", kind: "output", lineKind: "heading" },
+      { text: "Try pinging the other PC:", kind: "output", lineKind: "muted" },
+      { text: "  ping 192.168.100.101", kind: "output", lineKind: "normal" },
+      { text: "Watch the timeline: ARP Request → Broadcast Flood → ARP Reply → ICMP Echo.", kind: "output", lineKind: "muted" },
+    ]);
   },
 
   loadVlanLab() {
