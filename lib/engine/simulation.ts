@@ -20,6 +20,7 @@ import { SimEvent, EmitInput } from "./events";
 import { nextEventId } from "./ids";
 import { switchForward, switchInject, sviVlanId } from "../protocols/switch";
 import { sflowSample, countCast } from "../sflow/agent";
+import { dispatchL2, isLinkLocalControl } from "../control";
 import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
 import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES } from "../protocols/icmp";
@@ -491,9 +492,32 @@ export class Simulation implements SimContext {
       frame,
     });
 
+    // IEEE 802.1D link-local control (LLDP, LACP, STP…): consumed by the
+    // receiving device's daemons; a bridge never forwards these.
+    if (isLinkLocalControl(frame.ethernet.dstMac)) {
+      if (!dispatchL2(this, device, iface, frame) && isSwitch(device.type)) {
+        this.emit({
+          type: "FRAME_DROPPED",
+          deviceId,
+          deviceName: device.name,
+          interfaceId,
+          interfaceName: iface.name,
+          message: `${device.name} ${iface.name}: link-local control frame (${frame.ethernet.dstMac}) not forwarded`,
+          osiLayers: [2],
+          frame,
+        });
+        return;
+      }
+      if (isSwitch(device.type) || !frame.ipv4) return;
+    }
+
     if (isSwitch(device.type) && iface.management) {
       // Out-of-band management port: terminates on the switch's own IP stack.
       hostReceive(this, device, iface, frame);
+    } else if (isSwitch(device.type) && iface.ipv4.length > 0 && !iface.logical) {
+      // A front-panel port with an IP address is a routed (L3) port.
+      sflowSample(this, device, iface, frame, "rx");
+      routerReceive(this, device, iface, frame);
     } else if (isSwitch(device.type)) {
       sflowSample(this, device, iface, frame, "rx");
       switchForward(this, device, iface, frame);

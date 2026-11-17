@@ -91,10 +91,10 @@ describe("SONiC OSPF feature (config-plane)", () => {
     execute("config router ospf area 19 stub", ctxFor(state, r1));
     expect(peekFeatureState<OspfState>(r1, "ospf")?.areas).toEqual([{ id: "0.0.0.19", type: "stub" }]);
     const t = text(execute("show ip ospf", ctxFor(state, r1)));
-    expect(t).toContain("Area ID: 0.0.0.19 [stub]");
+    expect(t).toContain("Area ID: 0.0.0.19 (Stub)"); // FRR show_ip_ospf_area (ospf_vty.c:2711)
   });
 
-  it("neighbor and route views render placeholders (no fabricated adjacency)", () => {
+  it("neighbor and route views show no fabricated adjacency/routes before the protocol runs", () => {
     const state = build();
     const r1 = state.devices.r1;
     execute("config router ospf router-id 1.1.1.1", ctxFor(state, r1));
@@ -102,29 +102,28 @@ describe("SONiC OSPF feature (config-plane)", () => {
 
     // Not converged yet → no fabricated adjacency/routes (real packet-plane now
     // populates these only after `ospf converge`).
+    // FRR prints the header with no rows, and no route table until SPF has run.
     const nbr = text(execute("show ip ospf neighbor", ctxFor(state, r1)));
-    expect(nbr).toContain("No OSPF neighbors found.");
-    expect(nbr).toContain("ospf converge");
+    expect(nbr).toContain("Neighbor ID     Pri State           Up Time         Dead Time Address");
+    expect(nbr).not.toContain("1.1.1.1");
 
     const route = text(execute("show ip ospf route", ctxFor(state, r1)));
-    expect(route).toContain("OSPF network routing table");
-    expect(route).toContain("no OSPF routes");
+    expect(route).toContain("No OSPF routing information exist");
   });
 
   it("regression: show ip route / show ip arp are NOT shadowed by ip ospf", () => {
     const state = build();
     const r1 = state.devices.r1;
     // Make sure `show ip ospf route` really is the OSPF handler...
-    expect(text(execute("show ip ospf route", ctxFor(state, r1)))).toContain("OSPF network routing table");
+    expect(text(execute("show ip ospf route", ctxFor(state, r1)))).toContain("% OSPF is not enabled in vrf default");
 
     // ...while the reserved sibling paths resolve to their own handlers.
     const rt = execute("show ip route", ctxFor(state, r1));
     expect(rt.output.some((o) => o.kind === "error" && o.text.includes("unknown command"))).toBe(false);
-    expect(text(rt)).not.toContain("OSPF network routing table");
+    expect(text(rt)).not.toContain("OSPF is not enabled");
 
     const arp = execute("show ip arp", ctxFor(state, r1));
     expect(arp.output.some((o) => o.kind === "error" && o.text.includes("unknown command"))).toBe(false);
-    expect(text(arp)).not.toContain("OSPF network routing table");
-    expect(text(arp)).not.toContain("No OSPF neighbors");
+    expect(text(arp)).not.toContain("OSPF is not enabled");
   });
 });

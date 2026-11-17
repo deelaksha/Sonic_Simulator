@@ -36,6 +36,12 @@ export default function LabPage() {
     return () => clearInterval(t);
   }, []);
 
+  // Control-plane daemons (LLDP, BFD, OSPF, BGP, ARP aging, SNMP) run on wall time.
+  useEffect(() => {
+    const t = setInterval(() => useLabStore.getState().controlTick(), 100);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div className="flex h-screen min-w-[900px] flex-col bg-[#0b0e14] text-[#e6edf3]">
       {/* top bar */}

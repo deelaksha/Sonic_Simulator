@@ -15,6 +15,7 @@ import { CaptureRecord } from "../engine";
 import { compileFilter, BpfSyntaxError } from "./bpf";
 import { frameToBytes, wireLength } from "../sflow/wire";
 import { decodeDatagram } from "../sflow/datagram";
+import { describeControl } from "../control/daemon";
 
 /** Wall-clock HH:MM:SS.uuuuuu (sim clocks in the live store are epoch ms). */
 export function tcpdumpTime(ms: number): string {
@@ -30,7 +31,7 @@ function etherPrefix(f: Frame): string {
   const src = f.ethernet.srcMac.toLowerCase();
   const dst = f.ethernet.dstMac.toLowerCase();
   const et = (t: string) =>
-    t === "ARP" ? "ARP (0x0806)" : t === "IPv6" ? "IPv6 (0x86dd)" : t === "IPv4" ? "IPv4 (0x0800)" : `Unknown (0x${(f.ethernet.typeCode ?? 0).toString(16).padStart(4, "0")})`;
+    t === "ARP" ? "ARP (0x0806)" : t === "IPv6" ? "IPv6 (0x86dd)" : t === "IPv4" ? "IPv4 (0x0800)" : f.ethernet.typeCode === 0x88cc ? "LLDP (0x88cc)" : `Unknown (0x${(f.ethernet.typeCode ?? 0).toString(16).padStart(4, "0")})`;
   if (f.vlan) return `${src} > ${dst}, ethertype 802.1Q (0x8100), length ${len}: vlan ${f.vlan.vlanId}, p ${f.vlan.priority}, ethertype ${et(f.ethernet.etherType)}, `;
   return `${src} > ${dst}, ethertype ${et(f.ethernet.etherType)}, length ${len}: `;
 }
@@ -79,9 +80,13 @@ export function formatPacket(f: Frame, opts: { showEther?: boolean; verbose?: bo
     const l4 = f.udp ?? f.tcp;
     const src = l4 ? `${ip.srcIp}.${l4.srcPort}` : ip.srcIp;
     const dst = l4 ? `${ip.dstIp}.${l4.dstPort}` : ip.dstIp;
-    const ipLen = wireLength(f) - 14 - (f.vlan ? 4 : 0);
+    // IP total length from the header when the real bytes are known (min-frame padding is not payload).
+    const ipLen = f.rawL3 && f.rawL3.length >= 4 ? (f.rawL3[2] << 8) | f.rawL3[3] : wireLength(f) - 14 - (f.vlan ? 4 : 0);
     let what: string;
-    if (f.icmp) {
+    const control = describeControl(f, !!opts.verbose);
+    if (control) {
+      what = control;
+    } else if (f.icmp) {
       const ic = f.icmp;
       const icmpLen = ipLen - 20;
       what =
@@ -110,7 +115,7 @@ export function formatPacket(f: Frame, opts: { showEther?: boolean; verbose?: bo
     }
     body = `${opts.showEther ? "" : "IP "}${src} > ${dst}: ${what}`;
   } else {
-    body = f.meta.summary;
+    body = describeControl(f, !!opts.verbose) ?? f.meta.summary;
   }
   // Packets built by the packet engine: -v adds the engine's full decode.
   if (opts.verbose && f.rawL3 && !f.sflow) extra.push(`\t[decoded] ${f.meta.summary}`);

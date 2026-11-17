@@ -72,9 +72,10 @@ const IF_TYPES: Record<string, string> = {
 };
 
 /** A deterministic MAC for a logical interface (no shared-counter side effect). */
-function logicalMac(name: string): string {
+/** Logical interfaces use the switch's system MAC: one per device, shared by its SVIs. */
+function logicalMac(device: Device): string {
   let seed = 0x0e0000;
-  for (const c of name) seed = (seed + c.charCodeAt(0) * 131) & 0xffffff;
+  for (const c of device.id) seed = (seed * 31 + c.charCodeAt(0)) & 0xffffff;
   return generateMac(seed);
 }
 
@@ -88,7 +89,7 @@ function logicalMac(name: string): string {
 function ensureInterface(device: Device, name: string): boolean {
   if (device.interfaces.some((i) => i.name === name)) return true;
   if (name.startsWith("Ethernet") || name.startsWith("Management")) return false; // physical/mgmt: must exist
-  const iface = createInterface(`${device.id}-${name.toLowerCase()}`, name, logicalMac(name));
+  const iface = createInterface(`${device.id}-${name.toLowerCase()}`, name, logicalMac(device));
   iface.logical = true;
   iface.operState = name.startsWith("PortChannel") ? "down" : "up"; // LAG down until members; SVI/Loopback up
   device.interfaces.push(iface);
@@ -159,6 +160,9 @@ function dispatch(raw: string, stack: CliStack, ctx: CommandContext, delegate: D
     if (cmd === "configure" || cmd === "config") {
       return { output: [muted("Enter configuration commands, one per line. End with `exit`.")], stack: [...stack, "config"] };
     }
+    // Feature exec commands registered for enable-view (e.g. `clear ip arp`).
+    const er = runModalHandlers({ ctx, view: "enable-view", head: cmd, isNo: false, args: rest, raw, delegate });
+    if (er) return stay(er.output);
     return stay(unknownIn("enable-view", raw));
   }
   if (top === "config") return configMode(cmd, rest, raw, stack, ctx, delegate);

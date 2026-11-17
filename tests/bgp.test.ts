@@ -55,8 +55,8 @@ describe("BGP packet-plane (spec §25)", () => {
     expect(sum.routesInstalled).toBe(2);
     expect(sim.events.some((e) => e.type === "BGP_OPEN")).toBe(true);
     expect(sim.events.some((e) => e.type === "BGP_ESTABLISHED")).toBe(true);
-    // a real TCP/179 BGP OPEN segment crossed the wire
-    expect(sim.events.some((e) => e.frame?.tcp?.dstPort === 179 && e.frame.bgp?.messageType === "open")).toBe(true);
+    // a real TCP/179 BGP OPEN segment (raw bytes, message type 1) crossed the wire
+    expect(sim.events.some((e) => e.frame?.tcp && (e.frame.tcp.dstPort === 179 || e.frame.tcp.srcPort === 179) && e.frame.rawL3?.[40 + 18] === 1)).toBe(true);
     const r = state.devices.r1.routingTable.find((rt) => rt.type === "bgp" && rt.destination === "10.2.2.0");
     expect(r?.nextHop).toBe("10.0.0.2");
   });
@@ -77,7 +77,8 @@ describe("BGP packet-plane (spec §25)", () => {
 
     const summary = execute("show ip bgp summary", ctxFor(state, state.devices.r1)).output.map((o) => o.text).join("\n");
     expect(summary).toContain("10.0.0.2");
-    expect(summary).toContain("Total number of neighbors established 1");
+    // FRR summary: Established peers show their prefix count in State/PfxRcd
+    expect(summary).toMatch(/^10\.0\.0\.2 +4 +65002 .* +1 +1 N\/A$/m);
   });
 
   it("stays Idle when a neighbor is unreachable / not configured back", () => {
@@ -86,5 +87,21 @@ describe("BGP packet-plane (spec §25)", () => {
     (state.devices.r2.config.features!.bgp as { neighbors: unknown[] }).neighbors = [];
     const sum = new Simulation(state).runBgp();
     expect(sum.sessions).toBe(0); // no bidirectional session
+  });
+});
+
+describe("iBGP (same AS)", () => {
+  it("carries LOCAL_PREF 100, keeps the next hop, installs with distance 200", () => {
+    const state = twoAs();
+    (state.devices.r2.config.features!.bgp as { localAs: number }).localAs = 65001;
+    (state.devices.r1.config.features!.bgp as { neighbors: { remoteAs: number }[] }).neighbors[0].remoteAs = 65001;
+    const sum = new Simulation(state).runBgp();
+    expect(sum.sessions).toBe(2);
+    const r = state.devices.r1.routingTable.find((rt) => rt.type === "bgp" && rt.destination === "10.2.2.0");
+    expect(r).toMatchObject({ nextHop: "10.0.0.2", distance: 200 });
+    const table = execute("show ip bgp", ctxFor(state, state.devices.r1)).output.map((o) => o.text).join("\n");
+    expect(table).toMatch(/^ \*>i 10\.2\.2\.0\/24 +10\.0\.0\.2 +0 +100 +0 i$/m);
+    const ping = new Simulation(state).runPing("pc1", "10.2.2.10", { count: 1 });
+    expect(ping.received).toBe(1);
   });
 });

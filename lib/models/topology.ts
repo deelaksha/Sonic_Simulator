@@ -62,7 +62,23 @@ function refreshOperState(state: NetworkState, deviceId: string, interfaceId: st
   const iface = dev && findInterface(dev, interfaceId);
   if (!iface) return;
   const conn = connectionFor(state, deviceId, interfaceId);
-  iface.operState = conn && conn.state === "up" && iface.adminState === "up" ? "up" : "down";
+  // Carrier needs both ends enabled: shutting one side takes the link down on both.
+  const peerEp = conn && (conn.a.deviceId === deviceId && conn.a.interfaceId === interfaceId ? conn.b : conn.a);
+  const peerDev = peerEp && state.devices[peerEp.deviceId];
+  const peer = peerDev && findInterface(peerDev, peerEp!.interfaceId);
+  iface.operState = conn && conn.state === "up" && iface.adminState === "up" && (!peer || peer.adminState === "up") ? "up" : "down";
+}
+
+/** Recompute carrier on both ends of the cable attached to an interface. */
+export function refreshLink(state: NetworkState, deviceId: string, interfaceId: string): string[] {
+  const conn = connectionFor(state, deviceId, interfaceId);
+  if (!conn) {
+    refreshOperState(state, deviceId, interfaceId);
+    return [deviceId];
+  }
+  refreshOperState(state, conn.a.deviceId, conn.a.interfaceId);
+  refreshOperState(state, conn.b.deviceId, conn.b.interfaceId);
+  return [conn.a.deviceId, conn.b.deviceId];
 }
 
 /**

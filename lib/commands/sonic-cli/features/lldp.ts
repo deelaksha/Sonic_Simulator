@@ -28,6 +28,9 @@
  * so the grammar fallback reports it as recognized-but-not-cloned.
  */
 import { registerModal } from "../registry";
+import { err } from "../../types";
+import { interfaceByName } from "../../../models/device";
+import { renderKlishLldpNeighbor, renderKlishLldpTable } from "../../sonic/lldp";
 
 registerModal({
   id: "lldp",
@@ -73,5 +76,28 @@ registerModal({
       default:
         return null; // tlv-select: no Click equivalent -> grammar fallback
     }
+  },
+});
+
+/**
+ * enable-view `show lldp ...` (sonic-mgmt-framework clitree/cli-xml/lldp.xml:43-55):
+ *   show lldp | show lldp table   → lldp_show.j2
+ *   show lldp neighbor [<ifname>] → lldp_neighbor_show.j2 (ifname: "Ethernet0" or "Ethernet 0")
+ * Both render only neighbours lldpd learned from received LLDPDUs.
+ */
+registerModal({
+  id: "lldp-show",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ ctx, args }) {
+    if (args[0]?.toLowerCase() !== "lldp") return null;
+    const sub = args[1]?.toLowerCase();
+    if (sub === undefined || sub === "table") return { output: renderKlishLldpTable(ctx.device) };
+    if (sub === "neighbor" || sub === "neighbors") {
+      const ifname = args.length > 2 ? args.slice(2).join("") : undefined;
+      if (ifname && !interfaceByName(ctx.device, ifname)) return { output: [err(`% Error: Interface ${ifname} not found`)] };
+      return { output: renderKlishLldpNeighbor(ctx.device, ifname) };
+    }
+    return null; // statistics etc. → Click layer
   },
 });

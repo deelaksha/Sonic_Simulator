@@ -108,3 +108,31 @@ reaches the server but is not answered unless the simulator models that service)
 To support another protocol: nothing in the simulator changes — the layer is
 already in the engine's catalogue. To swap engines: implement `Transport` /
 `PacketEngine` for the new library.
+
+## Control plane (running protocols)
+
+ARP aging, LLDP, BFD, OSPF, BGP and SNMP run continuously as **daemons**
+registered with `lib/control/daemon.ts`; the engine and store only talk to
+that registry:
+
+```
+ControlDaemon
+  nextDue(device, now)   earliest wall-clock ms work is due (timers, expiries)
+  tick(ctx, device, now) send Hellos/keepalives/LLDPDUs, expire neighbours
+  receiveL2(...)         link-local frames 01:80:C2:00:00:0X (never bridged)
+  receiveL3(...)         IPv4 packets addressed to the device (incl. multicast)
+  describe(frame)        tcpdump text
+```
+
+- The page calls `store.controlTick()` every 100 ms; the network is cloned and
+  committed only when a daemon is due and something changed.
+- Packets are real bytes (`lib/control/packet.ts`: checksummed IPv4/UDP/TCP,
+  `Frame.rawL3`), so tcpdump, sFlow and the Scapy inspector decode them.
+- Switch ports with an IPv4 address are routed ports; SVIs punt broadcast and
+  multicast to the CPU. Routes carry FRR administrative distance and
+  `show ip route` renders FRR 10.3 zebra output for every source
+  (`lib/commands/sonic/frr-route.ts`).
+- BFD serves OSPF/BGP through `lib/control/bfd-api.ts` (as bfdd serves ospfd/bgpd).
+- Protocol modules: `lib/protocols/{arp,lldp,bfd,ospf,bgp,snmp}-daemon.ts` (+ `*-wire`,
+  `*-show` helpers). Feature labs register in `lib/labs/` on the shared
+  `routedTriangle` topology.

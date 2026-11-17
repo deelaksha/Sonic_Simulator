@@ -10,6 +10,7 @@
  *   ip neigh [show]                      ip route add <cidr|default> via <gw> [dev <if>]
  *                                        ip route del <cidr|default>
  */
+import { isPermanent } from "../protocols/arp";
 import { CommandHandler, CommandContext, CommandResult, OutputLine, line, err, muted } from "./types";
 import { Device, findInterface, interfaceByName } from "../models/device";
 import { NetInterface } from "../models/interface";
@@ -60,7 +61,8 @@ function showNeigh(device: Device): OutputLine[] {
     const iface = findInterface(device, e.interfaceId);
     const dev = iface ? `dev ${iface.name}` : "";
     if (e.state === "incomplete") return line(`${e.ip} ${dev}  INCOMPLETE`);
-    return line(`${e.ip} ${dev} lladdr ${e.mac} REACHABLE`);
+    const state = isPermanent(device, e.ip) ? "PERMANENT" : e.state.toUpperCase();
+    return line(`${e.ip} ${dev} lladdr ${e.mac.toLowerCase()} ${state}`);
   });
 }
 

@@ -17,6 +17,8 @@ import { ping6Command } from "./ping6";
 import { ospfCommand } from "./ospfctl";
 import { bgpCommand } from "./bgpctl";
 import { configCommand, showCommand } from "./sonic";
+import { sonicClearCommand } from "./sonic/arpnd";
+import { SNMP_CLIENT_COMMANDS } from "./snmpclient";
 
 const sudoCommand: CommandHandler = {
   name: "sudo",
@@ -56,6 +58,7 @@ const helpCommand: CommandHandler = {
 };
 
 export const COMMANDS: CommandHandler[] = [
+  sonicClearCommand,
   pingCommand,
   ping6Command,
   tracerouteCommand,
@@ -68,6 +71,7 @@ export const COMMANDS: CommandHandler[] = [
   vrrpCommand,
   ospfCommand,
   bgpCommand,
+  ...SNMP_CLIENT_COMMANDS,
   routeCommand,
   ifconfigCommand,
   hostnameCommand,

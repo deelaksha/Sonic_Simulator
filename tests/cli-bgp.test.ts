@@ -94,3 +94,49 @@ describe("sonic-cli BGP sub-mode (reference)", () => {
     expect(bgp.neighbors ?? []).toHaveLength(0);
   });
 });
+
+describe("sonic-cli BGP neighbor / address-family sub-modes (bgp.xml:1464, bgp_af_ipv4.xml)", () => {
+  it("neighbor <ip> enters config-router-bgp-neighbor; clauses land in the neighbor config", () => {
+    const { state, device } = router();
+    const { prompts, stack } = session(state, device, [
+      "configure terminal",
+      "router bgp 65001",
+      "timers 10 30",
+      "neighbor 10.0.0.2",
+      "remote-as 65002",
+      "timers 3 9",
+      "timers connect 10",
+      "bfd",
+      "description to-R2",
+      "address-family ipv4 unicast",
+      "activate",
+      "exit",
+      "exit",
+      "address-family ipv4 unicast",
+      "network 10.1.1.0/24",
+      "redistribute connected",
+      "exit",
+      "end",
+    ]);
+    expect(prompts).toContain("r1(config-router-bgp-neighbor)#");
+    expect(prompts).toContain("r1(config-router-bgp-af)#");
+    expect(stack).toEqual(["exec"]);
+    const bgp = device.config.features?.bgp as {
+      keepalive?: number;
+      holdtime?: number;
+      networks: string[];
+      redistributeConnected?: boolean;
+      neighbors: { peer: string; remoteAs?: number; keepalive?: number; holdtime?: number; connectRetry?: number; bfd?: boolean; description?: string }[];
+    };
+    expect(bgp).toMatchObject({ keepalive: 10, holdtime: 30, networks: ["10.1.1.0/24"], redistributeConnected: true });
+    expect(bgp.neighbors[0]).toMatchObject({ peer: "10.0.0.2", remoteAs: 65002, keepalive: 3, holdtime: 9, connectRetry: 10, bfd: true, description: "to-R2" });
+  });
+
+  it("no <clause> in the neighbor view removes it; hold < 3 is rejected", () => {
+    const { state, device } = router();
+    session(state, device, ["configure terminal", "router bgp 65001", "neighbor 10.0.0.2", "remote-as 65002", "shutdown", "no shutdown", "timers 1 2"]);
+    const nb = (device.config.features?.bgp as { neighbors: { shutdown?: boolean; holdtime?: number }[] }).neighbors[0];
+    expect(nb.shutdown).toBeUndefined();
+    expect(nb.holdtime).toBeUndefined();
+  });
+});

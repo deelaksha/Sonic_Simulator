@@ -1,9 +1,13 @@
 /**
  * arp (spec §11, §15). Displays the device's neighbour cache — the same table
- * `ip neigh` reads and the ARP engine populates.
+ * `ip neigh` reads and the ARP engine populates. Formats follow net-tools
+ * arp.c arp_disp / arp_disp_2: flags C (complete), M (permanent), and
+ * "(incomplete)" for entries still waiting for a reply. STALE entries are
+ * complete (they still have a link-layer address).
  */
 import { CommandHandler, CommandResult, line, muted } from "./types";
 import { findInterface } from "../models/device";
+import { isPermanent } from "../protocols/arp";
 
 export const arpCommand: CommandHandler = {
   name: "arp",
@@ -33,22 +37,21 @@ export const arpCommand: CommandHandler = {
           const iface = findInterface(ctx.device, e.interfaceId);
           const on = iface ? ` on ${iface.name}` : "";
           if (e.state === "incomplete") return line(`? (${e.ip}) at <incomplete>${on}`);
-          return line(`? (${e.ip}) at ${e.mac} [ether]${on}`);
+          const perm = isPermanent(ctx.device, e.ip) ? " PERM" : "";
+          return line(`? (${e.ip}) at ${e.mac.toLowerCase()} [ether]${perm}${on}`);
         }),
       };
     }
 
-    // Linux tabular style
-    const out = [line("Address          HWtype  HWaddress           Flags Mask  Iface")];
+    // Linux tabular style: "%-23.23s  " name, "%-8.8s%-20.20s" type+hwaddr, "%-6.6s%-15.15s %s" flags mask iface.
+    const out = [line("Address                  HWtype  HWaddress           Flags Mask            Iface")];
     for (const e of table) {
-      const iface = findInterface(ctx.device, e.interfaceId);
-      const flags = e.state === "incomplete" ? "(incomplete)" : "C";
-      const hw = e.state === "incomplete" ? "" : e.mac;
-      out.push(
-        line(
-          `${e.ip.padEnd(16)} ether   ${hw.padEnd(19)} ${flags.padEnd(5)}       ${iface?.name ?? ""}`,
-        ),
-      );
+      const iface = findInterface(ctx.device, e.interfaceId)?.name ?? "";
+      const incomplete = e.state === "incomplete";
+      const type = incomplete ? "" : "ether";
+      const hw = incomplete ? "(incomplete)" : e.mac.toLowerCase();
+      const flags = incomplete ? "" : isPermanent(ctx.device, e.ip) ? "CM" : "C";
+      out.push(line(`${e.ip.padEnd(23)}  ${type.padEnd(8)}${hw.padEnd(20)}${flags.padEnd(6)}${"".padEnd(15)} ${iface}`));
     }
     return { output: out };
   },

@@ -12,6 +12,7 @@ import { handleIcmpLocal } from "./icmp";
 import { handleUdp } from "./udpapp";
 import { hostReceiveV6 } from "./ipv6";
 import { countIcmpDelivery, receiveTrafficTcp } from "./traffic";
+import { dispatchL3 } from "../control/daemon";
 
 export function hostReceive(
   ctx: SimContext,
@@ -49,6 +50,9 @@ export function hostReceive(
     });
     return;
   }
+
+  // Control-plane daemons (SNMP agent, BFD, BGP on a management port, …).
+  if (dispatchL3(ctx, device, ingress, frame)) return;
 
   // UDP apps (NTP unicast, DHCP broadcast) are dispatched before the local-IP
   // check because DHCP is addressed to 255.255.255.255 while the client has no IP.

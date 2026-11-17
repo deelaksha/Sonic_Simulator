@@ -13,6 +13,8 @@ import { handleArpFrame } from "./arp";
 import { handleIcmpLocal } from "./icmp";
 import { routerReceiveV6 } from "./ipv6";
 import { handleOspfFrame } from "./ospf";
+import { dispatchL3 } from "../control/daemon";
+import { receiveTrafficTcp } from "./traffic";
 import { handleBgpFrame } from "./bgp";
 import { handleDhcpRelay } from "./dhcp-relay";
 import { acceptsVMac, ownsVipAsMaster } from "./vrrp";
@@ -66,6 +68,9 @@ export function routerReceive(
     return;
   }
 
+  // Control-plane daemons (OSPF, BGP, BFD, SNMP …) get packets for this router first.
+  if (dispatchL3(ctx, device, ingress, frame)) return;
+
   if (frame.ospf) {
     handleOspfFrame(ctx, device, ingress, frame);
     return;
@@ -106,6 +111,8 @@ export function routerReceive(
       handleIcmpLocal(ctx, device, ingress, frame);
       return;
     }
+    // No daemon claimed it: a closed TCP port answers RST, as the Linux stack does.
+    if (receiveTrafficTcp(ctx, device, ingress, frame)) return;
     ctx.emit({
       type: "FRAME_DROPPED",
       deviceId: device.id,

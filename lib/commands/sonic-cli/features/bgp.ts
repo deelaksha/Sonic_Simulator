@@ -1,19 +1,35 @@
 /**
- * BGP modal behaviour (reference feature for SUB-MODE cloning).
+ * BGP KLISH modes (data/device-capture/klish-xml/bgp.xml, bgp_af_ipv4.xml):
  *
- *   sonic(config)# router bgp 65001            -> sets the local AS + enters the sub-view
+ *   sonic(config)# router bgp 65001                       -> configure-router-bgp-view
  *   sonic(config-router-bgp)# router-id 1.1.1.1
- *   sonic(config-router-bgp)# neighbor 10.0.0.2 remote-as 65002
- *   sonic(config-router-bgp)# network 10.1.1.0/24
- *   sonic(config-router-bgp)# no neighbor 10.0.0.2
+ *   sonic(config-router-bgp)# timers 10 30                 (bgp.xml:1647, global keepalive/hold)
+ *   sonic(config-router-bgp)# neighbor 10.0.12.2           -> configure-router-bgp-nbr-view (bgp.xml:1464)
+ *   sonic(config-router-bgp-neighbor)# remote-as 65002     (bgp.xml:1955)
+ *   sonic(config-router-bgp-neighbor)# timers 3 9 | timers connect 10   (bgp.xml:1982)
+ *   sonic(config-router-bgp-neighbor)# update-source <ip> | interface Loopback 0 (bgp.xml:2010)
+ *   sonic(config-router-bgp-neighbor)# bfd | shutdown | description <text> | ebgp-multihop [n]
+ *   sonic(config-router-bgp-neighbor)# address-family ipv4 unicast -> nbr-af view: activate
+ *   sonic(config-router-bgp)# address-family ipv4 unicast  -> configure-router-bgp-ipv4-view
+ *   sonic(config-router-bgp-af)# network 192.168.1.0/24 | redistribute connected
  *
- * Entry runs its effect (config router bgp <as>) AND enters the sub-view via
- * `enter: subViewFrame(...)`. In the sub-view we delegate to the tested Click
- * `config router bgp ...` commands. Behaviour/output are not duplicated or faked.
+ * FRR-vtysh one-liners are accepted in the BGP view too (`neighbor X remote-as N`,
+ * `network`, `timers bgp K H`, `redistribute connected`). Every clause delegates to
+ * the Click `config router bgp ...` commands (lib/commands/sonic/bgp.ts), the
+ * single writer of the BGP config the daemon reads.
+ *
+ * `show bgp ipv4 unicast summary` typed in KLISH renders SONiC's KLISH template
+ * (sonic-mgmt-framework CLI/renderer/templates/show_bgp_summary.j2); every other
+ * `show ... bgp` falls through to the FRR-format Click show.
  */
 import { err } from "../../types";
+import { line, muted } from "../../types";
 import { registerModal } from "../registry";
+import { cpStoreLine } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
+import { getBgpConfig } from "../../../protocols/bgp";
+import { bgpRouterId, bgpTable, peekBgpRuntime, totalMsgs } from "../../../protocols/bgp-daemon";
+import { frrUptime } from "../../sonic/frr-route";
 
 // configure-view: `router bgp <as>` — apply the AS, then drop into the BGP sub-view.
 registerModal({
@@ -29,24 +45,127 @@ registerModal({
   },
 });
 
-// config-router-bgp-view: neighbor / network / router-id.
+// configure-router-bgp-view
 registerModal({
   id: "bgp",
   views: ["configure-router-bgp-view"],
-  keywords: ["neighbor", "network", "router-id"],
-  run({ head, isNo, args, delegate }) {
-    if (head === "router-id") {
-      if (isNo || !args[0]) return null;
-      return { output: delegate(`config router bgp router-id ${args[0]}`) };
+  keywords: ["neighbor", "network", "router-id", "bgp", "timers", "redistribute", "address-family"],
+  run({ ctx, head, isNo, args, raw, delegate }) {
+    const no = isNo ? "no " : "";
+    if (head === "router-id" || (head === "bgp" && args[0] === "router-id")) {
+      const id = head === "bgp" ? args[1] : args[0];
+      if (isNo) return { output: delegate("config router bgp no router-id") };
+      if (!id) return null;
+      return { output: delegate(`config router bgp router-id ${id}`) };
     }
     if (head === "neighbor") {
-      if (isNo) return { output: delegate(`config router bgp no neighbor ${args[0] ?? ""}`) };
-      return { output: delegate(`config router bgp neighbor ${args.join(" ")}`) };
+      const peer = args[0];
+      if (!peer) return { output: [err("% neighbor address required.")] };
+      if (isNo) return { output: delegate(`config router bgp no neighbor ${args.join(" ")}`) };
+      const out = delegate(`config router bgp neighbor ${args.join(" ")}`);
+      // `neighbor <ip>` alone enters the neighbor sub-view (bgp.xml:1464).
+      if (args.length === 1 && !out.some((o) => o.kind === "error")) return { output: [], enter: subViewFrame("configure-router-bgp-nbr-view", peer) };
+      return { output: out };
     }
     if (head === "network") {
       if (!args[0]) return { output: [err("% prefix required.")] };
-      return { output: delegate(`config router bgp ${isNo ? "no " : ""}network ${args[0]}`) };
+      return { output: delegate(`config router bgp ${no}network ${args[0]}`) };
+    }
+    if (head === "timers") {
+      const a = args.filter((x) => x !== "bgp");
+      const out = delegate(isNo ? "config router bgp no timers" : `config router bgp timers ${a.join(" ")}`);
+      // keep the typed line in show running-configuration (as the generic config-plane store did)
+      if (!out.some((o) => o.kind === "error")) cpStoreLine(ctx.device, "router-bgp", raw, isNo);
+      return { output: out };
+    }
+    if (head === "redistribute") return { output: delegate(`config router bgp ${no}redistribute ${args[0] ?? ""}`) };
+    if (head === "address-family") {
+      if (isNo) return { output: [] };
+      if (args[0]?.toLowerCase() !== "ipv4") return null;
+      return { output: [], enter: subViewFrame("configure-router-bgp-ipv4-view", "ipv4") };
     }
     return null;
+  },
+});
+
+// configure-router-bgp-ipv4-view (prompt config-router-bgp-af)
+registerModal({
+  id: "bgp-af",
+  views: ["configure-router-bgp-ipv4-view"],
+  keywords: ["network", "redistribute"],
+  run({ head, isNo, args, delegate }) {
+    const no = isNo ? "no " : "";
+    if (head === "network") {
+      if (!args[0]) return { output: [err("% prefix required.")] };
+      return { output: delegate(`config router bgp ${no}network ${args[0]}`) };
+    }
+    return { output: delegate(`config router bgp ${no}redistribute ${args[0] ?? ""}`) };
+  },
+});
+
+// configure-router-bgp-nbr-view (viewctx = neighbor address)
+registerModal({
+  id: "bgp-nbr",
+  views: ["configure-router-bgp-nbr-view"],
+  keywords: ["remote-as", "timers", "update-source", "bfd", "shutdown", "description", "ebgp-multihop", "address-family"],
+  run({ head, isNo, args, viewctx, delegate }) {
+    const peer = viewctx ?? "";
+    if (head === "address-family") {
+      if (isNo) return { output: [] };
+      if (args[0]?.toLowerCase() !== "ipv4") return null;
+      return { output: [], enter: subViewFrame("configure-router-bgp-nbr-ipv4-view", peer) };
+    }
+    if (isNo) return { output: delegate(`config router bgp no neighbor ${peer} ${head} ${args.join(" ")}`.trim()) };
+    return { output: delegate(`config router bgp neighbor ${peer} ${head} ${args.join(" ")}`.trim()) };
+  },
+});
+
+// configure-router-bgp-nbr-ipv4-view: activate (IPv4 unicast is always negotiated here).
+registerModal({
+  id: "bgp-nbr-af",
+  views: ["configure-router-bgp-nbr-ipv4-view"],
+  keywords: ["activate"],
+  run({ viewctx, delegate }) {
+    return { output: delegate(`config router bgp neighbor ${viewctx ?? ""} activate`) };
+  },
+});
+
+// KLISH `show bgp ipv4 unicast summary` — show_bgp_summary.j2 layout.
+registerModal({
+  id: "bgp-show",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ args, ctx }) {
+    const a = args.map((x) => x.toLowerCase());
+    if (!(a[0] === "bgp" && a[1] === "ipv4" && a[2] === "unicast" && a[3] === "summary" && a.length === 4)) return null;
+    const cfg = getBgpConfig(ctx.device);
+    const rt = peekBgpRuntime(ctx.device);
+    const peers = (cfg?.neighbors ?? []).filter((n) => n.remoteAs !== undefined);
+    const ribEntries = cfg ? bgpTable(ctx.device).size : 0;
+    const out = [
+      line(`BGP router identifier ${cfg ? bgpRouterId(ctx.device, cfg) : "0.0.0.0"}, local AS number ${cfg?.localAs ?? 0} VRF default vrf-id 0`),
+      line(`BGP table version ${rt?.tableVersion ?? 0}`),
+      line(`RIB entries ${ribEntries}, using ${ribEntries * 128} bytes of memory`),
+      line(`Peers ${peers.length}, using ${peers.length * 71} KiB of memory`),
+      line(""),
+    ];
+    if (!peers.length) return { output: [...out, muted("% No BGP neighbors found")] };
+    out.push(line("Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc"));
+    let est = 0;
+    const now = Date.now();
+    for (const nb of peers) {
+      const p = rt?.peers[nb.peer];
+      const up = p?.state === "Established";
+      if (up) est++;
+      const state = up ? String(Object.keys(p!.adjIn).length) : (p?.state ?? "Idle").charAt(0) + (p?.state ?? "Idle").slice(1).toLowerCase();
+      const uptime = p?.uptimeMs === undefined ? "never" : frrUptime(now - p.uptimeMs);
+      out.push(
+        line(
+          `${nb.peer.padEnd(15)} 4 ${String(nb.remoteAs).padStart(10)} ${String(p ? totalMsgs(p.rcvd) : 0).padStart(9)} ${String(p ? totalMsgs(p.sent) : 0).padStart(9)} ${"0".padStart(8)} ${"0".padStart(4)} ${"0".padStart(4)} ${uptime.padStart(8)} ${state.padStart(12)} ${String(up ? Object.keys(p!.adjOut).length : 0).padStart(8)} ${nb.description ?? ""}`.trimEnd(),
+        ),
+      );
+    }
+    out.push(line(""), line(`Total number of neighbors ${peers.length}`), line(`Total number of neighbors established ${est}`));
+    return { output: out };
   },
 });

@@ -53,7 +53,7 @@ describe("sonic-cli static-route modal", () => {
     ]);
     // The delegated `show ip route` reflects the new route.
     const show = execute("show ip route", ctxFor(state, device)).output.map((o) => o.text).join("\n");
-    expect(show).toContain("100.1.1.0/24 via 192.168.200.1");
+    expect(show).toMatch(/S>\* 100\.1\.1\.0\/24 \[1\/0\] via 192\.168\.200\.1, \S+, weight 1, \d\d:\d\d:\d\d/);
   });
 
   it("no ip route <prefix> <nexthop> removes the static route", () => {

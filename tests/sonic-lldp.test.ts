@@ -4,6 +4,12 @@ import { NetworkState, linkInterfaces } from "../lib/models/topology";
 import { Simulation, SimEvent, CaptureRecord, resetIds } from "../lib/engine";
 import { execute, CommandContext } from "../lib/commands";
 import { Device } from "../lib/models/device";
+import { runControlTick } from "../lib/control";
+
+/** Drive the control daemons (lldpd) from `fromMs` to `toMs` wall-clock, 100 ms steps. */
+function runDaemons(state: NetworkState, toMs: number, fromMs = 0) {
+  for (let t = fromMs; t <= toMs; t += 100) runControlTick(new Simulation(state, { wallBase: t }), state, t);
+}
 
 function build() {
   resetMacCounter(1);
@@ -35,7 +41,7 @@ function ctxFor(state: NetworkState, device: Device): CommandContext {
 const text = (res: { output: { text: string }[] }) => res.output.map((o) => o.text).join("\n");
 const hasError = (res: { output: { kind?: string }[] }) => res.output.some((o) => o.kind === "error");
 
-describe("SONiC LLDP feature (config-plane; source lldp.txt)", () => {
+describe("SONiC LLDP feature (source lldp.txt + lldpd model)", () => {
   it("global enable/disable is reflected in `show lldp`", () => {
     const state = build();
     const sw = state.devices.sw1;
@@ -104,51 +110,47 @@ describe("SONiC LLDP feature (config-plane; source lldp.txt)", () => {
     expect(hasError(execute("config lldp interface Ethernet99 enable", ctxFor(state, sw)))).toBe(true);
   });
 
-  it("`show lldp table` shows the directly-connected neighbor derived from the topology", () => {
+  it("`show lldp table` lists no neighbour behind a host port (hosts do not run lldpd)", () => {
     const state = build(); // PC1 (Ethernet0) <-> SW1
     const sw = state.devices.sw1;
+    runDaemons(state, 10_000);
     const res = execute("show lldp table", ctxFor(state, sw));
     const shown = text(res);
+    expect(shown).toContain("Capability codes: (R) Router, (B) Bridge, (O) Other");
     expect(shown).toContain("LocalPort");
-    expect(shown).toContain("Ethernet0"); // the connected local port
-    expect(shown).toContain("PC1"); // the real neighbor (never fabricated, never a placeholder)
-    expect(shown).toContain("Station"); // a PC advertises Station capability
-    expect(shown).not.toContain("simulated separately");
+    expect(shown).not.toContain("PC1"); // never derived from the topology
+    expect(shown).toContain("Total entries displayed:  0");
     expect(hasError(res)).toBe(false);
   });
 
-  it("`show lldp neighbors` shows the real neighbor and reports none on an unconnected port", () => {
+  it("`show lldp neighbors` prints lldpctl output; a port without a neighbour prints nothing", () => {
     const state = build();
     const sw = state.devices.sw1;
+    runDaemons(state, 10_000);
     const plural = text(execute("show lldp neighbors", ctxFor(state, sw)));
-    const singular = text(execute("show lldp neighbor", ctxFor(state, sw)));
-    for (const shown of [plural, singular]) {
-      expect(shown).toContain("LLDP Neighbors");
-      expect(shown).toContain("PC1");
-      expect(shown).toContain("Ethernet0");
-    }
-    // Ethernet1 has no link → honest "no neighbor"; unknown port still errors
-    expect(text(execute("show lldp neighbor Ethernet1", ctxFor(state, sw)))).toContain("No neighbor on Ethernet1");
-    expect(hasError(execute("show lldp neighbor Ethernet99", ctxFor(state, sw)))).toBe(true);
+    expect(plural).toContain("LLDP neighbors:");
+    expect(plural).not.toContain("PC1");
+    expect(text(execute("show lldp neighbor Ethernet1", ctxFor(state, sw))).trim()).toBe("");
   });
 
-  it("two connected switches see each other as Bridge neighbors (spec: real topology)", () => {
+  it("two connected switches learn each other from real LLDPDUs (Bridge+Router)", () => {
     resetMacCounter(1);
     resetIds();
     const swA = createDevice({ id: "swA", type: "switch", name: "SW-A", x: 0, y: 0, ports: 4 });
     const swB = createDevice({ id: "swB", type: "switch", name: "SW-B", x: 0, y: 0, ports: 4 });
     const state: NetworkState = { devices: { swA, swB }, connections: [] };
     linkInterfaces(state, { deviceId: "swA", interfaceId: "swA-if1" }, { deviceId: "swB", interfaceId: "swB-if2" });
+    // Before any LLDPDU has been exchanged there is nothing to show.
+    expect(text(execute("show lldp table", ctxFor(state, swA)))).not.toContain("SW-B");
+    runDaemons(state, 10_000);
     const aTable = text(execute("show lldp table", ctxFor(state, swA)));
-    expect(aTable).toContain("Ethernet1"); // SW-A's local port
-    expect(aTable).toContain("SW-B"); // neighbor system name
-    expect(aTable).toContain("Ethernet2"); // SW-B's remote port
-    expect(aTable).toContain("Bridge"); // a switch advertises Bridge capability
-    // and the reverse direction from SW-B
-    const bTable = text(execute("show lldp table", ctxFor(state, swB)));
-    expect(bTable).toContain("SW-A");
-    // disabling LLDP on SW-B hides it from SW-A (tx gate) and clears SW-A's own table
+    expect(aTable).toMatch(/Ethernet1\s+SW-B\s+Ethernet2\s+BR\s+Ethernet2/);
+    expect(text(execute("show lldp table", ctxFor(state, swB)))).toMatch(/Ethernet2\s+SW-A\s+Ethernet1\s+BR/);
+    // SW-B stops transmitting: SW-A keeps the entry until its TTL (120 s) runs out.
     execute("config lldp disable", ctxFor(state, swB));
+    runDaemons(state, 100_000, 10_000);
+    expect(text(execute("show lldp table", ctxFor(state, swA)))).toContain("SW-B");
+    runDaemons(state, 140_000, 100_000);
     expect(text(execute("show lldp table", ctxFor(state, swA)))).not.toContain("SW-B");
   });
 

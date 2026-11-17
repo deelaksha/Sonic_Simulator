@@ -14,6 +14,16 @@ export interface Route {
   interfaceId: string;
   type: RouteType;
   metric: number;
+  /** Administrative distance (FRR): connected 0, static 1, eBGP 20, OSPF 110, iBGP 200. */
+  distance?: number;
+  /** Wall-clock ms the route was installed (FRR uptime column). */
+  installedAtMs?: number;
+}
+
+const DEFAULT_DISTANCE: Record<RouteType, number> = { connected: 0, static: 1, default: 1, ospf: 110, bgp: 20 };
+
+export function routeDistance(r: Route): number {
+  return r.distance ?? DEFAULT_DISTANCE[r.type];
 }
 
 export interface RouteMatch {
@@ -30,7 +40,12 @@ export function longestPrefixMatch(table: Route[], dstIp: string): RouteMatch | 
   let best: Route | null = null;
   for (const r of table) {
     if (!cidrContains(r.destination, r.prefix, dstIp)) continue;
-    if (best === null || r.prefix > best.prefix || (r.prefix === best.prefix && r.metric < best.metric)) {
+    if (
+      best === null ||
+      r.prefix > best.prefix ||
+      (r.prefix === best.prefix &&
+        (routeDistance(r) < routeDistance(best) || (routeDistance(r) === routeDistance(best) && r.metric < best.metric)))
+    ) {
       best = r;
     }
   }
@@ -49,4 +64,13 @@ export function longestPrefixMatch6(table: Route[], dstIp: string): RouteMatch |
   }
   if (!best) return null;
   return { route: best, nextHopIp: best.nextHop ?? dstIp };
+}
+
+/** Keep an existing route's install time when the table is rebuilt. */
+export function carryInstallTime(prev: Route[], next: Route[], nowMs: number): void {
+  for (const r of next) {
+    if (r.installedAtMs !== undefined) continue;
+    const old = prev.find((p) => p.type === r.type && p.destination === r.destination && p.prefix === r.prefix && p.interfaceId === r.interfaceId);
+    r.installedAtMs = old?.installedAtMs ?? nowMs;
+  }
 }

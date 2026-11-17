@@ -1,15 +1,16 @@
 /**
- * `ospf converge` — a lab helper (documented as app-required, spec §63) that runs
- * one OSPF convergence cycle across the topology: routers exchange Hellos, form
- * adjacencies, and SPF installs routes. Real FRR converges continuously; in this
- * turn-based sim you trigger a cycle. Output/events feed the timeline + inspector.
+ * `ospf converge` — a lab helper (app-specific, spec §63). OSPF runs on its own
+ * (lib/protocols/ospf-daemon.ts: Hello timers, dead/wait timers, real packets);
+ * this command just fast-forwards it: every speaker sends immediate Hello rounds
+ * and expired Wait timers trigger DR/BDR election, so adjacencies reach Full and
+ * SPF installs routes now instead of after 10-40 s. Events feed the timeline.
  */
 import { CommandHandler, CommandResult, line, muted } from "./types";
 import { firstPositional } from "./parser";
 
 export const ospfCommand: CommandHandler = {
   name: "ospf",
-  summary: "Run an OSPF convergence cycle (Hello → adjacency → SPF)",
+  summary: "Converge OSPF now (immediate Hellos → adjacency → SPF)",
   usage: "ospf converge",
   help: [
     "OSPF",
@@ -17,14 +18,15 @@ export const ospfCommand: CommandHandler = {
     "Usage:",
     "  ospf converge",
     "",
-    "Runs one OSPF convergence cycle across all routers that have OSPF configured",
-    "(`config router ospf network <cidr> area <id>`): sends Hellos, forms",
-    "adjacencies, and installs SPF routes so traffic can cross the routers.",
+    "OSPF converges by itself (Hello every 10 s, Full after the second Hello;",
+    "40 s Wait timer on broadcast networks). This fast-forwards it: every OSPF",
+    "router/switch sends immediate Hellos and Wait timers expire, so adjacencies",
+    "reach Full and SPF installs routes right away.",
     "Then inspect with: show ip ospf neighbor · show ip route.",
   ],
   run(args, ctx): CommandResult {
     if (firstPositional(args) !== "converge") {
-      return { output: [muted("Usage: ospf converge — run one OSPF convergence cycle")] };
+      return { output: [muted("Usage: ospf converge — converge OSPF now (immediate Hellos)")] };
     }
     const { value: sum, events } = ctx.runSim((sim) => sim.runOspf());
     return {

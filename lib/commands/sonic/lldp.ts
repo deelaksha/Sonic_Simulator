@@ -1,10 +1,14 @@
 /**
- * LLDP SONiC feature module. Config-plane only (simulated CONFIG_DB): commands
- * mutate per-device feature state and `show lldp ...` renders SOLELY from that
- * stored state. Nothing exchanges real LLDP frames — neighbor discovery needs a
- * packet engine that does not exist yet, so neighbors are NEVER fabricated;
- * `show lldp table` / `show lldp neighbors` print the configured local state plus
- * a clear placeholder for the (unsimulated) remote side.
+ * LLDP SONiC feature module. `config lldp ...` mutates the simulated CONFIG_DB
+ * (device.config.features["lldp"]), which the lldpd model in
+ * lib/protocols/lldp-daemon.ts reads (timer, multiplier, system name/description,
+ * global + per-port rx/tx). `show lldp table|neighbors|statistics` render ONLY
+ * neighbours learned from received LLDPDUs (never derived from the topology):
+ *
+ *   show lldp table        sonic-utilities show/main.py:1591-1596 → scripts/lldpshow
+ *                          (tabulate summary, "Total entries displayed:  N")
+ *   show lldp neighbors    show/main.py:1576-1589 → `lldpshow -d [-p <port>]` → raw
+ *                          lldpctl text (lldpd src/client/display.c + text_writer.c)
  *
  * Commands use the click-style `config lldp` / `show lldp` family (path
  * ["lldp", ...]); the fields, enum values and validation ranges come from
@@ -41,8 +45,8 @@
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
-import { interfaceByName, isSwitch, isRouter, Device } from "../../models/device";
-import { NetInterface } from "../../models/interface";
+import { interfaceByName, Device } from "../../models/device";
+import { CAP_NAMES, LldpNeighbor, lldpRuntime } from "../../protocols/lldp-daemon";
 
 /** Per-interface LLDP overrides (undefined = inherit the default, i.e. enabled). */
 interface LldpPortState {
@@ -256,47 +260,6 @@ function activePorts(ctx: CommandContext, st: LldpState | undefined): string[] {
   return names.filter((n) => st?.interfaces[n]?.enabled !== false);
 }
 
-/** Effective LLDP tx/rx on a device's port (global knobs + per-port overrides). */
-function lldpTxRx(device: Device, portName: string): { tx: boolean; rx: boolean } {
-  const st = peekFeatureState<LldpState>(device, "lldp");
-  if (st?.enabled === false) return { tx: false, rx: false };
-  const p = st?.interfaces[portName];
-  if (p && p.enabled === false) return { tx: false, rx: false };
-  return {
-    tx: st?.transmit !== false && (p?.transmit ?? true) !== false,
-    rx: st?.receive !== false && (p?.receive ?? true) !== false,
-  };
-}
-
-/** LLDP capability advertised for a device type. */
-function capabilityOf(type: Device["type"]): string {
-  if (isSwitch(type)) return "Bridge";
-  if (isRouter(type)) return "Router";
-  return "Station";
-}
-
-function neighSysName(peer: Device): string {
-  return peekFeatureState<LldpState>(peer, "lldp")?.systemName ?? peer.config.hostname ?? peer.name;
-}
-
-/**
- * Discover the directly-connected LLDP neighbor on a local interface. Neighbors
- * are DERIVED from the real topology (interface.connectedTo — the single source
- * of truth), gated by LLDP being effectively rx-enabled locally and tx-enabled
- * on the peer, exactly as a real LLDP exchange would require.
- */
-interface Neighbor { peer: Device; peerIf: NetInterface }
-function neighborOn(ctx: CommandContext, iface: NetInterface): Neighbor | undefined {
-  const c = iface.connectedTo;
-  if (!c || iface.management) return undefined;
-  if (!lldpTxRx(ctx.device, iface.name).rx) return undefined;
-  const peer = ctx.network.devices[c.deviceId];
-  const peerIf = peer?.interfaces.find((i) => i.id === c.interfaceId);
-  if (!peer || !peerIf) return undefined;
-  if (!lldpTxRx(peer, peerIf.name).tx) return undefined;
-  return { peer, peerIf };
-}
-
 function renderSummary(ctx: CommandContext): OutputLine[] {
   const st = peekFeatureState<LldpState>(ctx.device, "lldp");
   const mode = st === undefined || (st.transmit && st.receive)
@@ -326,58 +289,167 @@ function renderSummary(ctx: CommandContext): OutputLine[] {
   return out;
 }
 
+// ---------- live neighbour views (lldpd runtime, lib/protocols/lldp-daemon.ts) ----------
+
+/** Neighbours per local port, ports in lldpshow order (alphanum_key, lldpshow:161-167). */
+function learned(device: Device): { port: string; nb: LldpNeighbor }[] {
+  const rt = lldpRuntime(device);
+  if (!rt) return [];
+  const key = (s: string) => [s.replace(/\d+/g, ""), Number(s.match(/\d+/)?.[0] ?? 0)] as const;
+  return Object.keys(rt.neighbors)
+    .sort((a, b) => {
+      const [la, na] = key(a);
+      const [lb, nb] = key(b);
+      return la < lb ? -1 : la > lb ? 1 : na - nb;
+    })
+    .flatMap((port) => rt.neighbors[port].map((nb) => ({ port, nb })));
+}
+
+/** lldpshow parse_cap (lldpshow:113-125): enabled Router→R, Bridge→B, any other→O. */
+function capCodes(nb: LldpNeighbor): string {
+  let s = "";
+  for (const [bit, name] of CAP_NAMES) {
+    if (!(nb.capAvailable & bit) || !(nb.capEnabled & bit)) continue;
+    s += name === "Router" ? "R" : name === "Bridge" ? "B" : "O";
+  }
+  return s;
+}
+
+/** python-tabulate "simple" for string columns (MIN_PADDING 2, right-stripped). */
+function tabulate(headers: string[], rows: string[][]): string[] {
+  const w = headers.map((h, c) => Math.max(h.length + 2, ...rows.map((r) => r[c].length)));
+  const fmt = (r: string[]) => r.map((v, c) => v.padEnd(w[c])).join("  ").trimEnd();
+  return [fmt(headers), w.map((n) => "-".repeat(n)).join("  "), ...rows.map(fmt)];
+}
+
+/** `show lldp table` → lldpshow summary (lldpshow:180-190). */
 function renderTable(ctx: CommandContext): OutputLine[] {
-  const st = peekFeatureState<LldpState>(ctx.device, "lldp");
-  const out: OutputLine[] = [
-    line("LocalPort    RemoteDevice    RemotePortID    Capability    RemotePortDescr"),
-    line("-----------  --------------  --------------  ------------  ---------------"),
+  const rows = learned(ctx.device).map(({ port, nb }) => [port, nb.sysName ?? "", nb.portId, capCodes(nb), nb.portDescr ?? ""]);
+  return [
+    line("Capability codes: (R) Router, (B) Bridge, (O) Other"),
+    ...tabulate(["LocalPort", "RemoteDevice", "RemotePortID", "Capability", "RemotePortDescr"], rows).map((t) => line(t)),
+    line("-".repeat(50)),
+    line(`Total entries displayed:  ${rows.length}`),
   ];
-  if (st?.enabled === false) {
-    out.push(muted("LLDP is administratively disabled"));
-    return out;
+}
+
+const CHASSIS_SUBTYPE: Record<number, string> = { 1: "chassis", 2: "ifalias", 3: "port", 4: "mac", 5: "ip", 6: "ifname", 7: "local" };
+const PORT_SUBTYPE: Record<number, string> = { 1: "ifalias", 2: "port", 3: "mac", 4: "ip", 5: "ifname", 6: "agentcid", 7: "local" };
+
+/** lldpctl display_age (src/client/display.c:684-694). */
+export function lldpAge(secs: number): string {
+  const d = Math.floor(secs / 86400);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d} day${d > 1 ? "s" : ""}, ${p(Math.floor(secs / 3600) % 24)}:${p(Math.floor(secs / 60) % 60)}:${p(secs % 60)}`;
+}
+
+/** One neighbour as lldpctl's text writer prints it (display.c:713-763, text_writer.c). */
+function lldpctlBlock(port: string, nb: LldpNeighbor, now: number): string[] {
+  const age = Math.max(0, Math.floor((now - nb.lastChange) / 1000));
+  const out = [
+    `Interface:    ${port}, via: LLDP, RID: ${nb.rid}, Time: ${lldpAge(age)}`,
+    "  Chassis:     ",
+    `    ChassisID:    ${CHASSIS_SUBTYPE[nb.chassisSubtype] ?? "unhandled"} ${nb.chassisId}`,
+  ];
+  if (nb.sysName !== undefined) out.push(`    SysName:      ${nb.sysName}`);
+  if (nb.sysDescr !== undefined) out.push(`    SysDescr:     ${nb.sysDescr}`);
+  if (nb.mgmtIp) {
+    out.push(`    MgmtIP:       ${nb.mgmtIp}`);
+    if (nb.mgmtIfIndex) out.push(`    MgmtIface:    ${nb.mgmtIfIndex}`);
   }
-  let any = false;
-  for (const iface of ctx.device.interfaces) {
-    const nb = neighborOn(ctx, iface);
-    if (!nb) continue;
-    any = true;
-    out.push(
-      line(
-        `${iface.name.padEnd(11)}  ${neighSysName(nb.peer).padEnd(14)}  ${nb.peerIf.name.padEnd(14)}  ${capabilityOf(nb.peer.type).padEnd(12)}  ${nb.peerIf.name}`,
-      ),
-    );
-  }
-  if (!any) out.push(muted("No LLDP neighbors discovered (no LLDP-active connected links)"));
+  for (const [bit, name] of CAP_NAMES) if (nb.capAvailable & bit) out.push(`    Capability:   ${name}, ${nb.capEnabled & bit ? "on" : "off"}`);
+  out.push("  Port:        ", `    PortID:       ${PORT_SUBTYPE[nb.portSubtype] ?? "unhandled"} ${nb.portId}`);
+  if (nb.portDescr !== undefined) out.push(`    PortDescr:    ${nb.portDescr}`);
+  if (nb.ttl > 0) out.push(`    TTL:          ${nb.ttl}`);
   return out;
 }
 
+const LLDPCTL_SEP = "-".repeat(79);
+
+/**
+ * `show lldp neighbors [<port>]` → `lldpshow -d [-p <port>]` → raw `lldpctl`
+ * (lldpshow:84-106, 175-179). lldpctl lists eth0 first (ifindex order). With a
+ * port that has no neighbour the port name is absent from lldpctl's output and
+ * lldpshow prints an empty line (lldpshow:101-103).
+ */
 function renderNeighbors(ctx: CommandContext, portArg: string | undefined): OutputLine[] {
-  const st = peekFeatureState<LldpState>(ctx.device, "lldp");
-  if (portArg && !interfaceByName(ctx.device, portArg)) {
-    return [err(`show lldp neighbors: no such interface '${portArg}'`)];
+  const now = Date.now();
+  const rank = (p: string) => (p.startsWith("eth") ? 0 : 1);
+  let rows = learned(ctx.device).sort((a, b) => rank(a.port) - rank(b.port));
+  if (portArg) {
+    rows = rows.filter((r) => r.port === portArg);
+    if (rows.length === 0) return [line("")];
   }
-  const out: OutputLine[] = [];
-  if (st?.enabled === false) return [line("LLDP Neighbors"), muted("LLDP is administratively disabled")];
-  const ifaces = portArg ? ctx.device.interfaces.filter((i) => i.name === portArg) : ctx.device.interfaces;
-  let any = false;
-  for (const iface of ifaces) {
-    const nb = neighborOn(ctx, iface);
-    if (!nb) continue;
-    any = true;
-    const chassis = nb.peerIf.mac || "n/a";
-    out.push(line(`-------------------------------------------------------------------------------`));
-    out.push(line(`Local Interface: ${iface.name}`));
-    out.push(line(`  Chassis id:      ${chassis}`));
-    out.push(line(`  System Name:     ${neighSysName(nb.peer)}`));
-    out.push(line(`  System Descr:    ${peekFeatureState<LldpState>(nb.peer, "lldp")?.systemDescription ?? `SONiC ${nb.peer.type}`}`));
-    out.push(line(`  Port id:         ${nb.peerIf.name}`));
-    out.push(line(`  Port descr:      ${nb.peerIf.name}`));
-    out.push(line(`  Capability:      ${capabilityOf(nb.peer.type)}`));
+  const out = [LLDPCTL_SEP, "LLDP neighbors:", LLDPCTL_SEP];
+  for (const r of rows) out.push(...lldpctlBlock(r.port, r.nb, now), LLDPCTL_SEP);
+  return [...out, ""].map((t) => line(t));
+}
+
+// ---------- KLISH (sonic-mgmt-framework CLI) views ----------
+
+/** OpenConfig LLDP capability identities (openconfig-lldp-types), JSON map order = sorted. */
+const OC_CAP: [number, string, string][] = (
+  [
+    [0x40, "DOCSIS_CABLE_DEVICE", "D"],
+    [0x04, "MAC_BRIDGE", "B"],
+    [0x01, "OTHER", "?"],
+    [0x02, "REPEATER", "O"],
+    [0x10, "ROUTER", "R"],
+    [0x80, "STATION_ONLY", "S"],
+    [0x20, "TELEPHONE", "T"],
+    [0x08, "WLAN_ACCESS_POINT", "W"],
+  ] as [number, string, string][]
+);
+
+/** openconfig-lldp chassis/port id types → template prefixes (lldp_neighbor_show.j2:97-126). */
+const OC_CHASSIS_TYPE: Record<number, string> = { 4: "mac", 5: "network", 6: "ifname", 7: "local" };
+const OC_PORT_TYPE: Record<number, string> = { 3: "mac", 4: "network", 5: "ifname", 7: "local" };
+const ocId = (types: Record<number, string>, subtype: number, id: string) => (types[subtype] ? `${types[subtype]} ${id}` : id);
+/** jinja2 truncate(n, killwords=True, end='...', leeway=0). */
+const trunc = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 3)}...`);
+
+/** Interfaces in the order sonic-cli-lldp.py sorts them (name_to_int_val), eth0 last. */
+function klishLearned(device: Device, ifname?: string): { port: string; nb: LldpNeighbor }[] {
+  const rank = (p: string) => (p.startsWith("eth") ? 1 : 0);
+  const firstPerPort = new Map<string, LldpNeighbor>();
+  for (const r of learned(device)) if (!firstPerPort.has(r.port)) firstPerPort.set(r.port, r.nb); // neighbor[0]
+  return [...firstPerPort.entries()]
+    .map(([port, nb]) => ({ port, nb }))
+    .filter((r) => !ifname || r.port === ifname)
+    .sort((a, b) => rank(a.port) - rank(b.port));
+}
+
+/** KLISH `show lldp` / `show lldp table` — renderer/templates/lldp_show.j2. */
+export function renderKlishLldpTable(device: Device): OutputLine[] {
+  const sep = "-".repeat(119);
+  const out = [sep, `${"LocalPort".padEnd(20)}${"RemoteDevice".padEnd(30)}${"RemotePortID".padEnd(20)}${"Capability".padEnd(12)}${"RemotePortDescr".padEnd(38)}`, sep];
+  for (const { port, nb } of klishLearned(device)) {
+    const caps = OC_CAP.filter(([bit]) => nb.capAvailable & bit && nb.capEnabled & bit).map(([, , c]) => c).join("");
+    out.push(
+      `${trunc(port, 19).padEnd(20)}${trunc(nb.sysName ?? "", 29).padEnd(30)}${trunc(nb.portId, 19).padEnd(20)}${caps.padEnd(12)}${trunc(nb.portDescr ?? "", 37).padEnd(38)}`,
+    );
   }
-  if (!any) {
-    return [line("LLDP Neighbors"), muted(portArg ? `No neighbor on ${portArg}` : "No LLDP neighbors discovered (no LLDP-active connected links)")];
+  return out.map((t) => line(t));
+}
+
+/** KLISH `show lldp neighbor [<ifname>]` — renderer/templates/lldp_neighbor_show.j2. */
+export function renderKlishLldpNeighbor(device: Device, ifname?: string): OutputLine[] {
+  const sep = "-".repeat(59);
+  const out = [sep, "LLDP Neighbors".padEnd(20), sep];
+  const now = Date.now();
+  for (const { port, nb } of klishLearned(device, ifname)) {
+    const age = Math.max(0, Math.floor((now - nb.lastChange) / 1000));
+    const p = (n: number) => String(n).padStart(2, "0");
+    const time = age ? `, Time: ${Math.floor(age / 86400)} day, ${p(Math.floor(age / 3600) % 24)}:${p(Math.floor(age / 60) % 60)}:${p(age % 60)}` : "";
+    // The template's blank lines between its {% set %} blocks survive trim_blocks.
+    out.push("", "", "", "", "");
+    out.push(`Interface:    ${port}, via: LLDP, RID: ${nb.rid}${time}`, "  Chassis:", `    ChassisID:    ${ocId(OC_CHASSIS_TYPE, nb.chassisSubtype, nb.chassisId)}`);
+    out.push(`    SysName:      ${nb.sysName ?? ""}`, `    SysDescr:     ${nb.sysDescr ?? ""}`);
+    if (nb.mgmtIp) out.push(`    MgmtIP:       ${nb.mgmtIp}`);
+    for (const [bit, name] of OC_CAP) if (nb.capAvailable & bit) out.push(`    Capability:   ${name}, ${nb.capEnabled & bit ? "ON" : "OFF"}`);
+    out.push("  Port", `    PortID:       ${ocId(OC_PORT_TYPE, nb.portSubtype, nb.portId)}`, `    PortDescr:    ${nb.portDescr ?? ""}`, `    TTL:          ${nb.ttl}`, sep);
   }
-  return [line("LLDP Neighbors"), ...out];
+  return out.map((t) => line(t));
 }
 
 function renderStatistics(ctx: CommandContext, portArg: string | undefined): OutputLine[] {
@@ -385,21 +457,22 @@ function renderStatistics(ctx: CommandContext, portArg: string | undefined): Out
     return [err(`show lldp statistics: no such interface '${portArg}'`)];
   }
   const ports = portArg ? [portArg] : ctx.device.interfaces.map((i) => i.name);
+  const st = lldpRuntime(ctx.device)?.stats ?? {};
   const out: OutputLine[] = [line("LLDP Statistics")];
-  // No packet engine yet: counters are typed and rendered as zero (not fabricated).
   for (const p of ports) {
+    const s = st[p];
     out.push(line(`Interface: ${p}`));
-    out.push(line("  Transmitted : 0"));
-    out.push(line("  Received : 0"));
-    out.push(line("  Discarded : 0"));
-    out.push(line("  Unrecognized TLV : 0"));
-    out.push(line("  Ageout : 0"));
+    out.push(line(`  Transmitted : ${s?.tx ?? 0}`));
+    out.push(line(`  Received : ${s?.rx ?? 0}`));
+    out.push(line(`  Discarded : ${s?.discarded ?? 0}`));
+    out.push(line(`  Unrecognized TLV : ${s?.unrecognized ?? 0}`));
+    out.push(line(`  Ageout : ${s?.ageout ?? 0}`));
   }
   return out;
 }
 
 const show: SonicCmd[] = [
-  { path: ["lldp", "table"], summary: "Show LLDP neighbor table (local ports)", run: (_a, ctx) => ({ output: renderTable(ctx) }) },
+  { path: ["lldp", "table"], summary: "Show LLDP neighbors in tabular format", run: (_a, ctx) => ({ output: renderTable(ctx) }) },
   {
     path: ["lldp", "neighbors"],
     summary: "Show LLDP neighbors (optionally one port)",

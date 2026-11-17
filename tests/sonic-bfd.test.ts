@@ -46,7 +46,10 @@ const peers = (d: Device) => peekFeatureState<BfdState>(d, "bfd")?.peers ?? [];
 const textOf = (out: { text: string }[]) => out.map((o) => o.text).join("\n");
 const isError = (res: { output: { kind?: string }[] }) => res.output.some((o) => o.kind === "error");
 
-describe("SONiC BFD feature (config-plane, source bfd.txt)", () => {
+// `show bfd ...` renders FRR 10.3 bfdd_vty.c text (vtysh form) from the live
+// sessions; expectations that quoted the old config-only rendering were moved
+// to the source text (bfdd_vty.c line refs below).
+describe("SONiC BFD feature (config + FRR show form)", () => {
   it("config bfd peer add creates a peer with bfd.txt defaults", () => {
     const state = build();
     const r1 = state.devices.r1;
@@ -84,8 +87,9 @@ describe("SONiC BFD feature (config-plane, source bfd.txt)", () => {
     execute("config bfd peer add 10.10.10.1 interface Ethernet4", ctxFor(state, r1));
     execute("config bfd peer del 10.10.10.1", ctxFor(state, r1));
     expect(peers(r1).length).toBe(0);
+    // bfdd_vty.c:508 prints only the header when there are no sessions.
     const res = execute("show bfd peers", ctxFor(state, r1));
-    expect(textOf(res.output)).toContain("No BFD peers configured");
+    expect(textOf(res.output)).toBe("BFD Peers:");
   });
 
   it("rejects invalid / malformed peer IPs (bfd.txt TC-68..72)", () => {
@@ -128,8 +132,9 @@ describe("SONiC BFD feature (config-plane, source bfd.txt)", () => {
 
     execute("config bfd peer add 192.168.50.50 multihop local-address 192.168.50.1", ctxFor(state, r1));
     const res = execute("show bfd peer 192.168.50.50", ctxFor(state, r1));
-    // Multihop header form omits interface (bfd.txt TC-20).
-    expect(textOf(res.output)).toContain("peer 192.168.50.50 local-address 192.168.50.1 vrf default multihop");
+    // _display_peer_header (bfdd_vty.c:122-133): multihop precedes local-address; no interface.
+    expect(textOf(res.output)).toContain("peer 192.168.50.50 multihop local-address 192.168.50.1 vrf default");
+    expect(textOf(res.output)).toContain("Minimum TTL: 254");
   });
 
   it("setters on an unknown peer error out", () => {
@@ -138,14 +143,15 @@ describe("SONiC BFD feature (config-plane, source bfd.txt)", () => {
     expect(isError(execute("config bfd peer detect-multiplier 9.9.9.9 3", ctxFor(state, r1)))).toBe(true);
   });
 
-  it("shutdown / no-shutdown drive Admin State (bfd.txt TC-17, TC-18)", () => {
+  it("shutdown / no-shutdown drive the session state (bfd.txt TC-17, TC-18)", () => {
     const state = build();
     const r1 = state.devices.r1;
     execute("config bfd peer add 10.10.10.1 interface Ethernet4", ctxFor(state, r1));
     execute("config bfd peer shutdown 10.10.10.1", ctxFor(state, r1));
-    expect(textOf(execute("show bfd peer 10.10.10.1", ctxFor(state, r1)).output)).toContain("Admin State: down");
+    // bfdd_vty.c:172-173: an AdminDown session prints "Status: shutdown".
+    expect(textOf(execute("show bfd peer 10.10.10.1", ctxFor(state, r1)).output)).toContain("Status: shutdown");
     execute("config bfd peer no-shutdown 10.10.10.1", ctxFor(state, r1));
-    expect(textOf(execute("show bfd peer 10.10.10.1", ctxFor(state, r1)).output)).toContain("Admin State: up");
+    expect(textOf(execute("show bfd peer 10.10.10.1", ctxFor(state, r1)).output)).toContain("Status: down");
   });
 
   it("re-adding an existing peer updates in place (bfd.txt TC-110)", () => {
@@ -157,19 +163,21 @@ describe("SONiC BFD feature (config-plane, source bfd.txt)", () => {
     expect(peers(r1)[0].interface).toBe("Ethernet8");
   });
 
-  it("does not fabricate live session UP/DOWN; notes it is simulated separately", () => {
+  it("a configured peer is a live session: Down with a discriminator until packets are exchanged", () => {
     const state = build();
     const r1 = state.devices.r1;
     execute("config bfd peer add 10.10.10.1 interface Ethernet4", ctxFor(state, r1));
     const text = textOf(execute("show bfd peers", ctxFor(state, r1)).output);
-    expect(text).toContain("simulated separately");
-    expect(text).not.toMatch(/Session State:/i);
+    expect(text).toMatch(/\t\tID: [1-9]\d*\n\t\tRemote ID: 0\n/);
+    expect(text).toContain("\t\tStatus: down");
+    expect(text).toContain("\t\tPeer Type: configured");
   });
 
   it("show bfd peer for an unknown IP reports not found (bfd.txt TC-47)", () => {
     const state = build();
     const r1 = state.devices.r1;
     const res = execute("show bfd peer 192.168.210.2", ctxFor(state, r1));
-    expect(textOf(res.output)).toContain("BFD peer 192.168.210.2 not found");
+    // _find_peer_or_error (bfdd_vty.c:876-887).
+    expect(textOf(res.output)).toBe("% Unable to find 'peer 192.168.210.2'");
   });
 });

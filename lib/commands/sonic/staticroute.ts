@@ -12,10 +12,10 @@
  * A route added here lands in ctx.device.routingTable and is read by the packet
  * engine via longestPrefixMatch, so it changes real forwarding (spec §9, §61).
  */
+import { renderFrrRoutes } from "./frr-route";
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
-import { formatRouteLine } from "../ip";
 
 interface Cidr {
   network: string; // normalized network address
@@ -64,7 +64,8 @@ const config: SonicCmd[] = [
           nextHop: nh,
           interfaceId: egress.id,
           type: "static",
-          metric: 1,
+          metric: 0, // FRR static routes carry metric 0 ([1/0] in show ip route)
+          installedAtMs: Date.now(),
         });
       }
       return { output: [muted(`route added: ${cidr.network}/${cidr.prefix} nexthop ${nh} dev ${egress.name}`)] };
@@ -92,13 +93,8 @@ const config: SonicCmd[] = [
 ];
 
 function renderRoutes(ctx: CommandContext, filter?: Cidr): OutputLine[] {
-  let routes = ctx.device.routingTable;
-  if (filter) {
-    routes = routes.filter((r) => r.destination === filter.network && r.prefix === filter.prefix);
-  }
-  if (routes.length === 0) return [muted("(no routes)")];
-  // longest prefix first — mirrors `show ip route` ordering.
-  return [...routes].sort((a, b) => b.prefix - a.prefix).map((r) => line(formatRouteLine(ctx.device, r)));
+  // FRR zebra format, shared by every route source (lib/commands/sonic/frr-route.ts).
+  return renderFrrRoutes(ctx.device, Date.now(), filter).map((t) => line(t));
 }
 
 const show: SonicCmd[] = [

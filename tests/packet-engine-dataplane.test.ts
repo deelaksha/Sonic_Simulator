@@ -103,7 +103,7 @@ describe("engine-built packets cross the simulated data plane", () => {
     expect(d.layers.map((l) => l.proto)).toEqual(["Ether", "IP", "UDP", "VXLAN", "Ether", "IP", "ICMP"]);
   }, 60_000);
 
-  it("a non-IP protocol (LLDP) leaves the host exactly as built and is flooded in the VLAN", async () => {
+  it("a non-IP protocol (LLDP) leaves the host exactly as built and is not bridged (802.1D link-local)", async () => {
     const before = dev("PC2").interfaces[0].statistics.rxFrames;
     const built = await run(
       [
@@ -116,9 +116,11 @@ describe("engine-built packets cross the simulated data plane", () => {
       3,
     );
     expect(S().traffic).toMatchObject({ sent: 3, failed: 0 });
-    expect(dev("PC2").interfaces[0].statistics.rxFrames - before).toBe(3);
-    const rx = S().captures.filter((c) => c.deviceId === dev("PC2").id && c.dir === "rx" && c.frame.ethernet.typeCode === 0x88cc);
-    expect(rx).toHaveLength(3);
-    expect(Array.from(frameToBytes(rx[0].frame)).slice(0, built.bytes.length)).toEqual(Array.from(built.bytes));
+    const sw = dev("SW1").id;
+    const atSwitch = S().captures.filter((c) => c.deviceId === sw && c.dir === "rx" && c.frame.ethernet.typeCode === 0x88cc);
+    expect(atSwitch).toHaveLength(3);
+    expect(Array.from(frameToBytes(atSwitch[0].frame)).slice(0, built.bytes.length)).toEqual(Array.from(built.bytes));
+    // 01:80:C2:00:00:0E is never forwarded by a bridge.
+    expect(dev("PC2").interfaces[0].statistics.rxFrames - before).toBe(0);
   }, 60_000);
 });

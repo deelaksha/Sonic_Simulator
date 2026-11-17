@@ -60,7 +60,9 @@ describe("SONiC ARP/ND feature (arpnd.txt)", () => {
   it("show arp is empty before any traffic", () => {
     const { state, pc1 } = build();
     const text = textOf(execute("show arp", ctxFor(state, pc1)));
-    expect(text).toContain("No ARP entries found.");
+    // nbrshow prints the (empty) tabulate header and the count (scripts/nbrshow:151-152).
+    expect(text).toContain("Address    MacAddress    Iface    Vlan");
+    expect(text).toContain("Total number of entries 0");
   });
 
   it("config arp add pushes a reachable static entry that show arp renders", () => {
@@ -99,7 +101,7 @@ describe("SONiC ARP/ND feature (arpnd.txt)", () => {
     expect(pc1.arpTable.length).toBeGreaterThan(0);
     execute("config arp clear", ctxFor(state, pc1));
     expect(pc1.arpTable.length).toBe(0);
-    expect(textOf(execute("show arp", ctxFor(state, pc1)))).toContain("No ARP entries found.");
+    expect(textOf(execute("show arp", ctxFor(state, pc1)))).toContain("Total number of entries 0");
   });
 
   it("show ipv6 neighbors / show ndp report no ND entries (model has no IPv6 table)", () => {

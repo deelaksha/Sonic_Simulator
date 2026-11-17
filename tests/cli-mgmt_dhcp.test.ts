@@ -63,8 +63,9 @@ describe("sonic-cli mgmt_dhcp (config-plane, renew RPC)", () => {
     expect(cpList(device, "mgmt_dhcp", "renewals")).toEqual([]);
   });
 
-  it("grammar recognizes the real `renew dhcp-lease` syntax (RPC not yet routed)", () => {
+  it("`renew dhcp-lease` typed in exec mode reaches the enable-view handler", () => {
     const { state, device } = sw();
-    expect(run(state, device, ["exec"], "renew dhcp-lease interface Management 0").text).toContain("recognized SONiC command");
+    expect(run(state, device, ["exec"], "renew dhcp-lease interface Management 0").text).toContain("not simulated");
+    expect(cpList(device, "mgmt_dhcp", "renewals")).toEqual([{ interface: "Management 0" }]);
   });
 });

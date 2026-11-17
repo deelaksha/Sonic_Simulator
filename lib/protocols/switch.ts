@@ -144,7 +144,8 @@ export function switchForward(
       punt(ctx, sw, svi, frame);
       return;
     }
-    if (isBroadcast(dstMac)) punt(ctx, sw, svi, frame);
+    // Broadcast and multicast (ARP, OSPF 224.0.0.5, …) reach the CPU and are flooded.
+    if (isBroadcast(dstMac) || isMulticast(dstMac)) punt(ctx, sw, svi, frame);
   }
 
   forwardInVlan(ctx, sw, ingress, vid, frame);

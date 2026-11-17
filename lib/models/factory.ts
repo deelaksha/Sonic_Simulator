@@ -10,7 +10,7 @@ import { NetInterface, createInterface } from "./interface";
 import { generateMac } from "./mac";
 import { networkAddress } from "./ip";
 import { networkAddress6, isLinkLocal6, sameSubnet6 } from "./ipv6";
-import { Route } from "./route";
+import { Route, carryInstallTime } from "./route";
 
 let macCounter = 1;
 
@@ -87,7 +87,8 @@ export function rebuildConnectedRoutes(device: Device): void {
     return;
   }
 
-  const statics = device.routingTable.filter((r) => r.type === "static");
+  // Static and protocol-learned (OSPF/BGP) routes survive a connected-route rebuild.
+  const statics = device.routingTable.filter((r) => r.type !== "connected" && r.type !== "default");
   const derived: Route[] = [];
 
   for (const iface of device.interfaces) {
@@ -122,7 +123,9 @@ export function rebuildConnectedRoutes(device: Device): void {
     }
   }
 
+  const prev = device.routingTable;
   device.routingTable = [...derived, ...statics];
+  carryInstallTime(prev, device.routingTable, Date.now());
 }
 
 /**

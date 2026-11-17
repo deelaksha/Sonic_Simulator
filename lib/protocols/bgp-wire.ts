@@ -1,0 +1,307 @@
+/**
+ * BGP-4 message codec (RFC 4271 §4, RFC 6793 4-octet AS, RFC 5492 capabilities).
+ * Byte layout follows FRR 10.3 bgpd:
+ *   OPEN          bgp_packet.c bgp_open_send + bgp_open.c:1714 bgp_open_capability —
+ *                 every capability in its OWN optional parameter (type 2).
+ *   UPDATE attrs  bgp_attr.c:4498 bgp_packet_attribute — ORIGIN (flags 0x40),
+ *                 AS_PATH (0x50: transitive + extended length, :4607), NEXT_HOP
+ *                 (0x40), MED (0x80 optional), LOCAL_PREF (0x40, iBGP only).
+ *   NOTIFICATION  code/subcode strings from bgp_debug.c:112-166.
+ */
+export const BGP_PORT = 179;
+export const AS_TRANS = 23456; // RFC 6793
+export const MSG = { OPEN: 1, UPDATE: 2, NOTIFICATION: 3, KEEPALIVE: 4, ROUTE_REFRESH: 5 } as const;
+export const CAP = { MP: 1, REFRESH: 2, EXT_MESSAGE: 6, AS4: 65, ENHANCED_RR: 70, FQDN: 73 } as const;
+export const ORIGIN_STR = ["i", "e", "?"]; // bgp_route.c bgp_origin_str
+
+export interface Capability {
+  code: number;
+  value: number[];
+}
+export interface OpenMsg {
+  type: 1;
+  version: number;
+  myAs: number;
+  holdTime: number;
+  bgpId: string;
+  caps: Capability[];
+}
+export interface PathAttrs {
+  origin: number;
+  asPath: number[];
+  nextHop: string;
+  med?: number;
+  localPref?: number;
+}
+export interface UpdateMsg {
+  type: 2;
+  withdrawn: string[];
+  attrs?: PathAttrs;
+  nlri: string[];
+}
+export interface NotificationMsg {
+  type: 3;
+  code: number;
+  subcode: number;
+  data: number[];
+}
+export interface KeepaliveMsg {
+  type: 4;
+}
+export interface RefreshMsg {
+  type: 5;
+}
+export type BgpMsg = OpenMsg | UpdateMsg | NotificationMsg | KeepaliveMsg | RefreshMsg;
+
+const u16 = (n: number) => [(n >> 8) & 0xff, n & 0xff];
+const u32 = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+const ipBytes = (ip: string) => ip.split(".").map((o) => Number(o) & 0xff);
+const ipStr = (b: ArrayLike<number>, o: number) => `${b[o]}.${b[o + 1]}.${b[o + 2]}.${b[o + 3]}`;
+const rd16 = (b: ArrayLike<number>, o: number) => (b[o] << 8) | b[o + 1];
+const rd32 = (b: ArrayLike<number>, o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+
+function header(type: number, body: number[]): number[] {
+  return [...new Array(16).fill(0xff), ...u16(19 + body.length), type, ...body];
+}
+
+// --- capabilities (bgp_open.c bgp_open_capability order) ---
+export const capMp = (afi = 1, safi = 1): Capability => ({ code: CAP.MP, value: [...u16(afi), 0, safi] });
+export const capRefresh = (): Capability => ({ code: CAP.REFRESH, value: [] });
+export const capEnhancedRr = (): Capability => ({ code: CAP.ENHANCED_RR, value: [] });
+export const capAs4 = (as: number): Capability => ({ code: CAP.AS4, value: u32(as) });
+export const capExtMessage = (): Capability => ({ code: CAP.EXT_MESSAGE, value: [] });
+export function capFqdn(host: string): Capability {
+  const h = Array.from(host.slice(0, 64), (c) => c.charCodeAt(0) & 0x7f);
+  return { code: CAP.FQDN, value: [h.length, ...h, 0] }; // hostname, empty domain name
+}
+
+export function encodeOpen(o: Omit<OpenMsg, "type">): number[] {
+  const params: number[] = [];
+  for (const c of o.caps) params.push(2, c.value.length + 2, c.code, c.value.length, ...c.value);
+  const myAs = o.myAs > 0xffff ? AS_TRANS : o.myAs;
+  return header(MSG.OPEN, [o.version, ...u16(myAs), ...u16(o.holdTime), ...ipBytes(o.bgpId), params.length, ...params]);
+}
+
+export const encodeKeepalive = (): number[] => header(MSG.KEEPALIVE, []);
+
+export function encodeNotification(code: number, subcode: number, data: number[] = []): number[] {
+  return header(MSG.NOTIFICATION, [code, subcode, ...data]);
+}
+
+function encodePrefix(cidr: string): number[] {
+  const [addr, len] = cidr.split("/");
+  const l = Number(len);
+  return [l, ...ipBytes(addr).slice(0, Math.ceil(l / 8))];
+}
+
+function encodeAsPath(path: number[], as4: boolean): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < path.length; i += 255) {
+    const seg = path.slice(i, i + 255);
+    out.push(2, seg.length); // AS_SEQUENCE
+    for (const a of seg) out.push(...(as4 ? u32(a) : u16(a > 0xffff ? AS_TRANS : a)));
+  }
+  return out;
+}
+
+export function encodeUpdate(u: Omit<UpdateMsg, "type">, as4: boolean): number[] {
+  const wd = u.withdrawn.flatMap(encodePrefix);
+  const attrs: number[] = [];
+  if (u.attrs) {
+    const a = u.attrs;
+    attrs.push(0x40, 1, 1, a.origin);
+    const ap = encodeAsPath(a.asPath, as4);
+    attrs.push(0x50, 2, ...u16(ap.length), ...ap);
+    attrs.push(0x40, 3, 4, ...ipBytes(a.nextHop));
+    if (a.med !== undefined) attrs.push(0x80, 4, 4, ...u32(a.med));
+    if (a.localPref !== undefined) attrs.push(0x40, 5, 4, ...u32(a.localPref));
+  }
+  const nlri = u.nlri.flatMap(encodePrefix);
+  return header(MSG.UPDATE, [...u16(wd.length), ...wd, ...u16(attrs.length), ...attrs, ...nlri]);
+}
+
+// --- decoding ---
+function decodePrefixes(b: Uint8Array, o: number, end: number): string[] {
+  const out: string[] = [];
+  while (o < end) {
+    const l = b[o++];
+    const n = Math.ceil(l / 8);
+    const a = [0, 0, 0, 0];
+    for (let i = 0; i < n; i++) a[i] = b[o + i];
+    o += n;
+    out.push(`${a.join(".")}/${l}`);
+  }
+  return out;
+}
+
+export class BgpDecodeError extends Error {
+  constructor(public code: number, public subcode: number, msg: string) {
+    super(msg);
+  }
+}
+
+function decodeUpdate(b: Uint8Array, as4: boolean): UpdateMsg {
+  let o = 19;
+  const wdLen = rd16(b, o);
+  o += 2;
+  const withdrawn = decodePrefixes(b, o, o + wdLen);
+  o += wdLen;
+  const attrLen = rd16(b, o);
+  o += 2;
+  const attrEnd = o + attrLen;
+  const a: Partial<PathAttrs> = {};
+  let seen = 0;
+  while (o < attrEnd) {
+    const flags = b[o];
+    const code = b[o + 1];
+    const ext = flags & 0x10;
+    const len = ext ? rd16(b, o + 2) : b[o + 2];
+    o += ext ? 4 : 3;
+    if (code === 1) a.origin = b[o];
+    else if (code === 2) {
+      const path: number[] = [];
+      let p = o;
+      while (p < o + len) {
+        const cnt = b[p + 1];
+        p += 2;
+        for (let i = 0; i < cnt; i++) {
+          path.push(as4 ? rd32(b, p) : rd16(b, p));
+          p += as4 ? 4 : 2;
+        }
+      }
+      a.asPath = path;
+    } else if (code === 3) a.nextHop = ipStr(b, o);
+    else if (code === 4) a.med = rd32(b, o);
+    else if (code === 5) a.localPref = rd32(b, o);
+    seen |= 1 << code;
+    o += len;
+  }
+  const nlri = decodePrefixes(b, attrEnd, b.length);
+  if (nlri.length && (seen & 0b1110) !== 0b1110) {
+    // RFC 4271 §6.3: missing well-known mandatory attribute (ORIGIN/AS_PATH/NEXT_HOP).
+    const missing = !(seen & 2) ? 1 : !(seen & 4) ? 2 : 3;
+    throw new BgpDecodeError(3, 3, `missing well-known attribute ${missing}`);
+  }
+  return { type: 2, withdrawn, attrs: attrLen ? (a as PathAttrs) : undefined, nlri };
+}
+
+function decodeOpen(b: Uint8Array): OpenMsg {
+  const caps: Capability[] = [];
+  const optLen = b[28];
+  let o = 29;
+  while (o < 29 + optLen) {
+    const ptype = b[o];
+    const plen = b[o + 1];
+    if (ptype === 2) {
+      let c = o + 2;
+      while (c < o + 2 + plen) {
+        const code = b[c];
+        const clen = b[c + 1];
+        caps.push({ code, value: Array.from(b.slice(c + 2, c + 2 + clen)) });
+        c += 2 + clen;
+      }
+    }
+    o += 2 + plen;
+  }
+  return { type: 1, version: b[19], myAs: rd16(b, 20), holdTime: rd16(b, 22), bgpId: ipStr(b, 24), caps };
+}
+
+/** Split a TCP payload into BGP messages (one segment may carry several). */
+export function decodeMessages(bytes: Uint8Array, as4: boolean): BgpMsg[] {
+  const out: BgpMsg[] = [];
+  let o = 0;
+  while (o + 19 <= bytes.length) {
+    for (let i = 0; i < 16; i++) if (bytes[o + i] !== 0xff) throw new BgpDecodeError(1, 1, "marker");
+    const len = rd16(bytes, o + 16);
+    if (len < 19 || len > 4096 || o + len > bytes.length) throw new BgpDecodeError(1, 2, "bad length");
+    const m = bytes.slice(o, o + len);
+    const type = m[18];
+    if (type === MSG.OPEN) out.push(decodeOpen(m));
+    else if (type === MSG.UPDATE) out.push(decodeUpdate(m, as4));
+    else if (type === MSG.NOTIFICATION) out.push({ type: 3, code: m[19], subcode: m[20], data: Array.from(m.slice(21)) });
+    else if (type === MSG.KEEPALIVE) out.push({ type: 4 });
+    else if (type === MSG.ROUTE_REFRESH) out.push({ type: 5 });
+    else throw new BgpDecodeError(1, 3, "bad type");
+    o += len;
+  }
+  return out;
+}
+
+/** AS number the OPEN really carries: the 4-octet AS capability when present (RFC 6793 §4.1). */
+export function openAs(o: OpenMsg): { as: number; as4: boolean } {
+  const c = o.caps.find((x) => x.code === CAP.AS4 && x.value.length === 4);
+  return c ? { as: rd32(c.value, 0), as4: true } : { as: o.myAs, as4: false };
+}
+
+export function openHostname(o: OpenMsg): string | undefined {
+  const c = o.caps.find((x) => x.code === CAP.FQDN);
+  if (!c || !c.value.length) return undefined;
+  return String.fromCharCode(...c.value.slice(1, 1 + c.value[0]));
+}
+
+// --- strings (bgp_debug.c) ---
+const NOTIFY_CODE: Record<number, string> = {
+  1: "Message Header Error",
+  2: "OPEN Message Error",
+  3: "UPDATE Message Error",
+  4: "Hold Timer Expired",
+  5: "Neighbor Events Error",
+  6: "Cease",
+  7: "ROUTE-REFRESH Message Error",
+  8: "Send Hold Timer Expired",
+};
+const NOTIFY_SUB: Record<number, Record<number, string>> = {
+  1: { 1: "/Connection Not Synchronized", 2: "/Bad Message Length", 3: "/Bad Message Type" },
+  2: { 0: "/Unspecific", 1: "/Unsupported Version Number", 2: "/Bad Peer AS", 3: "/Bad BGP Identifier", 4: "/Unsupported Optional Parameter", 6: "/Unacceptable Hold Time", 7: "/Unsupported Capability" },
+  3: { 0: "/Unspecific", 1: "/Malformed Attribute List", 2: "/Unrecognized Well-known Attribute", 3: "/Missing Well-known Attribute", 4: "/Attribute Flags Error", 5: "/Attribute Length Error", 6: "/Invalid ORIGIN Attribute", 8: "/Invalid NEXT_HOP Attribute", 9: "/Optional Attribute Error", 10: "/Invalid Network Field", 11: "/Malformed AS_PATH" },
+  5: { 0: "/Unspecific", 1: "/Receiving Unexpected Message in OpenSent State", 2: "/Receiving Unexpected Message in OpenConfirm State", 3: "/Receiving Unexpected Message in Established State" },
+  6: { 0: "/Unspecific", 1: "/Maximum Number of Prefixes Reached", 2: "/Administrative Shutdown", 3: "/Peer De-configured", 4: "/Administrative Reset", 5: "/Connection Rejected", 6: "/Other Configuration Change", 7: "/Connection Collision Resolution", 8: "/Out of Resources", 9: "/Hard Reset", 10: "/BFD Down" },
+};
+/** "Hold Timer Expired" / "OPEN Message Error/Bad Peer AS" (bgp_notify_code_str + subcode_str). */
+export function notifyText(code: number, subcode: number): string {
+  const c = NOTIFY_CODE[code] ?? "Unrecognized Error Code";
+  if (code === 4 || code === 8) return c;
+  return c + (NOTIFY_SUB[code]?.[subcode] ?? "/Unrecognized Error Subcode");
+}
+
+// --- tcpdump (print-bgp.c style, -v decode) ---
+const MSG_NAME: Record<number, string> = { 1: "Open", 2: "Update", 3: "Notification", 4: "Keepalive", 5: "Route Refresh" };
+const CAP_NAME: Record<number, string> = { 1: "Multiprotocol Extensions", 2: "Route Refresh", 6: "Extended Message", 65: "32-Bit AS Number", 70: "Enhanced Route Refresh", 73: "Hostname" };
+
+export function describeBgpPayload(bytes: Uint8Array, verbose: boolean): string {
+  if (!verbose) return "BGP";
+  const lines = ["BGP"];
+  let msgs: BgpMsg[];
+  try {
+    msgs = decodeMessages(bytes, true);
+  } catch {
+    return "BGP [|BGP]";
+  }
+  let o = 0;
+  for (const m of msgs) {
+    const len = (bytes[o + 16] << 8) | bytes[o + 17];
+    o += len;
+    lines.push(`\t${MSG_NAME[m.type]} Message (${m.type}), length: ${len}`);
+    if (m.type === 1) {
+      const { as } = openAs(m);
+      lines.push(`\t  Version ${m.version}, my AS ${as}, Holdtime ${m.holdTime}s, ID ${m.bgpId}`);
+      lines.push(`\t  Optional parameters, length: ${m.caps.reduce((n, c) => n + c.value.length + 4, 0)}`);
+      for (const c of m.caps) lines.push(`\t    Option Capabilities Advertisement (2), length: ${c.value.length + 2}`, `\t      ${CAP_NAME[c.code] ?? "Unknown"} (${c.code}), length: ${c.value.length}`);
+    } else if (m.type === 2) {
+      if (m.withdrawn.length) lines.push("\t  Withdrawn routes:", ...m.withdrawn.map((p) => `\t    ${p}`));
+      if (m.attrs) {
+        const a = m.attrs;
+        lines.push(`\t  Origin (1), length: 1, Flags [T]: ${["IGP", "EGP", "Incomplete"][a.origin] ?? a.origin}`);
+        lines.push(`\t  AS Path (2), length: ${a.asPath.length ? 2 + a.asPath.length * 4 : 0}, Flags [TE]: ${a.asPath.length ? a.asPath.join(" ") : "empty"}`);
+        lines.push(`\t  Next Hop (3), length: 4, Flags [T]: ${a.nextHop}`);
+        if (a.med !== undefined) lines.push(`\t  Multi Exit Discriminator (4), length: 4, Flags [O]: ${a.med}`);
+        if (a.localPref !== undefined) lines.push(`\t  Local Preference (5), length: 4, Flags [T]: ${a.localPref}`);
+      }
+      if (m.nlri.length) lines.push("\t  Updated routes:", ...m.nlri.map((p) => `\t    ${p}`));
+      if (!m.withdrawn.length && !m.attrs && !m.nlri.length) lines.push("\t  End-of-Rib Marker (empty NLRI)");
+    } else if (m.type === 3) {
+      lines.push(`\t  ${NOTIFY_CODE[m.code] ?? "Unknown"} (${m.code}), subcode ${m.subcode}`);
+    }
+  }
+  return lines.join("\n");
+}

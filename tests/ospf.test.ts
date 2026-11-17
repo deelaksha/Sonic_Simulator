@@ -59,8 +59,8 @@ describe("OSPF packet-plane (spec §24)", () => {
     expect(sum.routesInstalled).toBe(2);
     expect(sim.events.some((e) => e.type === "OSPF_HELLO")).toBe(true);
     expect(sim.events.some((e) => e.type === "OSPF_NEIGHBOR")).toBe(true);
-    // a real OSPF (proto 89) frame crossed the wire
-    expect(sim.events.some((e) => e.frame?.ospf?.packetType === "hello")).toBe(true);
+    // a real OSPF (IP proto 89) Hello crossed the wire as bytes: IP header + OSPFv2 type 1
+    expect(sim.events.some((e) => e.type === "FRAME_SENT" && e.frame?.rawL3?.[9] === 89 && e.frame.rawL3[20] === 2 && e.frame.rawL3[21] === 1)).toBe(true);
     // R1 learned PC2's subnet via OSPF
     const r = state.devices.r1.routingTable.find((rt) => rt.type === "ospf" && rt.destination === "10.2.2.0");
     expect(r?.nextHop).toBe("10.0.0.2");

@@ -112,16 +112,19 @@ describe("SONiC BGP feature (config-plane; source bgp.txt)", () => {
     expect(out).toContain("30.1.1.2");
     expect(out).toContain("Total number of neighbors 1");
     // Not converged → honest "Idle" state, never a fabricated "Established".
+    // Not converged → honest "Idle" state, never a fabricated "Established"
+    // (FRR bgp_vty.c prints no "established" total; that line is KLISH-template only).
     expect(out).not.toContain("Established");
-    expect(out).toContain("Total number of neighbors established 0");
+    expect(out).toMatch(/^30\.1\.1\.2 .* never +Idle +0 N\/A$/m);
   });
 
-  it("baseline summary reports AS 0 and no neighbors (bgp.txt TC-2)", () => {
+  it("baseline summary without router bgp: FRR '% BGP instance not found' (bgp_vty.c:12917)", () => {
     const state = build();
     const r1 = state.devices.r1;
     const out = text(execute("show bgp summary", ctxFor(state, r1)));
-    expect(out).toContain("local AS number 0");
-    expect(out).toContain("% No BGP neighbors configured");
+    expect(out).toContain("% BGP instance not found");
+    execute("config router bgp 65001", ctxFor(state, r1));
+    expect(text(execute("show bgp summary", ctxFor(state, r1)))).toContain("% No BGP neighbors found in VRF default");
   });
 
   it("show ip bgp neighbors renders external vs internal link from config only", () => {
@@ -144,7 +147,9 @@ describe("SONiC BGP feature (config-plane; source bgp.txt)", () => {
     expect(bgp(r1)?.networks).toEqual(["30.1.1.0/24"]);
     const out = text(execute("show ip bgp", ctxFor(state, r1)));
     expect(out).toContain("30.1.1.0/24");
-    expect(out).toContain("Total number of routes: 1");
+    // FRR import-check: no 30.1.1.0/24 in the RIB → shown but not valid (no '*')
+    expect(out).toMatch(/^     30\.1\.1\.0\/24 +0\.0\.0\.0 +0 +32768 i$/m);
+    expect(out).toContain("Displayed 1 routes and 1 total paths");
   });
 
   it("config router bgp no neighbor <ip> deletes the neighbor", () => {
@@ -155,7 +160,7 @@ describe("SONiC BGP feature (config-plane; source bgp.txt)", () => {
     execute("config router bgp no neighbor 30.1.1.2", ctxFor(state, r1));
     expect(bgp(r1)?.neighbors ?? []).toHaveLength(0);
     const out = text(execute("show ip bgp summary", ctxFor(state, r1)));
-    expect(out).toContain("% No BGP neighbors configured");
+    expect(out).toContain("% No BGP neighbors found in VRF default");
   });
 
   it("config router bgp no removes the whole BGP instance", () => {
@@ -171,10 +176,10 @@ describe("SONiC BGP feature (config-plane; source bgp.txt)", () => {
   it("regression: show ip route and show ip arp still resolve to their own handlers, not BGP", () => {
     const state = build();
     const r1 = state.devices.r1;
-    // show ip route -> static-route handler ("(no routes)" for an empty table),
+    // show ip route -> FRR zebra RIB (header only for an empty table),
     // never the BGP RIB header.
     const routeOut = text(execute("show ip route", ctxFor(state, r1)));
-    expect(routeOut).toContain("(no routes)");
+    expect(routeOut).toContain("IPv4 unicast VRF default:");
     expect(routeOut).not.toContain("BGP table version");
     // show ip arp -> arp/nd handler.
     const arpOut = text(execute("show ip arp", ctxFor(state, r1)));

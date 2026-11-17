@@ -13,21 +13,24 @@ describe("SONiC feature labs (loadFeatureLab)", () => {
   beforeEach(() => S().newLab());
 
   it("bgp lab converges and cross-AS ping works", () => {
+    // lib/labs/bgp-lab.ts: eBGP triangle S1/S2/S3 (AS65001/2/3), H1 192.168.1.10 ↔ H3 192.168.3.10
     S().loadFeatureLab("bgp");
-    const pc1 = firstPc();
-    expect(new Simulation(net()).runPing(pc1.id, "10.2.2.10", { count: 1 }).received).toBe(0);
+    const h1 = Object.values(net().devices).find((d) => d.name === "H1")!;
+    expect(new Simulation(net()).runPing(h1.id, "192.168.3.10", { count: 1 }).received).toBe(0);
     const sum = new Simulation(net()).runBgp();
-    expect(sum.sessions).toBe(2);
-    const after = new Simulation(net()).runPing(pc1.id, "10.2.2.10", { count: 1 });
+    expect(sum.sessions).toBe(6); // three sessions, counted on both speakers
+    const after = new Simulation(net()).runPing(h1.id, "192.168.3.10", { count: 1 });
     expect(after.received).toBe(1);
   });
 
   it("ospf lab forms adjacencies and cross-router ping works", () => {
+    // lib/labs/ospf-lab.ts: S1/S2/S3 area 0, H1 192.168.1.10 ↔ H3 192.168.3.10
     S().loadFeatureLab("ospf");
-    const pc1 = firstPc();
+    const h1 = Object.values(net().devices).find((d) => d.name === "H1")!;
+    expect(new Simulation(net()).runPing(h1.id, "192.168.3.10", { count: 1 }).received).toBe(0);
     const sum = new Simulation(net()).runOspf();
-    expect(sum.adjacencies).toBeGreaterThanOrEqual(2);
-    expect(new Simulation(net()).runPing(pc1.id, "10.2.2.10", { count: 1 }).received).toBe(1);
+    expect(sum.adjacencies).toBe(6); // three adjacencies, counted on both ends
+    expect(new Simulation(net()).runPing(h1.id, "192.168.3.10", { count: 1 }).received).toBe(1);
   });
 
   it("ipv6 lab: ping6 between the two PCs works", () => {
@@ -56,8 +59,8 @@ describe("SONiC feature labs (loadFeatureLab)", () => {
   });
 
   it("config-plane features load a sandbox with a relevant device selected", () => {
-    S().loadFeatureLab("snmp"); // non-L3 → switch sandbox
-    expect(net().devices[S().selectedDeviceId!].type).toBe("switch");
+    S().loadFeatureLab("snmp"); // SNMP lab selects the NMS (manager) to show its hint
+    expect(net().devices[S().selectedDeviceId!].name).toBe("NMS");
     S().loadFeatureLab("vrf"); // L3 → routing sandbox
     expect(net().devices[S().selectedDeviceId!].type).toBe("router");
   });

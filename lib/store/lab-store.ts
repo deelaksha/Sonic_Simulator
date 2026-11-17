@@ -8,7 +8,7 @@
  */
 "use client";
 import { create } from "zustand";
-import { NetworkState, Connection, linkInterfaces, unlinkConnection, connectionFor } from "../models/topology";
+import { NetworkState, Connection, linkInterfaces, unlinkConnection, connectionFor, refreshLink } from "../models/topology";
 import { Device, DeviceType } from "../models/device";
 import { createDevice, rebuildConnectedRoutes, rebuildConnectedRoutes6 } from "../models/factory";
 import { SONIC_FEATURES } from "../sonic/feature-registry";
@@ -19,6 +19,8 @@ import { compileFilter, FramePredicate } from "../commands/bpf";
 import { formatCaptureRecord } from "../commands/tcpdump";
 import { TrafficSpec, sendTrafficPacket, validateTrafficSpec, SendFailure } from "../protocols/traffic";
 import { sflowAgentTick } from "../sflow/agent";
+import { nextControlDue, runControlTick } from "../control";
+import { getLab, LabApi } from "../labs";
 import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
 import { isSwitch } from "../models/device";
 import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
@@ -110,6 +112,12 @@ interface LabState {
   stopTraffic(): void;
   /** One hsflowd tick on every switch (counter polling + datagram export). */
   sflowTick(): void;
+  /**
+   * Run every due control-plane daemon (ARP aging, LLDP, BFD, OSPF, BGP, SNMP
+   * traps) at wall-clock now. The page calls this every 100 ms; it only clones
+   * and commits the network when a daemon is due and something changed.
+   */
+  controlTick(): void;
   setCollector(deviceId: string, listening: boolean, port: number): void;
   clearCollector(deviceId: string): void;
   /** Host config helper: put a switch port in an access VLAN (creating it). */
@@ -428,8 +436,7 @@ export const useLabStore = create<LabState>((set, get) => {
     const iface = dev?.interfaces.find((i) => i.id === ifaceId);
     if (iface) {
       iface.adminState = up ? "up" : "down";
-      iface.operState = up && iface.connectedTo ? "up" : "down";
-      if (dev) rebuildConnectedRoutes(dev);
+      for (const id of refreshLink(next, deviceId, ifaceId)) rebuildConnectedRoutes(next.devices[id]);
     }
     set({ network: next });
   },
@@ -530,7 +537,7 @@ export const useLabStore = create<LabState>((set, get) => {
     };
     const user = device.config.hostname.toLowerCase().replace(/\s+/g, "-");
     const transcript: { text: string; kind: "input" | "output"; lineKind?: LineKind }[] = [
-      { text: "# applied from the sFlow tab", kind: "output", lineKind: "muted" },
+      { text: "# applied from the GUI", kind: "output", lineKind: "muted" },
     ];
     const errors: OutputLine[] = [];
     let stack: CliStack = ["exec"];
@@ -597,6 +604,19 @@ export const useLabStore = create<LabState>((set, get) => {
       for (const d of switches) errors[d.id] = sflowAgentTick(sim, net.devices[d.id], now).errors;
     }, false);
     set({ sflowErrors: { ...get().sflowErrors, ...errors } });
+  },
+
+  controlTick() {
+    const now = Date.now();
+    const due = nextControlDue(get().network, now);
+    if (due === undefined || due > now) return;
+    const state = get();
+    const draft = structuredClone(state.network);
+    const sim = new Simulation(draft, { wallBase: now });
+    const changed = runControlTick(sim, draft, now);
+    if (!changed && sim.captures.length === 0) return;
+    set({ network: draft, captures: [...state.captures, ...sim.captures].slice(-CAPTURE_LIMIT) });
+    feedCaptures(sim.captures);
   },
 
   setCollector(deviceId, listening, port) {
@@ -746,6 +766,39 @@ export const useLabStore = create<LabState>((set, get) => {
   },
 
   loadFeatureLab(featureId) {
+    // Protocol labs registered in lib/labs/ take precedence.
+    const registered = getLab(featureId);
+    if (registered) {
+      const api: LabApi = {
+        newLab: () => get().newLab(),
+        addDevice: (type, pos, ports) => get().addDevice(type, pos, ports),
+        setInterfaceIp: (d, i, a, p) => get().setInterfaceIp(d, i, a, p),
+        setDefaultGateway: (d, gw) => get().setDefaultGateway(d, gw),
+        connect: (a, ai, b, bi) => void get().connect(a, ai, b, bi),
+        setAccessVlan: (d, i, v) => get().setAccessVlan(d, i, v),
+        rename: (d, n) => get().renameDevice(d, n),
+        setPortSpeed: (d, mbps) => {
+          const next = structuredClone(get().network);
+          for (const p of next.devices[d]?.interfaces ?? []) if (!p.management && !p.logical) p.speed = mbps;
+          set({ network: next });
+        },
+        runCliScript: (d, lines) => void get().runCliScript(d, lines),
+        exec: (d, command) => {
+          get().appendTerminal(d, [{ text: `# ${command}`, kind: "output", lineKind: "muted" }]);
+          const r = get().execCommand(d, command);
+          get().appendTerminal(d, r.output.map((o) => ({ text: o.text, kind: "output" as const, lineKind: o.kind })));
+        },
+        hint: (d, lines) =>
+          get().appendTerminal(
+            d,
+            lines.map((text, i) => ({ text, kind: "output" as const, lineKind: (i === 0 ? "heading" : "muted") as LineKind })),
+          ),
+        finish: (labName, selectedDeviceId) => set({ labName, selectedDeviceId }),
+      };
+      registered(api);
+      return;
+    }
+
     // Print a short "what to try" guide into the selected device's terminal.
     const hint = (deviceId: string, lines: string[]) =>
       get().appendTerminal(
@@ -816,34 +869,6 @@ export const useLabStore = create<LabState>((set, get) => {
           "3. Traffic tab: H1 → 192.168.100.12, UDP, e.g. 2000 packets",
           "4. sFlow tab: datagrams / FLOW / COUNTER samples decoded at COLLECTOR",
         ]);
-        return;
-      }
-
-      case "bgp": {
-        const { r1, r2 } = twoRouterCore();
-        const next = structuredClone(get().network);
-        next.devices[r1].config.features = {
-          bgp: { localAs: 65001, routerId: "1.1.1.1", neighbors: [{ peer: "10.0.0.2", remoteAs: 65002 }], networks: ["10.1.1.0/24"] },
-        };
-        next.devices[r2].config.features = {
-          bgp: { localAs: 65002, routerId: "2.2.2.2", neighbors: [{ peer: "10.0.0.1", remoteAs: 65001 }], networks: ["10.2.2.0/24"] },
-        };
-        set({ network: next, labName: "BGP Lab — AS65001 ↔ AS65002", selectedDeviceId: r1 });
-        hint(r1, ["BGP lab: R1 (AS65001) ↔ R2 (AS65002).", "Try:  bgp converge", "      show ip bgp summary", "Then ping 10.2.2.10 from PC1."]);
-        return;
-      }
-
-      case "ospf": {
-        const { r1, r2 } = twoRouterCore();
-        const next = structuredClone(get().network);
-        const nets = (a: string) => [
-          { network: a, area: "0.0.0.0" },
-          { network: "10.0.0.0/30", area: "0.0.0.0" },
-        ];
-        next.devices[r1].config.features = { ospf: { routerId: "1.1.1.1", networks: nets("10.1.1.0/24") } };
-        next.devices[r2].config.features = { ospf: { routerId: "2.2.2.2", networks: nets("10.2.2.0/24") } };
-        set({ network: next, labName: "OSPF Lab — area 0.0.0.0", selectedDeviceId: r1 });
-        hint(r1, ["OSPF lab: R1 ↔ R2 in area 0.0.0.0.", "Try:  ospf converge", "      show ip ospf neighbor", "Then ping 10.2.2.10 from PC1."]);
         return;
       }
 

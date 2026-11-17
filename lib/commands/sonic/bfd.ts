@@ -1,9 +1,9 @@
 /**
- * BFD SONiC feature module. Config-plane only (simulated CONFIG_DB): commands
- * mutate per-device feature state and `show bfd ...` renders SOLELY from that
- * stored state. There is no packet engine yet, so BFD session UP/DOWN and the
- * control-packet state machine are NOT fabricated here — `show` renders the
- * configured intent and notes that live session state is simulated separately.
+ * BFD SONiC feature module. `config bfd ...` stores the configured peers in the
+ * simulated CONFIG_DB (features.bfd) and immediately reconciles the live BFD
+ * sessions run by lib/protocols/bfd-daemon.ts (FRR bfdd model: real 24-byte
+ * control packets, RFC 5880 state machine, timers). `show bfd ...` renders those
+ * live sessions in FRR 10.3 bfdd_vty.c form (see the show section below).
  *
  * bfd.txt is authoritative. Real BFD is driven from FRR (`bfd` view, then
  * `peer <ip> interface <if> ...`). This module exposes the equivalent surface as
@@ -19,8 +19,8 @@
  *   config bfd peer transmit-interval <ip> <ms> <- transmit-interval <ms>         (TC-61,62)
  *   config bfd peer shutdown    <ip>  <- shutdown                                 (TC-17)
  *   config bfd peer no-shutdown <ip>  <- no shutdown                              (TC-18)
- *   show bfd peers                    <- show bfd peers                           (TC-19,33)
- *   show bfd peer <ip>                <- show bfd peer <ip>                        (TC-30,47)
+ *   show bfd peers [brief|counters]   <- show bfd peers [brief|counters]
+ *   show bfd peer <ip> [counters]     <- show bfd peer <ip> [counters]
  *
  * Validation (bfd.txt): peer/local-address must be valid IPv4 (TC-68..72);
  * detect-multiplier 2..128 (TC-49..53); receive/transmit-interval a positive
@@ -31,8 +31,9 @@
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
-import { featureState, peekFeatureState } from "../../models/feature-state";
+import { featureState } from "../../models/feature-state";
 import { isValidIpv4 } from "../../models/ip";
+import { BfdSession, bfdSessions, reconcileBfd } from "../../protocols/bfd-daemon";
 
 interface BfdPeer {
   peer: string;
@@ -49,8 +50,6 @@ interface BfdState {
   peers: BfdPeer[];
 }
 
-/** Defaults rendered when a timer/multiplier is unset (bfd.txt TC-6, TC-16). */
-const DEFAULTS = { multiplier: 3, rx: 300, tx: 300 };
 /** detect-multiplier valid range (bfd.txt TC-49..TC-53). */
 const MULT = { min: 2, max: 128 };
 
@@ -196,52 +195,155 @@ function setAdmin(ctx: CommandContext, args: string[], down: boolean): CommandRe
   return { output: [muted(`BFD peer ${ip} admin state ${down ? "down (shutdown)" : "up"}`)] };
 }
 
-// --- show -------------------------------------------------------------------
+// --- show (FRR 10.3 bfdd_vty.c text form) -------------------------------------
+//
+// `show bfd peers`, `show bfd peer <ip>`, `show bfd peers counters`,
+// `show bfd peer <ip> counters`, `show bfd peers brief` render exactly what
+// `vtysh -c "show bfd ..."` prints (bfdd_vty.c _display_peer :151,
+// _display_peer_counter :520, _display_peers_brief :794), from the live BFD
+// sessions of lib/protocols/bfd-daemon.ts. The KLISH `show bfd ...` form (Jinja
+// templates) is rendered by lib/commands/sonic-cli/features/bfd.ts.
 
-/** bfd.txt header form, e.g. "peer 10.10.10.1 vrf default interface Ethernet4". */
-function peerHeader(p: BfdPeer): string {
-  let s = `peer ${p.peer}`;
-  if (p.local) s += ` local-address ${p.local}`;
-  s += " vrf default";
-  if (p.multihop) s += " multihop";
-  else if (p.interface) s += ` interface ${p.interface}`;
-  return s;
+/** integer2timestr (bfd.c:1701). */
+export function integer2timestr(sec: number): string {
+  const M = 60, H = 60 * M, D = 24 * H, MO = 30 * D, Y = 12 * MO;
+  let t = Math.max(0, Math.floor(sec));
+  let s = "";
+  for (const [unit, name] of [[Y, "year"], [MO, "month"], [D, "day"], [H, "hour"], [M, "minute"]] as const) {
+    if (t >= unit) {
+      const n = Math.floor(t / unit);
+      t -= n * unit;
+      s += `${n} ${name}(s), `;
+    }
+  }
+  return `${s}${t % M} second(s)`;
 }
 
-const SESSION_NOTE =
-  "Note: BFD session UP/DOWN state is simulated separately (no packet engine); the above is the configured intent.";
+/** diag2str (bfd.c:1652). */
+export function diag2str(d: number): string {
+  return (
+    ["ok", "control detection time expired", "echo function failed", "neighbor signaled session down", "forwarding plane reset", "path down", "concatenated path down", "administratively down", "reverse concatenated path down"][d] ?? "unknown"
+  );
+}
 
-function renderPeers(ctx: CommandContext, filterIp?: string): OutputLine[] {
-  const all = peekFeatureState<BfdState>(ctx.device, "bfd")?.peers ?? [];
-  const peers = filterIp ? all.filter((p) => p.peer === filterIp) : all;
-  if (filterIp && peers.length === 0) return [muted(`BFD peer ${filterIp} not found`)];
-  if (peers.length === 0) return [muted("No BFD peers configured")];
+/** state_list (bfdd.c:156). */
+export const BFD_STATE_STR = ["admin-down", "down", "init", "up"];
 
-  const out: OutputLine[] = [line("BFD Peers:")];
-  for (const p of peers) {
-    out.push(line(peerHeader(p)));
-    out.push(line(`  Admin State: ${p.shutdown ? "down" : "up"}`));
-    out.push(line("  Peer Type: configured"));
-    out.push(line("  Local timers:"));
-    out.push(line(`    Detect-multiplier: ${p.multiplier ?? DEFAULTS.multiplier}`));
-    out.push(line(`    Receive interval: ${p.rxInterval ?? DEFAULTS.rx}ms`));
-    out.push(line(`    Transmission interval: ${p.txInterval ?? DEFAULTS.tx}ms`));
+/** _display_peer_header (bfdd_vty.c:108). */
+function frrHeader(s: BfdSession): string {
+  let h = `\tpeer ${s.peer}`;
+  if (s.multihop) h += " multihop";
+  if (s.local) h += ` local-address ${s.local}`;
+  h += " vrf default";
+  if (s.ifname) h += ` interface ${s.ifname}`;
+  return h;
+}
+
+/** _display_peer (bfdd_vty.c:151). */
+function frrPeer(s: BfdSession, now: number): OutputLine[] {
+  const o: string[] = [frrHeader(s), `\t\tID: ${s.myDisc}`, `\t\tRemote ID: ${s.remoteDisc}`, "\t\tActive mode"];
+  if (s.multihop) o.push(`\t\tMinimum TTL: ${s.mhTtl}`);
+  const st = ["shutdown", "down", "init", "up"][s.state];
+  o.push(`\t\tStatus: ${st}`);
+  if (s.state === 1) o.push(`\t\tDowntime: ${integer2timestr((now - s.downtime) / 1000)}`);
+  if (s.state === 3) o.push(`\t\tUptime: ${integer2timestr((now - s.uptime) / 1000)}`);
+  o.push(
+    `\t\tDiagnostics: ${diag2str(s.localDiag)}`,
+    `\t\tRemote diagnostics: ${diag2str(s.remoteDiag)}`,
+    `\t\tPeer Type: ${s.configured ? "configured" : "dynamic"}`,
+    "\t\tRTT min/avg/max: 0/0/0 usec", // echo-measured RTT; echo is not simulated
+    "\t\tLocal timers:",
+    `\t\t\tDetect-multiplier: ${s.detectMult}`,
+    `\t\t\tReceive interval: ${s.requiredMinRx}ms`,
+    `\t\t\tTransmission interval: ${s.desiredMinTx}ms`,
+    s.requiredMinEchoRx ? `\t\t\tEcho receive interval: ${s.requiredMinEchoRx}ms` : "\t\t\tEcho receive interval: disabled",
+    "\t\t\tEcho transmission interval: disabled",
+    "\t\tRemote timers:",
+    `\t\t\tDetect-multiplier: ${s.remoteDetectMult}`,
+    `\t\t\tReceive interval: ${s.remoteRequiredRx}ms`,
+    `\t\t\tTransmission interval: ${s.remoteDesiredTx}ms`,
+    s.remoteEchoRx ? `\t\t\tEcho receive interval: ${s.remoteEchoRx}ms` : "\t\t\tEcho receive interval: disabled",
+    "",
+  );
+  return o.map((t) => line(t));
+}
+
+/** _display_peer_counter (bfdd_vty.c:520). */
+function frrCounters(s: BfdSession): OutputLine[] {
+  return [
+    frrHeader(s),
+    `\t\tControl packet input: ${s.stats.rxCtrl} packets`,
+    `\t\tControl packet output: ${s.stats.txCtrl} packets`,
+    "\t\tEcho packet input: 0 packets",
+    "\t\tEcho packet output: 0 packets",
+    `\t\tSession up events: ${s.stats.up}`,
+    `\t\tSession down events: ${s.stats.down}`,
+    `\t\tZebra notifications: ${s.stats.zebra}`,
+    `\t\tTx fail packet: ${s.stats.txFail}`,
+    "",
+  ].map((t) => line(t));
+}
+
+/** _display_peers_brief (bfdd_vty.c:754-817). */
+function frrBrief(sessions: BfdSession[]): OutputLine[] {
+  const row = (a: string, b: string, c: string, d: string) => `${a.padEnd(10)} ${b.padEnd(40)} ${c.padEnd(40)}${d.padEnd(15)}`;
+  return [
+    `Session count: ${sessions.length}`,
+    row("SessionId", "LocalAddress", "PeerAddress", "Status"),
+    row("=========", "============", "===========", "======"),
+    // Single hop prints the address packets arrived on ("unknown" until then).
+    ...sessions.map((s) => row(String(s.myDisc), s.multihop ? s.local ?? "0.0.0.0" : s.pktLocal ?? "unknown", s.peer, BFD_STATE_STR[s.state])),
+  ].map((t) => line(t));
+}
+
+/** `show bfd peer <ip> [multihop] [local-address A] [interface I] [counters]`. */
+function showPeer(args: string[], ctx: CommandContext): CommandResult {
+  const ip = args[0];
+  if (!ip) return { output: [err("Usage: show bfd peer <peer-ip> [interface <if>] [local-address <ip>] [multihop] [counters]")] };
+  let ifname: string | undefined;
+  let local: string | undefined;
+  let counters = false;
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === "interface") ifname = args[++i];
+    else if (args[i] === "local-address") local = args[++i];
+    else if (args[i] === "counters") counters = true;
   }
-  out.push(muted(SESSION_NOTE));
-  return out;
+  const s = bfdSessions(ctx.device).find((x) => x.peer === ip && (!ifname || x.ifname === ifname) && (!local || x.local === local));
+  if (!s) {
+    // _find_peer_or_error (bfdd_vty.c:876-887).
+    return { output: [line(`% Unable to find 'peer ${ip}${ifname ? ` interface ${ifname}` : ""}${local ? ` local-address ${local}` : ""}'`)] };
+  }
+  if (counters) return { output: frrCounters(s) };
+  return { output: [line("BFD Peer:"), ...frrPeer(s, Date.now())] };
 }
 
 const show: SonicCmd[] = [
-  { path: ["bfd", "peers"], summary: "Show all configured BFD peers", run: (_a, ctx) => ({ output: renderPeers(ctx) }) },
   {
-    path: ["bfd", "peer"],
-    summary: "Show a configured BFD peer by IP",
-    run(args, ctx): CommandResult {
-      const ip = positional(args)[0];
-      if (!ip) return { output: [err("Usage: show bfd peer <peer-ip>")] };
-      return { output: renderPeers(ctx, ip) };
-    },
+    path: ["bfd", "peers"],
+    summary: "Show all BFD peers (FRR bfdd format)",
+    run: (_a, ctx) => ({ output: [line("BFD Peers:"), ...bfdSessions(ctx.device).flatMap((s) => frrPeer(s, Date.now()))] }),
   },
+  {
+    path: ["bfd", "peers", "counters"],
+    summary: "Show BFD peer packet/session counters",
+    run: (_a, ctx) => ({ output: [line("BFD Peers:"), ...bfdSessions(ctx.device).flatMap(frrCounters)] }),
+  },
+  {
+    path: ["bfd", "peers", "brief"],
+    summary: "Show BFD sessions in one line each",
+    run: (_a, ctx) => ({ output: frrBrief(bfdSessions(ctx.device)) }),
+  },
+  { path: ["bfd", "peer"], summary: "Show one BFD peer [counters]", run: (a, ctx) => showPeer(positional(a), ctx) },
 ];
 
-export const bfdModule: SonicFeatureModule = { id: "bfd", config, show };
+/** Every config change is applied to the running sessions at once (bfdd reacts to northbound commits). */
+const liveConfig: SonicCmd[] = config.map((c) => ({
+  ...c,
+  run(args, ctx) {
+    const r = c.run(args, ctx);
+    reconcileBfd(ctx.device, Date.now());
+    return r;
+  },
+}));
+
+export const bfdModule: SonicFeatureModule = { id: "bfd", config: liveConfig, show };

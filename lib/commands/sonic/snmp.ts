@@ -19,6 +19,13 @@
  *   show snmp community                       <- show snmp-server community
  *   show snmp user                            <- show snmp-server user
  *
+ * Real sonic-utilities commands (config/main.py:3863-3995, show/main.py:560-600, 1864-2024):
+ *   config snmptrap modify <1|2|3> <ip> [-p port] [-v vrf] [-c community] / del <ver>
+ *   config snmpagentaddress add|del <ip> [-p port] [-v vrf]
+ *   show snmptrap | show snmpagentaddress | show runningconfiguration snmp [community|contact|location|user]
+ * Every Click SNMP write restarts the snmp service, which is when snmpd picks it up
+ * (see lib/protocols/snmp-config.ts).
+ *
  * From snmp.txt: community/type shown as RO/RW (TC-7), community name length
  * 4-32 (SNMP_COMMUNITY_STRING, TC-60), same-name re-add overwrites and is not an
  * error (TC-57), deleting a non-existent community is a silent no-op (TC-61),
@@ -27,37 +34,20 @@
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
-import { featureState, peekFeatureState } from "../../models/feature-state";
-
-type Access = "RO" | "RW";
-
-interface SnmpCommunity {
-  name: string;
-  access: Access;
-}
-
-interface SnmpUser {
-  name: string;
-  permission: Access;
-}
-
-interface SnmpState {
-  communities: SnmpCommunity[];
-  location: string | undefined;
-  contact: string | undefined;
-  users: SnmpUser[];
-}
+import { peekFeatureState } from "../../models/feature-state";
+import { Access, AgentAddress, SnmpState, requestSnmpRestart, snmpConfig } from "../../protocols/snmp-config";
 
 /** SNMP_COMMUNITY_STRING is 4-32 characters (snmp.txt TC-60). */
 const NAME_LEN = { min: 4, max: 32 };
 
 function state(ctx: CommandContext): SnmpState {
-  return featureState<SnmpState>(ctx.device, "snmp", () => ({
-    communities: [],
-    location: undefined,
-    contact: undefined,
-    users: [],
-  }));
+  return snmpConfig(ctx.device);
+}
+
+/** Click runs `systemctl restart snmp` after the CONFIG_DB write (config/main.py). */
+function restart(ctx: CommandContext): OutputLine {
+  requestSnmpRestart(ctx.device, "click");
+  return muted("Restarting SNMP service...");
 }
 
 /** "ro"/"rw" (case-insensitive) -> "RO"/"RW"; omitted defaults to RO; else null. */
@@ -86,7 +76,7 @@ const config: SonicCmd[] = [
       const existing = st.communities.find((c) => c.name === name);
       if (existing) existing.access = access; // same-name overwrite is not an error (TC-57)
       else st.communities.push({ name, access });
-      return { output: [muted(`SNMP community ${name} (${access}) configured`)] };
+      return { output: [muted(`SNMP community ${name} (${access}) configured`), restart(ctx)] };
     },
   },
   {
@@ -99,7 +89,7 @@ const config: SonicCmd[] = [
       const before = st.communities.length;
       st.communities = st.communities.filter((c) => c.name !== name);
       // Deleting a non-existent community is a silent no-op (TC-61).
-      return { output: [muted(st.communities.length < before ? `SNMP community ${name} deleted` : `SNMP community ${name} not configured (no-op)`)] };
+      return { output: [muted(st.communities.length < before ? `SNMP community ${name} deleted` : `SNMP community ${name} not configured (no-op)`), restart(ctx)] };
     },
   },
   {
@@ -109,7 +99,7 @@ const config: SonicCmd[] = [
       const text = positional(args).join(" ").trim();
       if (!text) return { output: [err("Usage: config snmp location add <text>")] };
       state(ctx).location = text;
-      return { output: [muted(`SNMP location set to "${text}"`)] };
+      return { output: [muted(`SNMP location set to "${text}"`), restart(ctx)] };
     },
   },
   {
@@ -117,7 +107,7 @@ const config: SonicCmd[] = [
     summary: "Clear the SNMP location string",
     run(_args, ctx): CommandResult {
       state(ctx).location = undefined;
-      return { output: [muted("SNMP location cleared")] };
+      return { output: [muted("SNMP location cleared"), restart(ctx)] };
     },
   },
   {
@@ -127,7 +117,7 @@ const config: SonicCmd[] = [
       const text = positional(args).join(" ").trim();
       if (!text) return { output: [err("Usage: config snmp contact add <text>")] };
       state(ctx).contact = text;
-      return { output: [muted(`SNMP contact set to "${text}"`)] };
+      return { output: [muted(`SNMP contact set to "${text}"`), restart(ctx)] };
     },
   },
   {
@@ -135,7 +125,7 @@ const config: SonicCmd[] = [
     summary: "Clear the SNMP contact string",
     run(_args, ctx): CommandResult {
       state(ctx).contact = undefined;
-      return { output: [muted("SNMP contact cleared")] };
+      return { output: [muted("SNMP contact cleared"), restart(ctx)] };
     },
   },
   {
@@ -151,7 +141,7 @@ const config: SonicCmd[] = [
       const existing = st.users.find((u) => u.name === name);
       if (existing) existing.permission = permission;
       else st.users.push({ name, permission });
-      return { output: [muted(`SNMP user ${name} (${permission}) configured`)] };
+      return { output: [muted(`SNMP user ${name} (${permission}) configured`), restart(ctx)] };
     },
   },
   {
@@ -163,7 +153,7 @@ const config: SonicCmd[] = [
       const st = state(ctx);
       const before = st.users.length;
       st.users = st.users.filter((u) => u.name !== name);
-      return { output: [muted(st.users.length < before ? `SNMP user ${name} deleted` : `SNMP user ${name} not configured (no-op)`)] };
+      return { output: [muted(st.users.length < before ? `SNMP user ${name} deleted` : `SNMP user ${name} not configured (no-op)`), restart(ctx)] };
     },
   },
 ];
@@ -201,4 +191,147 @@ const show: SonicCmd[] = [
   { path: ["snmp"], summary: "Show SNMP contact and location", run: (_a, ctx) => ({ output: renderSummary(ctx) }) },
 ];
 
-export const snmpModule: SonicFeatureModule = { id: "snmp", config, show };
+// ---------------------------------------------------------------------------
+// Trap receivers / agent addresses (sonic-utilities config/main.py:3863-3995) and
+// the real Click show commands (show/main.py:560-600, 1864-2024).
+
+/** `-p 1161` / `--port 1161` style options + positionals. */
+function opts(args: string[], names: Record<string, string>): { pos: string[]; o: Record<string, string> } {
+  const pos: string[] = [];
+  const o: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const key = names[args[i]];
+    if (key !== undefined && i + 1 < args.length) o[key] = args[++i];
+    else pos.push(args[i]);
+  }
+  return { pos, o };
+}
+
+const IPV4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+
+const trapAndAgent: SonicCmd[] = [
+  {
+    path: ["snmptrap", "modify"],
+    summary: "Set the SNMP trap receiver for version 1|2|3 (SNMP_TRAP_CONFIG)",
+    run(args, ctx): CommandResult {
+      const { pos, o } = opts(args, { "-p": "port", "--port": "port", "-v": "vrf", "--vrf": "vrf", "-c": "comm", "--comm": "comm" });
+      const [ver, ip] = pos;
+      if (!["1", "2", "3"].includes(ver ?? "") || !ip) {
+        return { output: [err("Usage: config snmptrap modify [OPTIONS] <SNMP Version> <SNMP TRAP SERVER IP Address>"), err("Error: Invalid value for '<SNMP Version>': invalid choice. (choose from 1, 2, 3)")] };
+      }
+      const st = state(ctx);
+      const key = ver === "1" ? "v1" : ver === "2" ? "v2" : "v3";
+      st.trapConfig = { ...(st.trapConfig ?? {}), [key]: { ip, port: Number(o.port ?? "162"), vrf: o.vrf ?? "None", community: o.comm ?? "public" } };
+      requestSnmpRestart(ctx.device, "click");
+      return { output: [] };
+    },
+  },
+  {
+    path: ["snmptrap", "del"],
+    summary: "Delete the SNMP trap receiver for version 1|2|3",
+    run(args, ctx): CommandResult {
+      const ver = positional(args)[0];
+      if (!["1", "2", "3"].includes(ver ?? "")) return { output: [err("Error: Invalid value for '<SNMP Version>': invalid choice. (choose from 1, 2, 3)")] };
+      const st = state(ctx);
+      if (st.trapConfig) delete st.trapConfig[ver === "1" ? "v1" : ver === "2" ? "v2" : "v3"];
+      requestSnmpRestart(ctx.device, "click");
+      return { output: [] };
+    },
+  },
+  {
+    path: ["snmpagentaddress", "add"],
+    summary: "Add an SNMP agent listening IP[:port] (SNMP_AGENT_ADDRESS_CONFIG)",
+    run(args, ctx): CommandResult {
+      const { pos, o } = opts(args, { "-p": "port", "--port": "port", "-v": "vrf", "--vrf": "vrf" });
+      const ip = pos[0];
+      if (!ip) return { output: [err("Usage: config snmpagentaddress add [OPTIONS] <SNMP AGENT LISTENING IP Address>")] };
+      if (!IPV4.test(ip.split("%")[0])) return { output: [line("Invalid IP address")] };
+      if (!ctx.device.interfaces.some((i) => i.ipv4.some((a) => a.address === ip))) return { output: [line("IP address is not available")] };
+      const st = state(ctx);
+      const port = o.port ?? "";
+      if ((st.agentAddresses ?? []).some((a) => a.ip === ip && a.port === port)) return { output: [line(`entry with ${ip}:${port} already exists `)] };
+      st.agentAddresses = [...(st.agentAddresses ?? []), { ip, port, vrf: o.vrf ?? "" } as AgentAddress];
+      requestSnmpRestart(ctx.device, "click");
+      return { output: [] };
+    },
+  },
+  {
+    path: ["snmpagentaddress", "del"],
+    summary: "Delete an SNMP agent listening IP[:port]",
+    run(args, ctx): CommandResult {
+      const { pos, o } = opts(args, { "-p": "port", "--port": "port", "-v": "vrf", "--vrf": "vrf" });
+      const st = state(ctx);
+      st.agentAddresses = (st.agentAddresses ?? []).filter((a) => !(a.ip === pos[0] && a.port === (o.port ?? "") && a.vrf === (o.vrf ?? "")));
+      requestSnmpRestart(ctx.device, "click");
+      return { output: [] };
+    },
+  },
+];
+
+/** python-tabulate "simple" format as click.echo(tabulate(body, header)) prints it. */
+export function tabulate(rows: (string | number)[][], headers: string[]): OutputLine[] {
+  const cells = rows.map((r) => r.map((c) => String(c)));
+  const isNum = (v: string) => /^-?\d+(\.\d+)?$/.test(v);
+  const numeric = headers.map((_, i) => cells.some((r) => isNum(r[i])) && cells.every((r) => r[i] === "" || isNum(r[i])));
+  const width = headers.map((h, i) => Math.max(h.length + 2, ...cells.map((r) => (r[i] ?? "").length)));
+  const fmt = (v: string, i: number) => (numeric[i] ? v.padStart(width[i]) : v.padEnd(width[i]));
+  const trim = (s: string) => s.replace(/\s+$/, "");
+  return [
+    line(trim(headers.map(fmt).join("  "))),
+    line(width.map((w) => "-".repeat(w)).join("  ")),
+    ...cells.map((r) => line(trim(r.map(fmt).join("  ")))),
+  ];
+}
+
+const blank = (): OutputLine[] => [line(""), line("")]; // click.echo("\n")
+
+function runSnmp(ctx: CommandContext, which?: string): OutputLine[] {
+  const st = peekFeatureState<SnmpState>(ctx.device, "snmp");
+  const location = tabulate(st?.location !== undefined ? [[st.location]] : [], ["Location"]);
+  // SNMP|CONTACT is {<contact>: <email>}; the simulator stores "<contact> <email>".
+  const [cName, ...cMail] = (st?.contact ?? "").split(" ");
+  const contactRows = st?.contact !== undefined ? [[cName, cMail.join(" ")]] : [];
+  const communities = [...(st?.communities ?? [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((c) => [c.name, c.access]);
+  const users = (st?.users ?? []).map((u) => [u.name, u.permission, "Null", "Null", "Null", "Null", "Null"]);
+  const userHdr = ["User", "Permission Type", "Type", "Auth Type", "Auth Password", "Encryption Type", "Encryption Password"];
+  if (which === "location") return location;
+  if (which === "contact") return tabulate(contactRows, ["Contact", "Contact Email"]);
+  if (which === "community") return tabulate(communities, ["Community String", "Community Type"]);
+  if (which === "user") return tabulate(users, userHdr);
+  return [
+    ...location,
+    ...blank(),
+    ...tabulate(contactRows, ["SNMP_CONTACT", "SNMP_CONTACT_EMAIL"]),
+    ...blank(),
+    ...tabulate(communities, ["Community String", "Community Type"]),
+    ...blank(),
+    ...tabulate(users, userHdr),
+  ];
+}
+
+const clickShows: SonicCmd[] = [
+  {
+    path: ["snmptrap"],
+    summary: "Show SNMP agent Trap server configuration",
+    run(_a, ctx) {
+      const t = peekFeatureState<SnmpState>(ctx.device, "snmp")?.trapConfig ?? {};
+      const rows = (["v1", "v2", "v3"] as const).filter((k) => t[k]).map((k) => [k.slice(1), t[k]!.ip, t[k]!.port, t[k]!.vrf, t[k]!.community]);
+      return { output: tabulate(rows, ["Version", "TrapReceiverIP", "Port", "VRF", "Community"]) };
+    },
+  },
+  {
+    path: ["snmpagentaddress"],
+    summary: "Show SNMP agent listening IP address configuration",
+    run(_a, ctx) {
+      const rows = (peekFeatureState<SnmpState>(ctx.device, "snmp")?.agentAddresses ?? []).map((a) => [a.ip, a.port, a.vrf]);
+      return { output: tabulate(rows, ["ListenIP", "ListenPort", "ListenVrf"]) };
+    },
+  },
+  {
+    path: ["runningconfiguration", "snmp"],
+    summary: "Show SNMP running configuration",
+    run: (args, ctx) => ({ output: runSnmp(ctx, positional(args)[0]) }),
+  },
+];
+
+export const snmpModule: SonicFeatureModule = { id: "snmp", config: [...config, ...trapAndAgent], show: [...show, ...clickShows] };

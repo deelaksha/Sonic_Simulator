@@ -64,7 +64,7 @@ describe("sonic-cli SNMP modal behaviour", () => {
 
   it("snmp-server community adds a community; no snmp-server community removes it", () => {
     const { state, device } = sw();
-    session(state, device, ["exec"], ["configure terminal", "snmp-server community comm1", "snmp-server community comm2", "exit"]);
+    session(state, device, ["exec"], ["configure terminal", "snmp-server community comm1 ro", "snmp-server community comm2 rw", "exit"]);
     let communities = (device.config.features?.snmp as { communities: { name: string }[] }).communities;
     expect(communities.map((c) => c.name).sort()).toEqual(["comm1", "comm2"]);
     const show = execute("show snmp community", ctxFor(state, device)).output.map((o) => o.text).join("\n");
@@ -75,9 +75,9 @@ describe("sonic-cli SNMP modal behaviour", () => {
     expect(communities.map((c) => c.name)).toEqual(["comm2"]);
   });
 
-  it("snmp-server community optional `group` is accepted; community still created (group dropped)", () => {
+  it("snmp-server community <name> ro|rw optional `group` is accepted; community still created (group dropped)", () => {
     const { state, device } = sw();
-    session(state, device, ["exec"], ["configure terminal", "snmp-server community labcomm group group-lab", "exit"]);
+    session(state, device, ["exec"], ["configure terminal", "snmp-server community labcomm ro group group-lab", "exit"]);
     const communities = (device.config.features?.snmp as { communities: { name: string }[] }).communities;
     expect(communities.map((c) => c.name)).toEqual(["labcomm"]);
   });
