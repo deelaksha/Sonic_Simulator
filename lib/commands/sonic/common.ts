@@ -6,10 +6,11 @@
  *   show ip interfaces          show running-config [vlan|interfaces]
  *   show version
  */
-import { CommandContext, CommandResult, OutputLine, line, muted } from "../types";
+import { CommandContext, CommandResult, OutputLine, line, muted, err } from "../types";
 import { SonicFeatureModule, SonicCmd, positional } from "./types";
-import { findInterface, isSwitch, isHost, isRouter } from "../../models/device";
+import { findInterface, interfaceByName, isSwitch, isHost, isRouter } from "../../models/device";
 import { listVlans, vlanMembers } from "../../models/vlan-ops";
+import { isValidMac, normalizeMac } from "../../models/mac";
 
 function ifaceStatus(ctx: CommandContext): OutputLine[] {
   const out = [
@@ -121,6 +122,56 @@ const config: SonicCmd[] = [
     path: ["save"],
     summary: "Persist running configuration",
     run: () => ({ output: [muted("Running configuration saved to startup.")] }),
+  },
+  {
+    path: ["mac", "add"],
+    summary: "Add static MAC address table entry (config mac add <vlan> <mac> <port>)",
+    run(args, ctx): CommandResult {
+      if (!isSwitch(ctx.device.type)) return { output: [err("MAC configuration is only available on switches")] };
+      const pos = positional(args);
+      const vlanId = Number(pos[0]);
+      const mac = pos[1];
+      const portName = pos[2];
+      if (!vlanId || !mac || !portName || !isValidMac(mac)) {
+        return { output: [err("Usage: config mac add <vlan> <mac> <port>")] };
+      }
+      const iface = interfaceByName(ctx.device, portName);
+      if (!iface) return { output: [err(`config mac add: port '${portName}' not found`)] };
+      const normMac = normalizeMac(mac);
+      ctx.device.macTable = ctx.device.macTable.filter((e) => !(e.vlan === vlanId && normalizeMac(e.mac) === normMac));
+      ctx.device.macTable.push({ mac: normMac, interfaceId: iface.id, vlan: vlanId });
+      return { output: [muted(`Added MAC ${normMac} on VLAN ${vlanId} dev ${iface.name}`)] };
+    },
+  },
+  {
+    path: ["mac", "del"],
+    summary: "Delete MAC address table entry (config mac del <vlan> <mac>)",
+    run(args, ctx): CommandResult {
+      if (!isSwitch(ctx.device.type)) return { output: [err("MAC configuration is only available on switches")] };
+      const pos = positional(args);
+      const vlanId = Number(pos[0]);
+      const mac = pos[1];
+      if (!vlanId || !mac || !isValidMac(mac)) {
+        return { output: [err("Usage: config mac del <vlan> <mac>")] };
+      }
+      const normMac = normalizeMac(mac);
+      const before = ctx.device.macTable.length;
+      ctx.device.macTable = ctx.device.macTable.filter((e) => !(e.vlan === vlanId && normalizeMac(e.mac) === normMac));
+      if (ctx.device.macTable.length === before) {
+        return { output: [err(`config mac del: entry for ${mac} in VLAN ${vlanId} not found`)] };
+      }
+      return { output: [muted(`Deleted MAC ${normMac} on VLAN ${vlanId}`)] };
+    },
+  },
+  {
+    path: ["mac", "clear"],
+    summary: "Clear all dynamic MAC address table entries",
+    run(_args, ctx): CommandResult {
+      if (!isSwitch(ctx.device.type)) return { output: [err("MAC configuration is only available on switches")] };
+      const count = ctx.device.macTable.length;
+      ctx.device.macTable = [];
+      return { output: [muted(`Cleared ${count} entries from MAC table`)] };
+    },
   },
 ];
 

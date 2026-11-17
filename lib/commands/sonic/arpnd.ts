@@ -22,6 +22,7 @@ import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { ArpEntry, Device } from "../../models/device";
 import { findInterface, interfaceByName } from "../../models/device";
 import { addStaticArp, deleteArp, isPermanent, peekArpRuntime } from "../../protocols/arp";
+import { normalizeMac } from "../../models/mac";
 
 /** Interface name an entry resolves to (e.g. "eth0" / "Ethernet0"), or the raw id. */
 function ifaceName(device: Device, e: ArpEntry): string {
@@ -91,7 +92,7 @@ function renderNbrshow(ctx: CommandContext, args: string[]): OutputLine[] {
     const vm = /^Vlan(\d+)$/.exec(name);
     if (!vm) return [e.ip, mac, name, "-"];
     const vid = Number(vm[1]);
-    const fdb = ctx.device.macTable.find((f) => f.vlan === vid && f.mac.toUpperCase() === e.mac.toUpperCase());
+    const fdb = ctx.device.macTable.find((f) => f.vlan === vid && normalizeMac(f.mac) === normalizeMac(e.mac));
     return [e.ip, mac, fdb ? (findInterface(ctx.device, fdb.interfaceId)?.name ?? "-") : "-", vid];
   });
   rows.sort((a, b) => natCompare(String(a[0]), String(b[0])));

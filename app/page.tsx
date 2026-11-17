@@ -1,11 +1,13 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLabStore } from "@/lib/store/lab-store";
 import { DeviceToolbox } from "@/components/toolbox/DeviceToolbox";
 import { TopologyCanvas } from "@/components/topology/TopologyCanvas";
 import { Inspector } from "@/components/inspector/Inspector";
 import { Terminal } from "@/components/terminal/Terminal";
 import { PacketTimeline } from "@/components/timeline/PacketTimeline";
+import { SessionManagerModal } from "@/components/cloud/SessionManagerModal";
+import { isFirebaseConfigured } from "@/lib/firebase/config";
 
 function PanelHeader({ title, hint }: { title: string; hint?: string }) {
   return (
@@ -18,16 +20,55 @@ function PanelHeader({ title, hint }: { title: string; hint?: string }) {
 
 export default function LabPage() {
   const labName = useLabStore((s) => s.labName);
+  const currentSessionId = useLabStore((s) => s.currentSessionId);
+  const cloudSyncStatus = useLabStore((s) => s.cloudSyncStatus);
+  const autoSave = useLabStore((s) => s.autoSave);
+  const saveToCloud = useLabStore((s) => s.saveToCloud);
   const selectedDevice = useLabStore((s) =>
     s.selectedDeviceId ? s.network.devices[s.selectedDeviceId] : undefined,
   );
 
-  // Start with the default lab (PC1 — SW1 — PC2, pre-addressed) instead of an
-  // empty canvas. Only auto-loads when the canvas is empty, so it never clobbers
-  // an in-progress lab; "New / clear" still empties it on demand.
+  const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [firebaseActive, setFirebaseActive] = useState(false);
+
   useEffect(() => {
-    const s = useLabStore.getState();
-    if (Object.keys(s.network.devices).length === 0) s.loadSample();
+    setFirebaseActive(isFirebaseConfigured());
+  }, [sessionModalOpen]);
+
+  // Session persistence: automatically restore last active session when opening or returning to the page.
+  // If no saved session exists and the canvas is empty, load the sample lab.
+  useEffect(() => {
+    const init = async () => {
+      const s = useLabStore.getState();
+      const restored = await s.restoreLastSession();
+      if (!restored && Object.keys(s.network.devices).length === 0) {
+        s.loadSample();
+      }
+    };
+    init();
+  }, []);
+
+  // Periodic cloud auto-save when enabled and session is active
+  useEffect(() => {
+    const t = setInterval(() => {
+      const s = useLabStore.getState();
+      if (s.autoSave && s.currentSessionId && Object.keys(s.network.devices).length > 0) {
+        s.saveToCloud();
+      }
+    }, 25000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Save on beforeunload if session is active
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const s = useLabStore.getState();
+      if (s.autoSave && s.currentSessionId && Object.keys(s.network.devices).length > 0) {
+        s.saveToCloud();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
   // hsflowd runs on wall time: poll counters / flush samples once per second.
@@ -53,9 +94,53 @@ export default function LabPage() {
         <span className="text-[11px] text-[#5f6b7a]">
           build · configure · generate traffic · watch packets · inspect · troubleshoot
         </span>
-        <span className="ml-auto rounded border border-edge bg-panel-2 px-2 py-0.5 text-[11px] text-[#8b98a5]">
-          {labName}
-        </span>
+
+        {/* Cloud Session & DB controls */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setSessionModalOpen(true)}
+            className="flex items-center gap-1.5 rounded border border-edge bg-panel-2 px-2.5 py-1 text-[11px] font-medium text-[#e6edf3] hover:border-accent-2 transition-colors"
+          >
+            <span className="text-accent-2">☁</span>
+            <span>Cloud Sessions</span>
+            <span
+              title={
+                cloudSyncStatus === "saving"
+                  ? "Saving to database..."
+                  : cloudSyncStatus === "synced"
+                  ? "Synced to database"
+                  : firebaseActive
+                  ? "Connected to Firebase"
+                  : "Using local database"
+              }
+              className={`h-2 w-2 rounded-full ${
+                cloudSyncStatus === "saving"
+                  ? "bg-amber-400 animate-pulse"
+                  : cloudSyncStatus === "synced"
+                  ? "bg-green-400"
+                  : firebaseActive
+                  ? "bg-green-400"
+                  : "bg-blue-400"
+              }`}
+            />
+          </button>
+
+          <button
+            onClick={() => saveToCloud()}
+            disabled={cloudSyncStatus === "saving"}
+            title={currentSessionId ? "Save current switches to database" : "Save as new database session"}
+            className="rounded border border-accent/50 bg-accent/15 px-2.5 py-1 text-[11px] font-semibold text-accent-2 hover:bg-accent/25 transition-colors"
+          >
+            {cloudSyncStatus === "saving" ? "Saving..." : "💾 Save"}
+          </button>
+
+          <span
+            title={currentSessionId ? `Active Session ID: ${currentSessionId}` : "Unsaved session"}
+            className="rounded border border-edge bg-panel-2 px-2 py-0.5 text-[11px] text-[#8b98a5] max-w-[200px] truncate"
+          >
+            {labName}
+          </span>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -95,6 +180,12 @@ export default function LabPage() {
           </div>
         </main>
       </div>
+
+      {/* Cloud Sessions & Switch Configurations Modal */}
+      <SessionManagerModal
+        open={sessionModalOpen}
+        onClose={() => setSessionModalOpen(false)}
+      />
     </div>
   );
 }

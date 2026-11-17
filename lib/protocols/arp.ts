@@ -21,9 +21,9 @@
 import { Device, ArpEntry, findInterface } from "../models/device";
 import { NetInterface, ownsIp, primaryIpv4 } from "../models/interface";
 import { Frame } from "../models/packet";
-import { BROADCAST_MAC, NULL_MAC } from "../models/mac";
+import { BROADCAST_MAC, NULL_MAC, normalizeMac } from "../models/mac";
 import { SimContext } from "../engine/context";
-import { ownsVipAsMaster, masteredVips } from "./vrrp";
+import { ownsVipAsMaster, masteredVips, acceptsVMac } from "./vrrp";
 import { ArpTableRow } from "../engine/events";
 import { buildFrame } from "./ethernet";
 import { featureState, peekFeatureState } from "../models/feature-state";
@@ -158,6 +158,7 @@ export interface LearnOpts {
 
 /** Insert/update a neighbour cache entry (neigh_update). Returns true if new or changed. */
 export function learnArp(device: Device, ip: string, mac: string, interfaceId: string, opts: LearnOpts = {}): boolean {
+  const normMac = normalizeMac(mac);
   const now = opts.now ?? 0;
   const state = opts.state ?? "reachable";
   const rt = arpRuntime(device);
@@ -165,8 +166,8 @@ export function learnArp(device: Device, ip: string, mac: string, interfaceId: s
   const existing = device.arpTable.find((e) => e.ip === ip);
   if (existing) {
     // A STALE update with the same lladdr keeps a valid entry's state (neigh_update).
-    if (state === "stale" && existing.state !== "incomplete" && existing.mac === mac) return false;
-    const changed = existing.mac !== mac || existing.state !== state || existing.interfaceId !== interfaceId;
+    if (state === "stale" && existing.state !== "incomplete" && normalizeMac(existing.mac) === normMac) return false;
+    const changed = normalizeMac(existing.mac) !== normMac || existing.state !== state || existing.interfaceId !== interfaceId;
     existing.mac = mac;
     existing.interfaceId = interfaceId;
     existing.state = state;
@@ -296,16 +297,28 @@ export function handleArpFrame(
 
   const vrrpOwned = !device.interfaces.some((i) => ownsIp(i, arp.targetIp)) && ownsVipAsMaster(ctx.state, device, arp.targetIp);
   const owner = device.interfaces.find((i) => ownsIp(i, arp.targetIp));
-  const forUs = arp.op === "request" && (!!owner || vrrpOwned);
   const garp = arp.senderIp === arp.targetIp;
 
+  // Determine whether this ARP packet is addressed to this device
+  const isDstOurMac =
+    device.interfaces.some((i) => normalizeMac(i.mac) === normalizeMac(frame.ethernet.dstMac)) ||
+    acceptsVMac(ctx.state, device, frame.ethernet.dstMac);
+  const isTargetOurIp =
+    device.interfaces.some((i) => ownsIp(i, arp.targetIp)) ||
+    (vrrpOwned && ownsVipAsMaster(ctx.state, device, arp.targetIp));
+  const replyForUs = arp.op === "reply" && (isDstOurMac || isTargetOurIp);
+  const forUs = arp.op === "request" && (!!owner || vrrpOwned);
+
   if (arp.senderIp !== "0.0.0.0") {
-    if (forUs && !garp) {
+    if (replyForUs) {
+      // Unicast/solicited reply to us: learn as reachable (create if not present)
+      learnArp(device, arp.senderIp, arp.senderMac, ingress.id, { now, state: "reachable", create: true });
+    } else if (forUs && !garp) {
       // neigh_event_ns: the requester becomes a STALE neighbour.
-      learnArp(device, arp.senderIp, arp.senderMac, ingress.id, { now, state: "stale" });
+      learnArp(device, arp.senderIp, arp.senderMac, ingress.id, { now, state: "stale", create: true });
     } else {
-      const unicastReply = arp.op === "reply" && frame.ethernet.dstMac.toUpperCase() === ingress.mac.toUpperCase();
-      learnArp(device, arp.senderIp, arp.senderMac, ingress.id, { now, state: unicastReply ? "reachable" : "stale", create: false });
+      // Unsolicited reply, gratuitous ARP, or request for someone else: only update existing entry (arp_accept=0)
+      learnArp(device, arp.senderIp, arp.senderMac, ingress.id, { now, state: "stale", create: false });
     }
   }
 

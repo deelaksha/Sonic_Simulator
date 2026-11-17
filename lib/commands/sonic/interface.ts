@@ -21,6 +21,7 @@ import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { interfaceByName } from "../../models/device";
 import { NetInterface, primaryIpv4 } from "../../models/interface";
 import { isValidIpv4, isValidPrefix } from "../../models/ip";
+import { isValidMac, isUnicast, normalizeMac } from "../../models/mac";
 import { rebuildConnectedRoutes } from "../../models/factory";
 
 function findPort(ctx: CommandContext, name: string | undefined): NetInterface | undefined {
@@ -96,6 +97,22 @@ const config: SonicCmd[] = [
       iface.operState = "down";
       rebuildConnectedRoutes(ctx.device);
       return { output: [muted(`${iface.name} admin down`)] };
+    },
+  },
+  {
+    path: ["interface", "mac"],
+    summary: "Assign hardware MAC address to a port",
+    run(args, ctx): CommandResult {
+      const pos = positional(args);
+      const port = pos[0];
+      const mac = pos[1];
+      const iface = findPort(ctx, port);
+      if (!iface) return { output: [err(`config interface mac: no such interface '${port ?? ""}'`)] };
+      if (!mac || !isValidMac(mac) || !isUnicast(mac)) {
+        return { output: [err("Usage: config interface mac <port> <unicast-mac>")] };
+      }
+      iface.mac = normalizeMac(mac);
+      return { output: [muted(`${iface.name} MAC set to ${iface.mac}`)] };
     },
   },
 ];

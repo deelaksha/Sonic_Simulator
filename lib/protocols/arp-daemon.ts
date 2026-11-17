@@ -48,9 +48,9 @@ export function reachableMs(device: Device, iface: NetInterface | undefined): nu
 
 const isUp = (i: NetInterface) => i.adminState === "up" && i.operState === "up";
 
-/** "up|addr,addr" — what the daemon compares to notice link-up / new addresses. */
+/** "up|mac|addr,addr" — what the daemon compares to notice link-up, MAC changes, or new addresses. */
 function ifaceSig(i: NetInterface): string {
-  return `${isUp(i) ? 1 : 0}|${i.ipv4.map((a) => a.address).join(",")}`;
+  return `${isUp(i) ? 1 : 0}|${i.mac.toUpperCase()}|${i.ipv4.map((a) => a.address).join(",")}`;
 }
 
 /** Interfaces that can carry ARP: physical/mgmt ports and switch SVIs. */
@@ -109,13 +109,16 @@ registerDaemon({
       if (prev === sig) continue;
       rt.ifs[i.id] = sig;
       if (first) continue; // boot baseline
-      const [wasUp, prevAddrs = ""] = (prev ?? "0|").split("|");
+      const [wasUp, prevMac = "", prevAddrs = ""] = (prev ?? "0||").split("|");
       if (!isUp(i)) {
         for (const e of device.arpTable.filter((x) => x.interfaceId === i.id && !rt.nb[x.ip]?.perm)) deleteArp(device, e.ip);
         continue;
       }
+      const macChanged = prevMac && prevMac !== i.mac.toUpperCase();
       const old = wasUp === "1" ? prevAddrs.split(",") : [];
-      for (const a of i.ipv4) if (!old.includes(a.address)) gratuitous(ctx, device, i, a.address);
+      for (const a of i.ipv4) {
+        if (macChanged || !old.includes(a.address)) gratuitous(ctx, device, i, a.address);
+      }
     }
 
     // --- per-entry timers ---

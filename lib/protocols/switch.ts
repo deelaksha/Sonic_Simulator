@@ -8,7 +8,7 @@
 import { Device } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame, cloneFrame } from "../models/packet";
-import { BROADCAST_MAC, NULL_MAC, isBroadcast, isMulticast } from "../models/mac";
+import { BROADCAST_MAC, NULL_MAC, isBroadcast, isMulticast, normalizeMac } from "../models/mac";
 import { DOT1Q_BYTES } from "./ethernet";
 import { SimContext } from "../engine/context";
 import { MacTableRow } from "../engine/events";
@@ -20,7 +20,7 @@ function macTableSnapshot(sw: Device, highlightMac?: string): MacTableRow[] {
     mac: e.mac,
     port: sw.interfaces.find((i) => i.id === e.interfaceId)?.name ?? e.interfaceId,
     vlan: e.vlan,
-    isNew: highlightMac !== undefined && e.mac === highlightMac,
+    isNew: highlightMac !== undefined && normalizeMac(e.mac) === normalizeMac(highlightMac),
   }));
 }
 
@@ -91,9 +91,9 @@ export function switchForward(
   }
 
   // --- Source MAC learning ---
-  const src = frame.ethernet.srcMac;
+  const src = normalizeMac(frame.ethernet.srcMac);
   if (!isBroadcast(src) && !isMulticast(src) && src !== NULL_MAC) {
-    const existing = sw.macTable.find((e) => e.mac === src && e.vlan === vid);
+    const existing = sw.macTable.find((e) => normalizeMac(e.mac) === src && e.vlan === vid);
     if (!existing) {
       sw.macTable.push({ mac: src, interfaceId: ingress.id, vlan: vid });
       ctx.emit({
@@ -140,7 +140,7 @@ export function switchForward(
   const svi = sviFor(sw, vid);
   if (svi) {
     const dstMac = frame.ethernet.dstMac;
-    if (dstMac === svi.mac) {
+    if (normalizeMac(dstMac) === normalizeMac(svi.mac)) {
       punt(ctx, sw, svi, frame);
       return;
     }
@@ -190,7 +190,8 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
   const dst = frame.ethernet.dstMac;
   const candidates = sw.interfaces.filter((i) => i.id !== ingress?.id && participates(i, vid));
   const broadcast = isBroadcast(dst) || isMulticast(dst);
-  const known = broadcast ? undefined : sw.macTable.find((e) => e.mac === dst && e.vlan === vid);
+  const normDst = normalizeMac(dst);
+  const known = broadcast ? undefined : sw.macTable.find((e) => normalizeMac(e.mac) === normDst && e.vlan === vid);
 
   let egressPorts: NetInterface[];
   if (broadcast || !known) {

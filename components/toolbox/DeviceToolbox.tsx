@@ -4,6 +4,7 @@ import { DeviceType } from "@/lib/models/device";
 import { deviceVisual } from "../topology/deviceIcons";
 import { useLabStore } from "@/lib/store/lab-store";
 import { SonicFeaturePanel } from "./SonicFeaturePanel";
+import { SessionManagerModal } from "../cloud/SessionManagerModal";
 
 const PALETTE: DeviceType[] = ["pc", "switch", "router", "server", "dhcp-server", "ntp-server", "dns-server", "internet"];
 const SWITCH_SIZES = [2, 4, 8, 16, 24, 48];
@@ -31,6 +32,7 @@ function PaletteItem({ type, ports }: { type: DeviceType; ports?: number }) {
 
 export function DeviceToolbox() {
   const [switchPorts, setSwitchPorts] = useState(4);
+  const [cloudModalOpen, setCloudModalOpen] = useState(false);
   const newLab = useLabStore((s) => s.newLab);
   const loadSample = useLabStore((s) => s.loadSample);
   const exportLab = useLabStore((s) => s.exportLab);
@@ -87,8 +89,14 @@ export function DeviceToolbox() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#8b98a5]">Lab</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#8b98a5]">Lab &amp; Cloud DB</h2>
         <div className="flex flex-col gap-1.5">
+          <button
+            onClick={() => setCloudModalOpen(true)}
+            className="btn flex items-center justify-center gap-1.5 border-accent-2/50 bg-accent-2/10 text-accent-2 hover:bg-accent-2/20"
+          >
+            <span>☁️</span> Cloud Sessions &amp; DB
+          </button>
           <button onClick={loadSample} className="btn-primary">
             Load sample lab
           </button>
@@ -110,6 +118,11 @@ export function DeviceToolbox() {
           />
         </div>
       </div>
+
+      <SessionManagerModal
+        open={cloudModalOpen}
+        onClose={() => setCloudModalOpen(false)}
+      />
 
       <div className="border-t border-edge pt-3">
         <SonicFeaturePanel />

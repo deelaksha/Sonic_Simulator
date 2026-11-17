@@ -10,7 +10,8 @@
  *   ip neigh [show]                      ip route add <cidr|default> via <gw> [dev <if>]
  *                                        ip route del <cidr|default>
  */
-import { isPermanent } from "../protocols/arp";
+import { isPermanent, addStaticArp, deleteArp } from "../protocols/arp";
+import { isValidMac, isUnicast, normalizeMac } from "../models/mac";
 import { CommandHandler, CommandContext, CommandResult, OutputLine, line, err, muted } from "./types";
 import { Device, findInterface, interfaceByName } from "../models/device";
 import { NetInterface } from "../models/interface";
@@ -112,17 +113,40 @@ function addrDel(ctx: CommandContext, args: string[]): CommandResult {
 }
 
 function linkSet(ctx: CommandContext, args: string[]): CommandResult {
-  const name = args[0];
-  const stateWord = args[1];
+  if (args.length === 0) {
+    return { output: [err("Usage: ip link set [dev] <iface> [up|down] [address <mac>]")] };
+  }
+  let i = 0;
+  if (args[i] === "dev") i++;
+  const name = args[i++];
   const iface = name ? interfaceByName(ctx.device, name) : undefined;
   if (!iface) return { output: [err(`ip: interface "${name}" not found`)] };
-  if (stateWord !== "up" && stateWord !== "down") {
-    return { output: [err("Usage: ip link set <iface> up|down")] };
+
+  const msgs: string[] = [];
+  while (i < args.length) {
+    const token = args[i++];
+    if (token === "up" || token === "down") {
+      iface.adminState = token;
+      iface.operState = token === "up" && iface.connectedTo ? "up" : "down";
+      msgs.push(`${iface.name} set ${token}`);
+    } else if (token === "address" || token === "addr") {
+      const mac = args[i++];
+      if (!mac || !isValidMac(mac) || !isUnicast(mac)) {
+        return { output: [err(`ip link: invalid unicast MAC address "${mac ?? ""}"`)] };
+      }
+      iface.mac = normalizeMac(mac);
+      msgs.push(`${iface.name} mac set to ${iface.mac}`);
+    } else {
+      return { output: [err(`ip link set: unknown parameter "${token}"`)] };
+    }
   }
-  iface.adminState = stateWord;
-  iface.operState = stateWord === "up" && iface.connectedTo ? "up" : "down";
+
+  if (msgs.length === 0) {
+    return { output: [err("Usage: ip link set [dev] <iface> [up|down] [address <mac>]")] };
+  }
+
   rebuildConnectedRoutes(ctx.device);
-  return { output: [muted(`${iface.name} set ${stateWord}`)] };
+  return { output: msgs.map((m) => muted(m)) };
 }
 
 function routeAdd(ctx: CommandContext, args: string[]): CommandResult {
@@ -179,19 +203,74 @@ function routeDel(ctx: CommandContext, args: string[]): CommandResult {
   return { output: [muted(`route removed: ${dest}`)] };
 }
 
+function neighAddOrReplace(ctx: CommandContext, args: string[], replace = false): CommandResult {
+  const ip = args[0];
+  if (!ip || !isValidIpv4(ip)) {
+    return { output: [err(`Usage: ip neigh ${replace ? "replace" : "add"} <ip> lladdr <mac> dev <iface>`)] };
+  }
+  const llIdx = args.indexOf("lladdr");
+  const mac = llIdx >= 0 ? args[llIdx + 1] : undefined;
+  if (!mac || !isValidMac(mac)) {
+    return { output: [err(`ip neigh ${replace ? "replace" : "add"}: valid MAC required after 'lladdr'`)] };
+  }
+  const devIdx = args.indexOf("dev");
+  const ifaceName = devIdx >= 0 ? args[devIdx + 1] : undefined;
+  const iface = ifaceName ? interfaceByName(ctx.device, ifaceName) : undefined;
+  if (!iface) {
+    return { output: [err(`ip neigh ${replace ? "replace" : "add"}: valid interface required after 'dev'`)] };
+  }
+  const existing = ctx.device.arpTable.find((e) => e.ip === ip);
+  if (existing && !replace) {
+    return { output: [err(`ip neigh add: entry for ${ip} already exists (use replace)`)] };
+  }
+  addStaticArp(ctx.device, ip, normalizeMac(mac), iface.id, Date.now());
+  return { output: [muted(`ip neigh: static neighbour ${ip} is at ${normalizeMac(mac)} dev ${iface.name}`)] };
+}
+
+function neighDel(ctx: CommandContext, args: string[]): CommandResult {
+  const ip = args[0];
+  if (!ip || !isValidIpv4(ip)) {
+    return { output: [err("Usage: ip neigh del <ip> [dev <iface>]")] };
+  }
+  const exists = ctx.device.arpTable.some((e) => e.ip === ip);
+  if (!exists) {
+    return { output: [err(`ip neigh del: no entry found for ${ip}`)] };
+  }
+  deleteArp(ctx.device, ip);
+  return { output: [muted(`ip neigh: deleted entry for ${ip}`)] };
+}
+
+function neighFlush(ctx: CommandContext, args: string[]): CommandResult {
+  const devIdx = args.indexOf("dev");
+  const ifaceName = devIdx >= 0 ? args[devIdx + 1] : undefined;
+  if (ifaceName) {
+    const iface = interfaceByName(ctx.device, ifaceName);
+    if (!iface) return { output: [err(`ip neigh flush: interface "${ifaceName}" not found`)] };
+    const toDelete = ctx.device.arpTable.filter((e) => e.interfaceId === iface.id && !isPermanent(ctx.device, e.ip));
+    for (const e of toDelete) deleteArp(ctx.device, e.ip);
+    return { output: [muted(`ip neigh: flushed ${toDelete.length} dynamic entries on ${iface.name}`)] };
+  }
+  const toDelete = ctx.device.arpTable.filter((e) => !isPermanent(ctx.device, e.ip));
+  for (const e of toDelete) deleteArp(ctx.device, e.ip);
+  return { output: [muted(`ip neigh: flushed ${toDelete.length} dynamic entries`)] };
+}
+
 export const ipCommand: CommandHandler = {
   name: "ip",
   summary: "Show / manage addresses, links, routes and neighbours",
-  usage: "ip { addr | link | route | neigh } [ show | add | del | set ... ]",
+  usage: "ip { addr | link | route | neigh } [ show | add | del | replace | flush | set ... ]",
   help: [
     "IP",
     "",
     "Usage:",
     "  ip addr [show]                 ip addr add <cidr> dev <if>",
     "  ip link [show]                 ip addr del <cidr> dev <if>",
-    "  ip route [show]                ip link set <if> up|down",
+    "  ip route [show]                ip link set <if> up|down [address <mac>]",
     "  ip neigh [show]                ip route add <cidr|default> via <gw>",
     "                                 ip route del <cidr|default>",
+    "                                 ip neigh add <ip> lladdr <mac> dev <if>",
+    "                                 ip neigh del <ip> [dev <if>]",
+    "                                 ip neigh flush [dev <if>]",
     "",
     "Purpose:",
     "  Inspect and change the device's L2/L3 configuration — the same state",
@@ -226,6 +305,10 @@ export const ipCommand: CommandHandler = {
       case "neigh":
       case "neighbour":
         if (isShow) return { output: showNeigh(ctx.device) };
+        if (action === "add") return neighAddOrReplace(ctx, rest, false);
+        if (action === "replace") return neighAddOrReplace(ctx, rest, true);
+        if (action === "del" || action === "delete") return neighDel(ctx, rest);
+        if (action === "flush") return neighFlush(ctx, rest);
         return { output: [err(`ip neigh: unknown action "${action}"`)] };
       default:
         return { output: [err(`ip: unknown object "${object ?? ""}". Try: ip addr | ip link | ip route | ip neigh`)] };

@@ -7,7 +7,7 @@
 import { Device } from "../models/device";
 import { NetInterface, ownsIp, primaryIpv4 } from "../models/interface";
 import { Frame, IcmpPayload } from "../models/packet";
-import { isBroadcast } from "../models/mac";
+import { isBroadcast, normalizeMac } from "../models/mac";
 import { SimContext } from "../engine/context";
 import { handleArpFrame } from "./arp";
 import { handleIcmpLocal } from "./icmp";
@@ -91,7 +91,7 @@ export function routerReceive(
   const dstMac = frame.ethernet.dstMac;
   // Accept frames to our own MAC, broadcast, or a VRRP virtual MAC we currently
   // master (Backups silently drop virtual-MAC frames — only the Master forwards).
-  if (!isBroadcast(dstMac) && dstMac !== ingress.mac && !acceptsVMac(ctx.state, device, dstMac)) {
+  if (!isBroadcast(dstMac) && normalizeMac(dstMac) !== normalizeMac(ingress.mac) && !acceptsVMac(ctx.state, device, dstMac)) {
     ctx.emit({
       type: "FRAME_DROPPED",
       deviceId: device.id,

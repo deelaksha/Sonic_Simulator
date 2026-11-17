@@ -5,25 +5,61 @@
  * "(incomplete)" for entries still waiting for a reply. STALE entries are
  * complete (they still have a link-layer address).
  */
-import { CommandHandler, CommandResult, line, muted } from "./types";
-import { findInterface } from "../models/device";
-import { isPermanent } from "../protocols/arp";
+import { CommandHandler, CommandResult, line, muted, err } from "./types";
+import { findInterface, interfaceByName } from "../models/device";
+import { isPermanent, addStaticArp, deleteArp } from "../protocols/arp";
+import { isValidIpv4 } from "../models/ip";
+import { isValidMac, normalizeMac } from "../models/mac";
 
 export const arpCommand: CommandHandler = {
   name: "arp",
-  summary: "Display the ARP / neighbour cache",
-  usage: "arp [-a] [-n]",
+  summary: "Display or manipulate the ARP / neighbour cache",
+  usage: "arp [-a] [-n] [-d <ip>] [-s <ip> <mac> [dev <iface>]]",
   help: [
     "ARP",
     "",
     "Usage:",
-    "  arp [-a] [-n]",
+    "  arp [-a] [-n]                  Display ARP cache",
+    "  arp -d <ip>                    Delete ARP cache entry",
+    "  arp -s <ip> <mac> [dev <if>]   Add static ARP entry",
     "",
     "Purpose:",
-    "  Shows learned IP → MAC mappings. Populated by the ARP request/reply",
-    "  exchange the engine performs before sending IP traffic.",
+    "  Shows and manages learned IP → MAC mappings. Populated by the ARP",
+    "  request/reply exchange the engine performs before sending IP traffic.",
   ],
   run(args, ctx): CommandResult {
+    // Delete entry: arp -d <ip>
+    const dIdx = args.indexOf("-d");
+    if (dIdx >= 0) {
+      const targetIp = args[dIdx + 1];
+      if (!targetIp || !isValidIpv4(targetIp)) {
+        return { output: [err("Usage: arp -d <ip>")] };
+      }
+      deleteArp(ctx.device, targetIp);
+      return { output: [muted(`Deleted ARP entry for ${targetIp}`)] };
+    }
+
+    // Static entry: arp -s <ip> <mac> [dev <iface>]
+    const sIdx = args.indexOf("-s");
+    if (sIdx >= 0) {
+      const ip = args[sIdx + 1];
+      const mac = args[sIdx + 2];
+      if (!ip || !isValidIpv4(ip) || !mac || !isValidMac(mac)) {
+        return { output: [err("Usage: arp -s <ip> <mac> [dev <iface>]")] };
+      }
+      const devIdx = args.indexOf("dev");
+      const devName = devIdx >= 0 ? args[devIdx + 1] : args[sIdx + 3] && !args[sIdx + 3].startsWith("-") ? args[sIdx + 3] : undefined;
+      let iface = devName ? interfaceByName(ctx.device, devName) : undefined;
+      if (!iface) {
+        iface = ctx.device.interfaces[0];
+      }
+      if (!iface) {
+        return { output: [err("arp -s: no interface found on device")] };
+      }
+      addStaticArp(ctx.device, ip, normalizeMac(mac), iface.id, Date.now());
+      return { output: [muted(`Added static ARP entry: ${ip} -> ${normalizeMac(mac)} on ${iface.name}`)] };
+    }
+
     const bsd = args.includes("-a");
     const table = ctx.device.arpTable;
     if (table.length === 0) {

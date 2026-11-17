@@ -24,6 +24,10 @@ import { getLab, LabApi } from "../labs";
 import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
 import { isSwitch } from "../models/device";
 import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
+import { isValidMac, isUnicast, normalizeMac } from "../models/mac";
+import { CloudSyncStatus } from "../firebase/types";
+import { saveSession, loadSession, deleteSession } from "../firebase/session-service";
+import { getAppStorage } from "../firebase/storage-fallback";
 
 const CAPTURE_LIMIT = 800;
 
@@ -82,6 +86,7 @@ interface LabState {
   // interface / device config
   setInterfaceIp(deviceId: string, ifaceId: string, address: string, prefix: number): void;
   clearInterfaceIp(deviceId: string, ifaceId: string, address: string): void;
+  setInterfaceMac(deviceId: string, ifaceId: string, mac: string): { ok: boolean; error?: string };
   setAdminState(deviceId: string, ifaceId: string, up: boolean): void;
   setDefaultGateway(deviceId: string, gateway: string | undefined): void;
 
@@ -140,6 +145,19 @@ interface LabState {
   loadFeatureLab(featureId: string): void;
   exportLab(): string;
   importLab(json: string): boolean;
+
+  // Cloud & Session management (Firebase)
+  currentSessionId: string | null;
+  cloudSyncStatus: CloudSyncStatus;
+  cloudError: string | null;
+  lastSavedAt: number | null;
+  autoSave: boolean;
+  saveToCloud(name?: string): Promise<{ ok: boolean; id?: string; error?: string }>;
+  loadFromCloud(sessionId: string): Promise<{ ok: boolean; error?: string }>;
+  deleteFromCloud(sessionId: string): Promise<{ ok: boolean; error?: string }>;
+  setAutoSave(enabled: boolean): void;
+  restoreLastSession(): Promise<boolean>;
+  setCurrentSessionId(id: string | null): void;
 }
 
 export interface LiveCaptureSession {
@@ -304,6 +322,12 @@ export const useLabStore = create<LabState>((set, get) => {
   deviceSeq: 1,
   lineSeq: 1,
 
+  currentSessionId: null,
+  cloudSyncStatus: "idle",
+  cloudError: null,
+  lastSavedAt: null,
+  autoSave: true,
+
   selectDevice(id) {
     set({ selectedDeviceId: id });
   },
@@ -428,6 +452,23 @@ export const useLabStore = create<LabState>((set, get) => {
       rebuildConnectedRoutes(next.devices[deviceId]);
     }
     set({ network: next });
+  },
+
+  setInterfaceMac(deviceId, ifaceId, mac) {
+    if (!isValidMac(mac) || !isUnicast(mac)) {
+      return { ok: false, error: "Must be a valid unicast MAC (e.g. 02:00:00:11:22:33)" };
+    }
+    const normalized = normalizeMac(mac);
+    const next = structuredClone(get().network);
+    const dev = next.devices[deviceId];
+    const iface = dev?.interfaces.find((i) => i.id === ifaceId);
+    if (!iface) {
+      return { ok: false, error: "Interface not found" };
+    }
+    iface.mac = normalized;
+    set({ network: next });
+    get().controlTick();
+    return { ok: true };
   },
 
   setAdminState(deviceId, ifaceId, up) {
@@ -721,7 +762,11 @@ export const useLabStore = create<LabState>((set, get) => {
       selectedEventId: undefined,
       playback: { index: 0, playing: false },
       deviceSeq: 1,
+      currentSessionId: null,
+      cloudSyncStatus: "idle",
+      cloudError: null,
     });
+    getAppStorage().removeItem("sonic_simulator_active_session_id");
   },
 
   loadSample() {
@@ -1119,6 +1164,124 @@ export const useLabStore = create<LabState>((set, get) => {
     } catch {
       return false;
     }
+  },
+
+  setCurrentSessionId(id) {
+    set({ currentSessionId: id });
+    if (id) getAppStorage().setItem("sonic_simulator_active_session_id", id);
+    else getAppStorage().removeItem("sonic_simulator_active_session_id");
+  },
+
+  setAutoSave(enabled) {
+    set({ autoSave: enabled });
+  },
+
+  async saveToCloud(name) {
+    const { currentSessionId, labName, network, terminals, terminalHistory, cliMode, selectedDeviceId } = get();
+    set({ cloudSyncStatus: "saving", cloudError: null });
+    try {
+      const sessionName = name || labName || "SONiC Lab Session";
+      const saved = await saveSession({
+        id: currentSessionId || undefined,
+        name: sessionName,
+        network,
+        terminals,
+        terminalHistory,
+        cliMode,
+        selectedDeviceId,
+      });
+
+      set({
+        currentSessionId: saved.id,
+        labName: saved.name,
+        cloudSyncStatus: "synced",
+        lastSavedAt: saved.updatedAt,
+        cloudError: null,
+      });
+
+      getAppStorage().setItem("sonic_simulator_active_session_id", saved.id);
+
+      return { ok: true, id: saved.id };
+    } catch (err: any) {
+      const msg = err?.message || "Failed to save session";
+      set({ cloudSyncStatus: "error", cloudError: msg });
+      return { ok: false, error: msg };
+    }
+  },
+
+  async loadFromCloud(sessionId) {
+    set({ cloudSyncStatus: "saving", cloudError: null });
+    try {
+      const session = await loadSession(sessionId);
+      if (!session) {
+        set({ cloudSyncStatus: "error", cloudError: "Session not found" });
+        return { ok: false, error: "Session not found" };
+      }
+
+      stopTrafficTimer();
+      capturePredicates.clear();
+
+      const devices = session.network.devices || {};
+      const maxSeq = Object.values(devices).reduce((m, d) => {
+        const n = parseInt(d.id.replace(/\D/g, ""), 10);
+        return Number.isFinite(n) ? Math.max(m, n) : m;
+      }, 0);
+
+      let selectedDeviceId = session.selectedDeviceId;
+      if (!selectedDeviceId || !devices[selectedDeviceId]) {
+        const firstSwitch = Object.values(devices).find((d) => isSwitch(d.type));
+        selectedDeviceId = firstSwitch?.id || Object.keys(devices)[0];
+      }
+
+      set({
+        currentSessionId: session.id,
+        labName: session.name,
+        network: session.network,
+        terminals: session.terminals || {},
+        terminalHistory: session.terminalHistory || {},
+        cliMode: session.cliMode || {},
+        selectedDeviceId,
+        selectedEventId: undefined,
+        events: [],
+        captures: [],
+        liveCaptures: {},
+        traffic: null,
+        sflowErrors: {},
+        playback: { index: 0, playing: false },
+        deviceSeq: maxSeq + 1,
+        cloudSyncStatus: "synced",
+        cloudError: null,
+        lastSavedAt: session.updatedAt,
+      });
+
+      getAppStorage().setItem("sonic_simulator_active_session_id", session.id);
+
+      return { ok: true };
+    } catch (err: any) {
+      const msg = err?.message || "Failed to load session";
+      set({ cloudSyncStatus: "error", cloudError: msg });
+      return { ok: false, error: msg };
+    }
+  },
+
+  async deleteFromCloud(sessionId) {
+    try {
+      const ok = await deleteSession(sessionId);
+      if (get().currentSessionId === sessionId) {
+        set({ currentSessionId: null });
+        getAppStorage().removeItem("sonic_simulator_active_session_id");
+      }
+      return { ok };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Failed to delete" };
+    }
+  },
+
+  async restoreLastSession() {
+    const activeId = getAppStorage().getItem("sonic_simulator_active_session_id");
+    if (!activeId) return false;
+    const res = await get().loadFromCloud(activeId);
+    return res.ok;
   },
 };
 });
