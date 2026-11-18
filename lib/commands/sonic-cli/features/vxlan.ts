@@ -1,5 +1,6 @@
 /**
- * VXLAN — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * VXLAN — KLISH VTEP sub-mode + `show vxlan ...` (the data plane and EVPN glue are
+ * lib/protocols/vxlan-daemon.ts; Click forms lib/protocols/vxlan-cli.ts).
  *
  *   sonic(config)# interface vxlan vtep1            -> enter the VTEP sub-view
  *   sonic(conf-if-vxlan-vtep1)# source-ip 1.1.1.1
@@ -23,15 +24,21 @@
  * carries the VTEP name into `configure-vxlan-view` where the handler below stores
  * the fields exactly as the real box's VXLAN_TUNNEL / VXLAN_TUNNEL_MAP tables do.
  *
- * DATA-PLANE: VXLAN encapsulation/tunnelling is an ASIC/data-plane function the sim
- * cannot forward, so runtime state (discovered tunnels, remote VNIs/MACs, per-tunnel
- * counters) is NEVER fabricated — those `show` variants report that runtime state is
- * not simulated. Only configured values (source-ip, qos-mode, VNI maps) are shown.
+ * Runtime views (`show vxlan tunnel`, `show vxlan remote vni|mac [<ip>] [count]`)
+ * render the VTEP's live EVPN state. The KLISH templates are not part of the source
+ * tree, so they use the sonic-utilities tables (show/vxlan.py remotevtep/remotevni/
+ * remotemac). Per-tunnel counters (tunnelstat) are not modelled.
+ *
+ * KLISH creates the VXLAN_EVPN_NVO implicitly with the VTEP (there is no NVO command
+ * in the KLISH grammar, unlike Click `config vxlan evpn_nvo add`): setting the
+ * source-ip also stores NVO "nvo1" for the VTEP. (Assumption — the Broadcom
+ * transformer source is not available.)
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { Device } from "../../../models/device";
+import { showRemoteMac, showRemoteVni, showRemoteVtep, showVlanVniMap, showVrfVniMap } from "../../../protocols/vxlan-cli";
 
 type Row = Record<string, string>;
 
@@ -56,7 +63,8 @@ registerModal({
         return { output: [] };
       }
       if (!args[0]) return { output: [err(`% ${head} requires an IPv4 address or Loopback interface.`)] };
-      upsertVtep(dev, name, { [field]: args[0] });
+      upsertVtep(dev, name, { [field]: args.join("") });
+      if (field === "source_ip" && !cpList(dev, "vxlan", "nvo").length) cpUpsert(dev, "vxlan", "nvo", { name: "nvo1", source_vtep: name }, "name");
       return { output: [] };
     }
 
@@ -82,7 +90,7 @@ registerModal({
         for (let i = 0; i < count; i++) {
           const vname = `Vlan${vlan + i}`;
           if (isNo) cpRemove(dev, "vxlan", "vlanmap", "vlan", vname);
-          else cpUpsert(dev, "vxlan", "vlanmap", { vlan: vname, vni: String(vni + i) }, "vlan");
+          else cpUpsert(dev, "vxlan", "vlanmap", { vlan: vname, vni: String(vni + i), vtep: name }, "vlan");
         }
         return { output: [] };
       }
@@ -139,7 +147,8 @@ function showMap(dev: Device, storeKey: string, idField: string, col: string, la
   return [...grid([col, "VNI"], rows, [false, true]), line(`Total count : ${rows.length}`)];
 }
 
-const RUNTIME = "% VXLAN data-plane is not simulated in this lab; runtime state (discovered tunnels, remote VNIs/MACs, per-tunnel counters) is not modelled.";
+const RUNTIME = "% per-tunnel VXLAN counters (tunnelstat) are not modelled in this lab.";
+const L = (ls: string[]): OutputLine[] => ls.map((x) => line(x));
 
 registerModal({
   id: "vxlan-show",
@@ -150,9 +159,19 @@ registerModal({
     const sub = (args[1] ?? "").toLowerCase();
     const dev = ctx.device;
     if (sub === "interface") return { output: showInterface(dev) };
-    if (sub === "vlanvnimap") return { output: showMap(dev, "vlanmap", "vlan", "VLAN", "VLAN VNI", args[2]?.toLowerCase() === "count") };
-    if (sub === "vrfvnimap") return { output: showMap(dev, "vrfmap", "vrf", "VRF", "VRF VNI", args[2]?.toLowerCase() === "count") };
-    if (sub === "tunnel" || sub === "remote" || sub === "counters") return { output: [muted(RUNTIME)] };
-    return { output: [muted("% specify one of: interface | vlanvnimap | vrfvnimap")] };
+    const count = args.some((a) => a.toLowerCase() === "count");
+    if (sub === "vlanvnimap") return cpList(dev, "vxlan", "vlanmap").length || count ? { output: L(showVlanVniMap(dev, count)) } : { output: showMap(dev, "vlanmap", "vlan", "VLAN", "VLAN VNI", false) };
+    if (sub === "vrfvnimap") return cpList(dev, "vxlan", "vrfmap").length && !count ? { output: L(showVrfVniMap(dev)) } : { output: showMap(dev, "vrfmap", "vrf", "VRF", "VRF VNI", count) };
+    if (sub === "tunnel") return { output: L(showRemoteVtep(dev, count)) };
+    if (sub === "remote") {
+      const what = (args[2] ?? "").toLowerCase();
+      const ip = args[3] && args[3].toLowerCase() !== "count" ? args[3] : "all";
+      if (what === "vni") return { output: L(showRemoteVni(dev, ip, count)) };
+      if (what === "mac") return { output: L(showRemoteMac(dev, ip, count)) };
+      return { output: [muted("% specify: show vxlan remote vni|mac [<remote-ip>] [count]")] };
+    }
+    if (sub === "counters") return { output: [muted(RUNTIME)] };
+    if (!sub) return { output: [muted("% specify one of: interface | vlanvnimap | vrfvnimap | tunnel | remote | counters")] };
+    return null; // Click-only forms (remotevtep, remotevni, remotemac, name) fall through to the Click show
   },
 });

@@ -1,10 +1,8 @@
 /**
- * VRF SONiC feature module. Config-plane only (simulated CONFIG_DB): commands
- * mutate per-device feature state and `show vrf` renders SOLELY from that stored
- * state. There is NO per-VRF forwarding/routing isolation here — real VRF
- * separation needs packet-engine work that is not present yet, so this module
- * deliberately models the config surface (create VRFs, bind interfaces) only and
- * does not fabricate per-VRF forwarding.
+ * VRF SONiC feature module (simulated CONFIG_DB VRF / INTERFACE vrf_name). The
+ * forwarding engine reads membership through lib/models/vrf.ts: each VRF has its
+ * own routing table (routes tagged with their VRF), so binding an interface here
+ * moves its connected routes and isolates its traffic.
  *
  * Commands map to the SONiC/KLISH forms in vrf.txt. They are namespaced under
  * ["vrf", ...] so interface binding does not touch the interface module:
@@ -23,6 +21,7 @@
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
+import { rebuildConnectedRoutes } from "../../models/factory";
 import { interfaceByName } from "../../models/device";
 
 interface Vrf {
@@ -62,6 +61,9 @@ const config: SonicCmd[] = [
       const st = state(ctx);
       const before = st.vrfs.length;
       st.vrfs = st.vrfs.filter((v) => v.name !== name);
+      // Its routes go with it; member interfaces fall back to the default VRF.
+      ctx.device.routingTable = ctx.device.routingTable.filter((r) => r.vrf !== name);
+      rebuildConnectedRoutes(ctx.device);
       return {
         output: [muted(st.vrfs.length < before ? `VRF ${name} deleted` : `VRF ${name} not configured (no-op)`)],
       };
@@ -84,6 +86,7 @@ const config: SonicCmd[] = [
       // An interface belongs to exactly one VRF: detach from any other VRF first.
       for (const v of st.vrfs) v.interfaces = v.interfaces.filter((i) => i !== iface);
       vrf.interfaces.push(iface);
+      rebuildConnectedRoutes(ctx.device);
       return { output: [muted(`${iface} bound to VRF ${name}`)] };
     },
   },
@@ -100,6 +103,7 @@ const config: SonicCmd[] = [
       if (!vrf) return { output: [err(`config vrf member del: VRF ${name} does not exist`)] };
       const before = vrf.interfaces.length;
       vrf.interfaces = vrf.interfaces.filter((i) => i !== iface);
+      rebuildConnectedRoutes(ctx.device);
       return {
         output: [
           muted(vrf.interfaces.length < before ? `${iface} unbound from VRF ${name}` : `${iface} not bound to VRF ${name} (no-op)`),

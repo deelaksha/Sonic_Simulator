@@ -38,6 +38,9 @@ const text = (r: { output: { text: string }[] }): string => r.output.map((o) => 
 const hasError = (r: { output: { kind?: string }[] }): boolean => r.output.some((o) => o.kind === "error");
 const acl = (sw: Device): AclState | undefined => peekFeatureState<AclState>(sw, "acl");
 
+// show acl table / show acl rule follow sonic-utilities acl_loader show_table /
+// show_rule (acl_loader/main.py:939-1101): CONFIG_DB table types L3/L2, rules as
+// RULE_<seq> with PRIORITY 65536-seq and their CONFIG_DB match fields.
 describe("SONiC ACL feature (config-plane; forms from acl.txt)", () => {
   it("config acl table add creates a table; show acl table reflects it", () => {
     const { state, sw } = build();
@@ -46,11 +49,8 @@ describe("SONiC ACL feature (config-plane; forms from acl.txt)", () => {
     expect(acl(sw)!.tables.map((t) => t.name).sort()).toEqual(["IPV4ACL", "MACACL"]);
 
     const out = text(execute("show acl table", ctxFor(state, sw)));
-    expect(out).toContain("IPV4ACL");
-    expect(out).toContain("ip");
-    expect(out).toContain("ingress");
-    expect(out).toContain("MACACL");
-    expect(out).toContain("mac");
+    expect(out).toMatch(/^IPV4ACL\s+L3\s+ingress\s+Active$/m);
+    expect(out).toMatch(/^MACACL\s+L2\s+ingress\s+Active$/m);
   });
 
   it("config acl rule add stores a rule; show acl rule renders it (maps to `seq N permit ...`)", () => {
@@ -63,8 +63,11 @@ describe("SONiC ACL feature (config-plane; forms from acl.txt)", () => {
     expect(rules.map((r) => r.seq)).toEqual([10, 20]);
 
     const out = text(execute("show acl rule IPV4ACL", ctxFor(state, sw)));
-    expect(out).toContain("seq 10 permit icmp host 10.1.1.1 host 20.2.2.2");
-    expect(out).toContain("seq 20 deny tcp 192.168.1.0/24 any eq 80");
+    expect(out).toMatch(/^IPV4ACL\s+RULE_10\s+65526\s+FORWARD\s+DST_IP: 20\.2\.2\.2\/32\s+Active$/m);
+    expect(out).toMatch(/^IPV4ACL\s+RULE_20\s+65516\s+DROP\s+DST_IP: 0\.0\.0\.0\/0/m);
+    expect(out).toContain("L4_DST_PORT: 80");
+    expect(out).toContain("SRC_IP: 192.168.1.0/24");
+    expect(out.indexOf("RULE_10")).toBeLessThan(out.indexOf("RULE_20")); // priority descending
   });
 
   it("rejects a rule for a non-existent table", () => {
@@ -138,7 +141,7 @@ describe("SONiC ACL feature (config-plane; forms from acl.txt)", () => {
     execute("config acl table del IPV4ACL", ctxFor(state, sw));
     expect(acl(sw)!.tables.length).toBe(0);
     expect(acl(sw)!.rules["IPV4ACL"]).toBeUndefined();
-    expect(text(execute("show acl table", ctxFor(state, sw)))).toContain("No ACL tables configured");
+    expect(text(execute("show acl table", ctxFor(state, sw)))).not.toContain("IPV4ACL"); // header only
   });
 
   it("deleting a non-existent rule or table is idempotent (TC-47/TC-48)", () => {

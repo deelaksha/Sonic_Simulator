@@ -10,6 +10,7 @@
 import { Device, isRouter, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { cidrContains, ipToInt } from "../models/ip";
+import { vrfOf, DEFAULT_VRF } from "../models/vrf";
 import { peekFeatureState } from "../models/feature-state";
 
 export interface OspfNetwork {
@@ -115,6 +116,8 @@ export function ospfInterfaces(device: Device, cfg: OspfConfig): OspfIfSpec[] {
   for (const iface of device.interfaces) {
     const a = iface.ipv4[0];
     if (!a) continue;
+    // `router ospf` is the default-VRF instance; VRF member interfaces are not part of it.
+    if (vrfOf(device, iface) !== DEFAULT_VRF) continue;
     const p = cfg.ifParams?.[iface.name] ?? {};
     let area = p.area;
     if (area === undefined) {

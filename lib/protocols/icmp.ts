@@ -8,6 +8,7 @@ import { NetInterface } from "../models/interface";
 import { Frame, IcmpPayload, IcmpType } from "../models/packet";
 import { SimContext } from "../engine/context";
 import { ipOutput } from "./ipv4";
+import { vrfOf } from "../models/vrf";
 
 export const ICMP_HEADER_BYTES = 8;
 export const ICMP_ECHO_DATA_BYTES = 56; // → 64-byte ICMP message, matching `ping`
@@ -45,6 +46,7 @@ export function handleIcmpLocal(
     });
     const reqUpper = Math.max(ICMP_HEADER_BYTES, (frame.meta?.sizeBytes ?? (ICMP_ECHO_TOTAL + 34)) - 34);
     ipOutput(ctx, device, {
+      vrf: vrfOf(device, ingress), // reply leaves through the VRF the request came in on
       srcIp: ip.dstIp, // reply comes from the address that was pinged
       dstIp: ip.srcIp,
       ttl: 64,

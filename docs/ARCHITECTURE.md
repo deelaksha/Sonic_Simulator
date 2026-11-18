@@ -136,3 +136,23 @@ ControlDaemon
 - Protocol modules: `lib/protocols/{arp,lldp,bfd,ospf,bgp,snmp}-daemon.ts` (+ `*-wire`,
   `*-show` helpers). Feature labs register in `lib/labs/` on the shared
   `routedTriangle` topology.
+
+## Data-plane hooks and VRF
+
+Features that change forwarding register a `DataPlaneHook`
+(`lib/control/hooks.ts`) instead of editing the engine:
+
+| Hook | Called from | Used by |
+|---|---|---|
+| `portIngress` / `portEgress` | `deliverToDevice` / `transmit` | ACL |
+| `lagOf` / `egressMember` | ingress member → PortChannel; PortChannel → hashed member | LACP |
+| `allowEgress` | bridge flooding/forwarding | MCLAG peer-link isolation |
+| `flood` / `forwardVirtual` + `bridgeInput()` | VLAN flood / MAC entry on a virtual port / decap input | VXLAN (`vtep:<ip>` ports) |
+| `isLocalMac` | SVI punt | VRRP virtual MAC |
+
+**VRF**: membership comes from the VRF config (`lib/models/vrf.ts`); every
+route carries `vrf` and `longestPrefixMatch(table, dst, vrf = "default")`
+only sees that VRF, so the default VRF is isolated automatically. Routers use
+the ingress interface's VRF for local delivery and forwarding; ping takes
+`-I <vrf>` / `vrf <name>`; static routes and `show ip route vrf <name>|all`
+are per VRF.

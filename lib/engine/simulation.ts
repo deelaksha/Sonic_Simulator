@@ -21,6 +21,7 @@ import { nextEventId } from "./ids";
 import { switchForward, switchInject, sviVlanId } from "../protocols/switch";
 import { sflowSample, countCast } from "../sflow/agent";
 import { dispatchL2, isLinkLocalControl } from "../control";
+import { egressMember, lagOf, rejectingEgress, rejectingIngress } from "../control/hooks";
 import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
 import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES, ICMP_HEADER_BYTES } from "../protocols/icmp";
@@ -394,10 +395,49 @@ export class Simulation implements SimContext {
       return;
     }
 
+    // Egress filters (ACL egress) see the frame before it is counted as sent.
+    const egressBlocked = rejectingEgress(this, device, iface, frame);
+    if (egressBlocked) {
+      iface.statistics.txDropped += 1;
+      this.emit({
+        type: "FRAME_DROPPED",
+        deviceId,
+        deviceName: device.name,
+        interfaceId,
+        interfaceName: iface.name,
+        message: `${device.name} ${iface.name}: dropped on egress by ${egressBlocked}`,
+        osiLayers: [2, 3],
+        frame,
+      });
+      return;
+    }
+
     iface.statistics.txFrames += 1;
     iface.statistics.txBytes += frame.meta.sizeBytes;
     countCast(iface.statistics, "tx", frame.ethernet.dstMac);
     this.capture(deviceId, interfaceId, "tx", frame);
+
+    // PortChannel: the frame leaves on the member the LAG hash selects.
+    if (iface.logical) {
+      const member = egressMember(device, iface, frame);
+      if (member === null) {
+        this.emit({
+          type: "FRAME_DROPPED",
+          deviceId,
+          deviceName: device.name,
+          interfaceId,
+          interfaceName: iface.name,
+          message: `${device.name} ${iface.name}: no active member — frame dropped`,
+          osiLayers: [1, 2],
+          frame,
+        });
+        return;
+      }
+      if (member) {
+        this.transmit(deviceId, member.id, frame);
+        return;
+      }
+    }
 
     // A switch SVI has no cable: the CPU hands the frame to the kernel Bridge,
     // which delivers it into the VLAN.
@@ -563,6 +603,50 @@ export class Simulation implements SimContext {
       if (isSwitch(device.type) || !frame.ipv4) return;
     }
 
+    // Ingress filters (ACL ingress) run before any switching/routing decision.
+    const ingressBlocked = rejectingIngress(this, device, iface, frame);
+    if (ingressBlocked) {
+      iface.statistics.rxDropped += 1;
+      this.emit({
+        type: "FRAME_DROPPED",
+        deviceId,
+        deviceName: device.name,
+        interfaceId,
+        interfaceName: iface.name,
+        message: `${device.name} ${iface.name}: dropped on ingress by ${ingressBlocked}`,
+        osiLayers: [2, 3],
+        frame,
+      });
+      return;
+    }
+
+    // LAG member: the PortChannel is the bridge/L3 port; members not collecting drop.
+    const lag = isSwitch(device.type) || isRouter(device.type) ? lagOf(device, iface) : undefined;
+    if (lag === null) {
+      this.emit({
+        type: "FRAME_DROPPED",
+        deviceId,
+        deviceName: device.name,
+        interfaceId,
+        interfaceName: iface.name,
+        message: `${device.name} ${iface.name}: LAG member not collecting — frame dropped`,
+        osiLayers: [2],
+        frame,
+      });
+      return;
+    }
+    if (lag) {
+      lag.statistics.rxFrames += 1;
+      lag.statistics.rxBytes += frame.meta.sizeBytes;
+      countCast(lag.statistics, "rx", frame.ethernet.dstMac);
+      this.capture(deviceId, lag.id, "rx", frame);
+      if (isSwitch(device.type)) sflowSample(this, device, iface, frame, "rx");
+      if (lag.ipv4.length > 0) routerReceive(this, device, lag, frame);
+      else if (isSwitch(device.type)) switchForward(this, device, lag, frame);
+      else routerReceive(this, device, lag, frame);
+      return;
+    }
+
     if (isSwitch(device.type) && iface.management) {
       // Out-of-band management port: terminates on the switch's own IP stack.
       hostReceive(this, device, iface, frame);
@@ -602,18 +686,17 @@ export class Simulation implements SimContext {
   }
 
   // --- Ping orchestration ---
-  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number; size?: number }): PingSummary {
+  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number; size?: number; vrf?: string }): PingSummary {
     const count = opts?.count ?? 4;
     const ttl = opts?.ttl ?? 64;
     const size = opts?.size ?? 56;
     const src = this.state.devices[srcDeviceId];
     const replies: PingReply[] = [];
-    this.announceVrrp(); // ensure switches point virtual-MAC → the CURRENT master (handles failover)
 
     if (src) {
       for (let seq = 1; seq <= count; seq++) {
         this.resetSteps(); // reset runaway hop guard per probe
-        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl, size));
+        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl, size, opts?.vrf));
         this.advance(5); // small spacing so timestamps differ between probes
       }
     }
@@ -630,9 +713,9 @@ export class Simulation implements SimContext {
     return { dstIp, transmitted: replies.length, received, replies };
   }
 
-  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number, size: number = 56): PingReply {
+  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number, size: number = 56, vrf?: string): PingReply {
     // Silent lookup to pick the source address (the egress interface's IP).
-    const match = longestPrefixMatch(src.routingTable, dstIp);
+    const match = longestPrefixMatch(src.routingTable, dstIp, vrf);
     if (!match) {
       this.emit({
         type: "ROUTE_LOOKUP",
@@ -668,6 +751,7 @@ export class Simulation implements SimContext {
     const start = this.clock;
     this.echoReplies = [];
     const res = ipOutput(this, src, {
+      vrf,
       srcIp: srcAddr.address,
       dstIp,
       ttl,

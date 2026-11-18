@@ -1,24 +1,29 @@
 /**
  * VRRP modal behaviour (dedicated SUB-MODE, entered from an interface view).
  *
- *   sonic(config)# interface Ethernet 0
- *   sonic(config-if-Ethernet0)# vrrp 1 address-family ipv4   -> creates + enters sub-view
- *   sonic(config-if--vrrp-ipv4)# priority 120
- *   sonic(config-if--vrrp-ipv4)# vip 40.0.0.5
- *   sonic(config-if--vrrp-ipv4)# version 3
- *   sonic(config-if--vrrp-ipv4)# preempt | no preempt
- *   sonic(config-if--vrrp-ipv4)# exit
- *   sonic(config-if-Ethernet0)# no vrrp 1 address-family ipv4   -> deletes
+ *   sonic(config)# interface Vlan 10
+ *   sonic(config-if-Vlan10)# vrrp 10 address-family ipv4     -> creates + enters sub-view
+ *   sonic(config-if-Vlan10-vrrp-ipv4-10)# vip 192.168.10.1   | no vip 192.168.10.1
+ *   ...# priority 120                                         | no priority      (100)
+ *   ...# advertisement-interval 1                             | no advertisement-interval (1 s)
+ *   ...# version 3                                            | no version       (3)
+ *   ...# preempt | no preempt
+ *   ...# shutdown | no shutdown        (sonic-mgmt-framework vrrp.xml:456-480, FRR `vrrp N shutdown`)
+ *   sonic(config-if-Vlan10)# no vrrp 10 address-family ipv4   -> deletes
  *
- * KLISH keys the instance by (iface, vrid), so both are carried in the sub-view
- * ctx string ("<iface> <vrid>") and split back out to build the flat Click paths.
- * Every effect delegates to the tested Click `config vrrp ...` (lib/commands/sonic/
- * vrrp.ts) — nothing is duplicated or faked. That module is IPv4 config-plane only,
- * so only the IPv4 commands it supports are wired here (see the file's exports).
+ * Grammar: data/sonic-cli-grammar.json configure-vrrp-*-ipv4-view (advertisement-interval
+ * in seconds 1-255, priority 1-254, version 2-3). KLISH keys the instance by
+ * (iface, vrid), carried in the sub-view ctx string ("<iface> <vrid>"). Effects
+ * delegate to the Click `config interface vrrp ...` commands (lib/commands/sonic/vrrp.ts);
+ * `shutdown` has no Click form and writes the instance directly.
+ * `track-interface` is accepted but has no effect: SONiC's VRRP daemon (FRR vrrpd)
+ * has no interface tracking and nothing consumes the VRRP_TRACK table.
  */
 import { err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { subViewFrame } from "../../../sonic/grammar";
+import { setVrrpShutdown } from "../../sonic/vrrp";
+import "./vrrp-show";
 
 // Interface view -> the IPv4 VRRP sub-view it enters (grammar view names).
 const ENTRY_SUBVIEW: Record<string, string> = {
@@ -27,8 +32,6 @@ const ENTRY_SUBVIEW: Record<string, string> = {
   "configure-lag-view": "configure-vrrp-lag-ipv4-view",
 };
 
-// Interface views: `vrrp <vrid> address-family ipv4` creates the instance and
-// drops into the VRRP sub-view; `no vrrp <vrid> ...` deletes it (stays in-view).
 registerModal({
   id: "vrrp-enter",
   views: ["configure-if-view", "configure-vlan-view", "configure-lag-view"],
@@ -41,36 +44,41 @@ registerModal({
     const afiIdx = args.indexOf("address-family");
     const afi = (afiIdx >= 0 ? args[afiIdx + 1] : "ipv4")?.toLowerCase();
     if (afi === "ipv6") {
-      return { output: [muted("% IPv6 VRRP is recognized but not modelled in this lab (config-plane, IPv4 only).")] };
+      return { output: [muted("% IPv6 VRRP is recognized but not modelled in this lab (IPv4 only).")] };
     }
     const target = ENTRY_SUBVIEW[view] ?? "configure-vrrp-if-ipv4-view";
     return { output: delegate(`config vrrp add ${iface} ${vrid}`), enter: subViewFrame(target, `${iface} ${vrid}`) };
   },
 });
 
-// IPv4 VRRP sub-view: the per-instance attributes the Click module supports.
 registerModal({
   id: "vrrp",
   views: ["configure-vrrp-if-ipv4-view", "configure-vrrp-vlan-ipv4-view", "configure-vrrp-lag-ipv4-view"],
-  keywords: ["preempt", "priority", "vip", "version"],
-  run({ head, isNo, args, viewctx, delegate }) {
+  keywords: ["preempt", "priority", "vip", "version", "advertisement-interval", "shutdown", "track-interface"],
+  run({ ctx, head, isNo, args, viewctx, delegate }) {
     const [iface, vrid] = (viewctx ?? "").split(/\s+/);
     if (!iface || !vrid) return null;
+    const click = (rest: string) => ({ output: delegate(`config interface vrrp ${rest}`) });
 
-    if (head === "preempt") {
-      return { output: delegate(`config vrrp preempt ${iface} ${vrid} ${isNo ? "disable" : "enable"}`) };
-    }
-    if (head === "priority") {
-      if (isNo || !args[0]) return null; // `no priority` (reset to default) not supported by Click
-      return { output: delegate(`config vrrp priority ${iface} ${vrid} ${args[0]}`) };
-    }
-    if (head === "vip") {
-      if (isNo || !args[0]) return null; // `no vip <ip>` (remove) not supported by Click
-      return { output: delegate(`config vrrp vip ${iface} ${vrid} ${args[0]}`) };
-    }
-    if (head === "version") {
-      if (isNo || !args[0]) return null; // `no version` (reset to default) not supported by Click
-      return { output: delegate(`config vrrp version ${iface} ${vrid} ${args[0]}`) };
+    switch (head) {
+      case "preempt":
+        return click(`pre_empt ${iface} ${vrid} ${isNo ? "disabled" : "enabled"}`);
+      case "priority":
+        if (isNo) return click(`priority ${iface} ${vrid} 100`);
+        return args[0] ? click(`priority ${iface} ${vrid} ${args[0]}`) : null;
+      case "vip":
+        if (!args[0]) return null;
+        return click(`ip ${isNo ? "remove" : "add"} ${iface} ${vrid} ${args[0]}`);
+      case "version":
+        if (isNo) return click(`version ${iface} ${vrid} 3`);
+        return args[0] ? click(`version ${iface} ${vrid} ${args[0]}`) : null;
+      case "advertisement-interval":
+        if (isNo) return click(`adv_interval ${iface} ${vrid} 1`);
+        return args[0] ? click(`adv_interval ${iface} ${vrid} ${args[0]}`) : null;
+      case "shutdown":
+        return { output: setVrrpShutdown(ctx.device, iface, Number(vrid), !isNo) };
+      case "track-interface":
+        return { output: [muted("% track-interface: accepted, no effect — FRR vrrpd (SONiC's VRRP daemon) has no interface tracking.")] };
     }
     return null;
   },

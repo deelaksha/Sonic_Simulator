@@ -37,6 +37,8 @@ export interface BgpNeighbor {
   updateSource?: string;
   bfd?: boolean;
   shutdown?: boolean;
+  /** `address-family l2vpn evpn` → `neighbor X activate` (MP capability AFI 25 / SAFI 70). */
+  evpn?: boolean;
 }
 
 export interface BgpConfig {
@@ -48,6 +50,8 @@ export interface BgpConfig {
   keepalive?: number;
   holdtime?: number;
   redistributeConnected?: boolean;
+  /** `address-family l2vpn evpn` → `advertise-all-vni` (BGP learns local VNIs from zebra). */
+  advertiseAllVni?: boolean;
 }
 
 /** BGP config when `router bgp <as>` is configured, else undefined. */

@@ -79,4 +79,18 @@ describe("sonic-cli mclag (config-plane)", () => {
     s = run(state, device, s, "configure terminal").stack;
     expect(run(state, device, s, "mclag domain abc").text).toContain("MCLAG domain ID must be an integer");
   });
+
+  it("peer-link PortChannel 2 is stored as PortChannel2; `mclag 10` under a PortChannel adds an MLAG interface", () => {
+    const { state, device } = sw();
+    let s: CliStack = ["exec"];
+    for (const c of ["configure terminal", "mclag domain 10", "source-ip 10.0.0.1", "peer-ip 10.0.0.2", "peer-link PortChannel 2", "exit", "interface PortChannel 1", "mclag 10", "exit", "exit"]) {
+      s = run(state, device, s, c).stack;
+    }
+    const out = run(state, device, s, "show mclag brief").text;
+    expect(out).toContain("Peer Link            : PortChannel2");
+    expect(out).toContain("Number of MLAG Interfaces:1");
+    expect(out).toMatch(/PortChannel1 {13}down\/down/);
+    expect(run(state, device, s, "show mclag interface 1 10").text).toContain("Local/Remote Status  : down/down");
+    expect(run(state, device, s, "show mclag interface 5 10").text).toContain("No MCLAG Interface PortChannel5 in MCLAG domain 10");
+  });
 });

@@ -1,79 +1,132 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { join } from "path";
-import { setGrammar } from "../lib/sonic/grammar";
-setGrammar(JSON.parse(readFileSync(join(process.cwd(), "data/sonic-cli-grammar.json"), "utf8")));
+/**
+ * VRRP on plain routers (eth0/eth1 routed ports, acceptsVMac path in router.ts),
+ * store-level on fake time. Replaces the old instant-election tests: real VRRP
+ * (RFC 5798, FRR vrrpd) only fails over after Master_Down_Interval, so the
+ * former "shut the master → re-elected immediately" assertions no longer hold.
+ *
+ *   PC1 10.0.0.10 ── SW1 ── R1 eth0 10.0.0.2 / R2 eth0 10.0.0.3   (vrid 1, VIP 10.0.0.1)
+ *                           R1 eth1 10.9.9.2 / R2 eth1 10.9.9.3   (vrid 2, VIP 10.9.9.1) ── SW2 ── SRV 10.9.9.9
+ */
 import "../lib/commands/sonic-cli/features";
-import { Simulation, resetIds, CaptureRecord, SimEvent } from "../lib/engine";
-import { execute, CommandContext } from "../lib/commands";
-import { useLabStore } from "../lib/store/lab-store";
-import { Device } from "../lib/models/device";
-import { NetworkState } from "../lib/models/topology";
-import { electMaster } from "../lib/protocols/vrrp";
+import "../lib/labs";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { registerLab } from "../lib/labs";
+import { resetAll } from "./helpers";
+import { S, advance, byName, out } from "./control-helpers";
+import { electMaster, runtimeOf } from "../lib/protocols/vrrp";
 
-function vrrpLab(): NetworkState {
-  useLabStore.getState().newLab();
-  useLabStore.getState().loadFeatureLab("vrrp");
-  resetIds();
-  return useLabStore.getState().network;
-}
-const dev = (net: NetworkState, name: string): Device => Object.values(net.devices).find((d) => d.name === name)!;
-const ctxFor = (net: NetworkState, d: Device): CommandContext => ({
-  device: d, network: net, captures: [] as CaptureRecord[],
-  runSim<T>(fn: (s: Simulation) => T) { const s = new Simulation(net); return { value: fn(s), events: s.events as SimEvent[] }; },
+registerLab("vrrp-routers-test", (api) => {
+  api.newLab();
+  const pc1 = api.addDevice("pc", { x: 40, y: 180 });
+  const sw1 = api.addDevice("switch", { x: 240, y: 180 }, 4);
+  const r1 = api.addDevice("router", { x: 440, y: 90 }, 2);
+  const r2 = api.addDevice("router", { x: 440, y: 270 }, 2);
+  const sw2 = api.addDevice("switch", { x: 640, y: 180 }, 4);
+  const srv = api.addDevice("server", { x: 840, y: 180 });
+  [["PC1", pc1], ["SW1", sw1], ["R1", r1], ["R2", r2], ["SW2", sw2], ["SRV", srv]].forEach(([n, d]) => api.rename(d, n));
+  api.setInterfaceIp(pc1, `${pc1}-if0`, "10.0.0.10", 24);
+  api.setDefaultGateway(pc1, "10.0.0.1");
+  api.setInterfaceIp(r1, `${r1}-if0`, "10.0.0.2", 24);
+  api.setInterfaceIp(r1, `${r1}-if1`, "10.9.9.2", 24);
+  api.setInterfaceIp(r2, `${r2}-if0`, "10.0.0.3", 24);
+  api.setInterfaceIp(r2, `${r2}-if1`, "10.9.9.3", 24);
+  api.setInterfaceIp(srv, `${srv}-if0`, "10.9.9.9", 24);
+  api.setDefaultGateway(srv, "10.9.9.1");
+  api.connect(pc1, `${pc1}-if0`, sw1, `${sw1}-if0`);
+  api.connect(r1, `${r1}-if0`, sw1, `${sw1}-if1`);
+  api.connect(r2, `${r2}-if0`, sw1, `${sw1}-if2`);
+  api.connect(r1, `${r1}-if1`, sw2, `${sw2}-if0`);
+  api.connect(r2, `${r2}-if1`, sw2, `${sw2}-if1`);
+  api.connect(srv, `${srv}-if0`, sw2, `${sw2}-if2`);
+  for (const [r, prio] of [[r1, 110], [r2, 100]] as const) {
+    api.exec(r, "config interface vrrp ip add eth0 1 10.0.0.1");
+    api.exec(r, "config interface vrrp ip add eth1 2 10.9.9.1");
+    api.exec(r, `config interface vrrp priority eth0 1 ${prio}`);
+    api.exec(r, `config interface vrrp priority eth1 2 ${prio}`);
+  }
+  api.finish("VRRP routers test", pc1);
 });
-const downLan = (r: Device) => { r.interfaces[0].adminState = "down"; r.interfaces[0].operState = "down"; r.interfaces[1].adminState = "down"; r.interfaces[1].operState = "down"; };
 
-describe("VRRP gateway redundancy + failover (packet-plane)", () => {
-  it("highest priority is Master; ping to the VIP is answered by the Master", () => {
-    const net = vrrpLab();
-    expect(electMaster(net, "10.0.0.1")?.device.name).toBe("R1");
-    const pc = dev(net, "PC1");
-    expect(new Simulation(net).runPing(pc.id, "10.0.0.1", { count: 1 }).received).toBe(1);
+const id = (n: string) => byName(n).id;
+const role = (n: string, iface = "eth0", vrid = 1) => runtimeOf(byName(n), iface, vrid)?.state;
+const ping = (n: string, ip: string) => out(S().execCommand(id(n), `ping -c 1 ${ip}`));
+const downLan = (n: string) => {
+  S().setAdminState(id(n), `${id(n)}-if0`, false);
+  S().setAdminState(id(n), `${id(n)}-if1`, false);
+};
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(1_000_000);
+  resetAll();
+  S().loadFeatureLab("vrrp-routers-test");
+});
+afterEach(() => vi.useRealTimers());
+
+describe("VRRP on routers (fake time)", () => {
+  it("no Master before Master_Down_Interval; then the highest priority is Master and answers the VIP", () => {
+    advance(1000);
+    expect(electMaster(S().network, "10.0.0.1")).toBeUndefined();
+    expect(ping("PC1", "10.0.0.1")).toContain("0 received");
+    advance(3000);
+    expect(electMaster(S().network, "10.0.0.1")?.device.name).toBe("R1");
+    expect(role("R2")).toBe("Backup");
+    expect(ping("PC1", "10.0.0.1")).toContain("1 received");
+    expect(ping("PC1", "10.9.9.9")).toContain("1 received"); // via the virtual gateways on both sides
   });
 
-  it("forwards through the virtual gateway to the server", () => {
-    const net = vrrpLab();
-    const pc = dev(net, "PC1");
-    expect(new Simulation(net).runPing(pc.id, "10.9.9.9", { count: 1 }).received).toBe(1);
+  it("FAILOVER: R1's interfaces go down → R2 takes over both VIPs after Master_Down_Interval; traffic continues", () => {
+    advance(5000);
+    expect(ping("PC1", "10.9.9.9")).toContain("1 received");
+    downLan("R1");
+    advance(2000);
+    expect(role("R2")).toBe("Backup"); // still within 3.6 s
+    advance(2000);
+    expect(electMaster(S().network, "10.0.0.1")?.device.name).toBe("R2");
+    expect(electMaster(S().network, "10.9.9.1")?.device.name).toBe("R2");
+    expect(ping("PC1", "10.0.0.1")).toContain("1 received");
+    expect(ping("PC1", "10.9.9.9")).toContain("1 received");
   });
 
-  it("FAILOVER: when the Master's interfaces go down, the Backup takes over the VIP", () => {
-    const net = vrrpLab();
-    const pc = dev(net, "PC1");
-    new Simulation(net).runPing(pc.id, "10.0.0.1", { count: 1 }); // prime (R1 master, switch learns vMAC→R1)
-    downLan(dev(net, "R1"));
-    expect(electMaster(net, "10.0.0.1")?.device.name).toBe("R2"); // re-elected
-    // gratuitous ARP on failover keeps the same VIP reachable + forwarding works
-    expect(new Simulation(net).runPing(pc.id, "10.0.0.1", { count: 1 }).received).toBe(1);
-    expect(new Simulation(net).runPing(pc.id, "10.9.9.9", { count: 1 }).received).toBe(1);
+  it("FAILBACK: restoring R1 preempts back to Master", () => {
+    advance(5000);
+    downLan("R1");
+    advance(4000);
+    expect(role("R2")).toBe("Master");
+    S().setAdminState(id("R1"), `${id("R1")}-if0`, true);
+    S().setAdminState(id("R1"), `${id("R1")}-if1`, true);
+    advance(4000);
+    expect(electMaster(S().network, "10.0.0.1")?.device.name).toBe("R1");
+    expect(role("R2")).toBe("Backup");
+    expect(ping("PC1", "10.9.9.9")).toContain("1 received");
   });
 
-  it("FAILBACK: restoring the higher-priority router preempts back to Master", () => {
-    const net = vrrpLab();
-    const r1 = dev(net, "R1");
-    downLan(r1);
-    expect(electMaster(net, "10.0.0.1")?.device.name).toBe("R2");
-    r1.interfaces.forEach((i) => { i.adminState = "up"; i.operState = "up"; });
-    expect(electMaster(net, "10.0.0.1")?.device.name).toBe("R1");
-    expect(new Simulation(net).runPing(dev(net, "PC1").id, "10.0.0.1", { count: 1 }).received).toBe(1);
+  it("address owner (VIP = interface address) runs at priority 255 and is Master at startup", () => {
+    S().execCommand(id("R2"), "config interface vrrp ip add eth0 1 10.0.0.3");
+    S().execCommand(id("R1"), "config interface vrrp ip add eth0 1 10.0.0.3");
+    advance(200);
+    expect(role("R2")).toBe("Master"); // vrrp_startup: owner → Master immediately
+    advance(5000);
+    expect(role("R1")).toBe("Backup"); // 255 beats 110
+    expect(out(S().execCommand(id("R2"), "show vrrp interface eth0"))).toContain(" Effective Priority (v4)                 255");
   });
 
-  it("emits a VRRP_FAILOVER event in the timeline when the master changes", () => {
-    const net = vrrpLab();
-    execute("vrrp", ctxFor(net, dev(net, "R1"))); // initial election records R1 as master
-    downLan(dev(net, "R1"));
-    const res = execute("vrrp", ctxFor(net, dev(net, "R2")));
-    const failover = (res.events ?? []).find((e) => e.type === "VRRP_FAILOVER");
+  it("`vrrp` reports live roles and a VRRP_FAILOVER event when the master changed", () => {
+    advance(5000);
+    expect(out(S().execCommand(id("R1"), "vrrp"))).toMatch(/VIP 10\.0\.0\.1 \(VRID 1\) — Master: R1/);
+    downLan("R1");
+    advance(4000);
+    S().execCommand(id("R2"), "vrrp");
+    const failover = S().events.find((e) => e.type === "VRRP_FAILOVER" && /R1.*R2/.test(e.message));
     expect(failover).toBeTruthy();
-    expect(failover!.message).toMatch(/R1.*R2/); // R1 down → R2 takes over
   });
 
-  it("`show vrrp` reflects the local router's role and flips on failover", () => {
-    const net = vrrpLab();
-    expect(execute("show vrrp", ctxFor(net, dev(net, "R1"))).output.map((o) => o.text).join("\n")).toContain("Master");
-    expect(execute("show vrrp", ctxFor(net, dev(net, "R2"))).output.map((o) => o.text).join("\n")).toContain("Backup");
-    downLan(dev(net, "R1"));
-    expect(execute("show vrrp", ctxFor(net, dev(net, "R2"))).output.map((o) => o.text).join("\n")).toContain("Master");
+  it("`show vrrp` (Click → FRR detail) flips Backup → Master on failover", () => {
+    advance(5000);
+    expect(out(S().execCommand(id("R1"), "show vrrp"))).toContain(" Status (v4)                             Master");
+    expect(out(S().execCommand(id("R2"), "show vrrp"))).toContain(" Status (v4)                             Backup");
+    downLan("R1");
+    advance(4000);
+    expect(out(S().execCommand(id("R2"), "show vrrp"))).toContain(" Status (v4)                             Master");
   });
 });

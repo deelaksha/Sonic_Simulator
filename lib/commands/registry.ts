@@ -18,6 +18,7 @@ import { ospfCommand } from "./ospfctl";
 import { bgpCommand } from "./bgpctl";
 import { configCommand, showCommand } from "./sonic";
 import { sonicClearCommand } from "./sonic/arpnd";
+import { aclshowCommand } from "./sonic/acl";
 import { SNMP_CLIENT_COMMANDS } from "./snmpclient";
 import { ssCommand } from "./ss";
 import { curlCommand } from "./curl";
@@ -61,6 +62,7 @@ const helpCommand: CommandHandler = {
 };
 
 export const COMMANDS: CommandHandler[] = [
+  aclshowCommand,
   sonicClearCommand,
   pingCommand,
   ping6Command,

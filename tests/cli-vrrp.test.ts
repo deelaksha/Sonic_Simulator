@@ -101,3 +101,27 @@ describe("sonic-cli VRRP sub-mode", () => {
     expect(instances(device)).toHaveLength(0);
   });
 });
+
+describe("sonic-cli VRRP sub-mode: interval / no-forms / shutdown / show", () => {
+  it("advertisement-interval (seconds), no priority/version/vip, shutdown + no shutdown", () => {
+    const { state, device } = sw();
+    const base = ["configure terminal", "interface Ethernet 0", "vrrp 3 address-family ipv4"];
+    session(state, device, [...base, "vip 40.0.0.5", "priority 150", "version 2", "advertisement-interval 3", "shutdown"]);
+    expect(instances(device)[0]).toMatchObject({ vip: "40.0.0.5", priority: 150, version: 2, advInterval: 3000, shutdown: true });
+    session(state, device, [...base, "no priority", "no version", "no advertisement-interval", "no shutdown", "no vip 40.0.0.5"]);
+    const i = instances(device)[0] as VrrpInstance & { advInterval?: number; shutdown?: boolean };
+    expect(i).toMatchObject({ priority: 100, version: 3, advInterval: 1000 });
+    expect(i.shutdown).toBeUndefined();
+    expect(i.vip).toBeUndefined();
+  });
+
+  it("show vrrp (KLISH) renders the brief table; empty → 'No VRRP instances configured'", () => {
+    const { state, device } = sw();
+    const show = () => runSonicCli("show vrrp", ["exec"], ctxFor(state, device)).output.map((o) => o.text).join("\n");
+    expect(show()).toBe("No VRRP instances configured");
+    session(state, device, ["configure terminal", "interface Ethernet 0", "vrrp 3 address-family ipv4", "vip 40.0.0.5"]);
+    const lines = show().split("\n");
+    expect(lines[0]).toBe("          Interface  VRID   State Virtual Address  Cfg_Prio  Curr_Prio   Version     Address");
+    expect(lines[1]).toBe("          Ethernet0     3 Initialize        40.0.0.5       100        100         3            ");
+  });
+});

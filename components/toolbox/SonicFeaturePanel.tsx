@@ -3,6 +3,7 @@ import { useState } from "react";
 import { SONIC_FEATURES, FEATURE_GROUPS } from "@/lib/sonic/feature-registry";
 import { implementedSonicFeatures } from "@/lib/commands/sonic";
 import { useLabStore } from "@/lib/store/lab-store";
+import { getLab } from "@/lib/labs";
 
 /**
  * SONiC feature selector (task §9, §52). Read-only status board plus lab loaders
@@ -12,7 +13,8 @@ import { useLabStore } from "@/lib/store/lab-store";
 export function SonicFeaturePanel() {
   const [open, setOpen] = useState(true);
   const loadFeatureLab = useLabStore((s) => s.loadFeatureLab);
-  const ready = new Set(implementedSonicFeatures());
+  // Loadable = has Click commands or a registered protocol lab (lib/labs).
+  const ready = new Set([...implementedSonicFeatures(), ...SONIC_FEATURES.filter((f) => getLab(f.id)).map((f) => f.id)]);
 
   return (
     <div>

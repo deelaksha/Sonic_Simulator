@@ -14,6 +14,7 @@ import { handleIcmpLocal } from "./icmp";
 import { routerReceiveV6 } from "./ipv6";
 import { handleOspfFrame } from "./ospf";
 import { dispatchL3 } from "../control/daemon";
+import { vrfOf, ownsIpInVrf } from "../models/vrf";
 import { receiveTrafficTcp } from "./traffic";
 import { handleBgpFrame } from "./bgp";
 import { handleDhcpRelay } from "./dhcp-relay";
@@ -105,8 +106,11 @@ export function routerReceive(
     return;
   }
 
-  // Packet addressed to the router itself, or to a VRRP VIP we master (ping the gateway).
-  if (device.interfaces.some((i) => ownsIp(i, ip.dstIp)) || ownsVipAsMaster(ctx.state, device, ip.dstIp)) {
+  // Everything below happens in the ingress interface's VRF (separate routing table).
+  const vrf = vrfOf(device, ingress);
+
+  // Packet addressed to the router itself (in this VRF), or to a VRRP VIP we master.
+  if (ownsIpInVrf(device, ip.dstIp, vrf) || ownsVipAsMaster(ctx.state, device, ip.dstIp)) {
     if (frame.icmp) {
       handleIcmpLocal(ctx, device, ingress, frame);
       return;
@@ -178,6 +182,7 @@ export function routerReceive(
     summary: frame.meta.summary,
     // Engine-built packets keep their bytes across the hop (TTL is re-applied on the wire).
     rawL3: frame.rawL3,
+    vrf,
     protocolNumber: ip.protocolNumber,
   });
 

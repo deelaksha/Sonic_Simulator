@@ -2,9 +2,9 @@
  * Static-route SONiC feature module. Commands are traceable to staticroute.txt.
  * Follows the ./vlan.ts pattern.
  *
- *   config route add prefix <cidr> nexthop <ip>
- *   config route del prefix <cidr> nexthop <ip>
- *   show ip route [<cidr>]
+ *   config route add prefix [vrf <name>] <cidr> nexthop <ip>
+ *   config route del prefix [vrf <name>] <cidr> nexthop <ip>
+ *   show ip route [vrf <name>|all] [<cidr>]
  *
  * The cheatsheet exercises static routes in the FRR/klish `ip route <prefix>
  * <nexthop>` config-mode form (e.g. `ip route 100.1.1.0/24 192.168.200.1`); this
@@ -13,6 +13,7 @@
  * engine via longestPrefixMatch, so it changes real forwarding (spec §9, §61).
  */
 import { renderFrrRoutes } from "./frr-route";
+import { vrfOf, vrfNames, DEFAULT_VRF } from "../../models/vrf";
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
@@ -37,25 +38,33 @@ function valueAfter(args: string[], key: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
+/** `prefix vrf <name> <cidr>` → { vrf, cidr }; plain `prefix <cidr>` → default VRF. */
+function prefixArg(args: string[]): { vrf: string; cidr: Cidr | null } {
+  const i = args.indexOf("prefix");
+  if (args[i + 1] === "vrf") return { vrf: args[i + 2] ?? "", cidr: parseCidr(args[i + 3]) };
+  return { vrf: DEFAULT_VRF, cidr: parseCidr(args[i + 1]) };
+}
+
 const config: SonicCmd[] = [
   {
     path: ["route", "add"],
     summary: "Add a static route (config route add prefix <cidr> nexthop <ip>)",
     run(args, ctx): CommandResult {
-      const cidr = parseCidr(valueAfter(args, "prefix"));
+      const { vrf, cidr } = prefixArg(args);
       const nh = valueAfter(args, "nexthop");
       if (!cidr || !nh || !isValidIpv4(nh)) {
-        return { output: [err("Usage: config route add prefix <ip/prefix> nexthop <ip>")] };
+        return { output: [err("Usage: config route add prefix [vrf <name>] <ip/prefix> nexthop <ip>")] };
       }
-      // Egress = the interface whose subnet contains the next hop (so it can be ARPed).
-      const egress = ctx.device.interfaces.find((i) =>
-        i.ipv4.some((a) => networkAddress(a.address, a.prefix) === networkAddress(nh, a.prefix)),
+      if (!vrfNames(ctx.device).includes(vrf)) return { output: [err(`config route: VRF ${vrf} does not exist`)] };
+      // Egress = the interface (in this VRF) whose subnet contains the next hop.
+      const egress = ctx.device.interfaces.find(
+        (i) => vrfOf(ctx.device, i) === vrf && i.ipv4.some((a) => networkAddress(a.address, a.prefix) === networkAddress(nh, a.prefix)),
       );
       if (!egress) {
-        return { output: [err(`config route: no interface on the subnet of nexthop ${nh}`)] };
+        return { output: [err(`config route: no interface on the subnet of nexthop ${nh}${vrf !== DEFAULT_VRF ? ` in VRF ${vrf}` : ""}`)] };
       }
       const exists = ctx.device.routingTable.some(
-        (r) => r.type === "static" && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh,
+        (r) => r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh,
       );
       if (!exists) {
         ctx.device.routingTable.push({
@@ -66,6 +75,7 @@ const config: SonicCmd[] = [
           type: "static",
           metric: 0, // FRR static routes carry metric 0 ([1/0] in show ip route)
           installedAtMs: Date.now(),
+          ...(vrf !== DEFAULT_VRF ? { vrf } : {}),
         });
       }
       return { output: [muted(`route added: ${cidr.network}/${cidr.prefix} nexthop ${nh} dev ${egress.name}`)] };
@@ -75,14 +85,15 @@ const config: SonicCmd[] = [
     path: ["route", "del"],
     summary: "Remove a static route (config route del prefix <cidr> nexthop <ip>)",
     run(args, ctx): CommandResult {
-      const cidr = parseCidr(valueAfter(args, "prefix"));
+      const { vrf, cidr } = prefixArg(args);
       const nh = valueAfter(args, "nexthop");
       if (!cidr || !nh || !isValidIpv4(nh)) {
-        return { output: [err("Usage: config route del prefix <ip/prefix> nexthop <ip>")] };
+        return { output: [err("Usage: config route del prefix [vrf <name>] <ip/prefix> nexthop <ip>")] };
       }
       const before = ctx.device.routingTable.length;
       ctx.device.routingTable = ctx.device.routingTable.filter(
-        (r) => !(r.type === "static" && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh),
+        (r) =>
+          !(r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh),
       );
       const removed = ctx.device.routingTable.length !== before;
       return {
@@ -92,9 +103,9 @@ const config: SonicCmd[] = [
   },
 ];
 
-function renderRoutes(ctx: CommandContext, filter?: Cidr): OutputLine[] {
+function renderRoutes(ctx: CommandContext, filter?: Cidr, vrf = DEFAULT_VRF, omitCodes = false): OutputLine[] {
   // FRR zebra format, shared by every route source (lib/commands/sonic/frr-route.ts).
-  return renderFrrRoutes(ctx.device, Date.now(), filter).map((t) => line(t));
+  return renderFrrRoutes(ctx.device, Date.now(), filter, vrf, omitCodes).map((t) => line(t));
 }
 
 const show: SonicCmd[] = [
@@ -102,13 +113,20 @@ const show: SonicCmd[] = [
     path: ["ip", "route"],
     summary: "Show the IPv4 routing table (optionally one prefix)",
     run(args, ctx): CommandResult {
-      const arg = positional(args)[0];
-      if (arg) {
-        const cidr = parseCidr(arg);
-        if (!cidr) return { output: [err(`show ip route: invalid prefix "${arg}"`)] };
-        return { output: renderRoutes(ctx, cidr) };
+      const a = [...args];
+      let vrfs = [DEFAULT_VRF];
+      const vi = a.indexOf("vrf");
+      if (vi >= 0) {
+        const name = a[vi + 1];
+        if (!name) return { output: [err("show ip route vrf: VRF name required")] };
+        if (name !== "all" && !vrfNames(ctx.device).includes(name)) return { output: [err(`% VRF ${name} not found`)] };
+        vrfs = name === "all" ? vrfNames(ctx.device) : [name];
+        a.splice(vi, 2);
       }
-      return { output: renderRoutes(ctx) };
+      const arg = positional(a)[0];
+      const cidr = arg ? parseCidr(arg) : undefined;
+      if (arg && !cidr) return { output: [err(`show ip route: invalid prefix "${arg}"`)] };
+      return { output: vrfs.flatMap((v, i) => renderRoutes(ctx, cidr ?? undefined, v, i > 0)) };
     },
   },
 ];

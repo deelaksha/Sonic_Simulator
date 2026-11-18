@@ -45,6 +45,22 @@
  * a directly connected eBGP session goes down the session is stopped at once
  * (last reset "Interface down"). BFD (`neighbor X bfd`): up→down stops the
  * session with Cease/BFD Down (bgp_bfd.c:66-72).
+ *
+ * L2VPN EVPN (RFC 7432 / RFC 8365) — `address-family l2vpn evpn`:
+ *   `neighbor X activate` adds the MP capability AFI 25 / SAFI 70 to the OPEN
+ *   (bgp_open.c bgp_open_capability: every activated AF, IPv4 unicast first); the
+ *   AF is up when both sides sent it. Activating/deactivating on a live session
+ *   resets it (Cease/Other Configuration Change, last reset "Address family
+ *   activated" — bgpd.c:2433). EVPN routes travel in their own UPDATEs
+ *   (MP_REACH/MP_UNREACH, ./bgp-wire.ts encodeEvpnUpdate) and live in a separate
+ *   per-peer Adj-RIB-In/Out keyed by RD + prefix. Best path uses the same
+ *   bgp_path_info_cmp order. EVPN next hops are never rewritten — not even towards
+ *   eBGP peers (bgp_updgrp_packet.c:577-590 "No route-map changes allowed for EVPN
+ *   nexthops") — and must resolve through any route, BGP included (no
+ *   directly-connected check for SAFI_EVPN, bgp_route.c bgp_update). Local routes
+ *   (type-2 MAC/IP, type-3 IMET with `advertise-all-vni`) and the import of the
+ *   Loc-RIB into VNIs belong to the VXLAN module, which registers an
+ *   EvpnProvider (lib/protocols/vxlan-daemon.ts) — bgpd only carries the routes.
  */
 import { Device, findInterface, isRouter, isSwitch, interfaceByName } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
@@ -76,10 +92,13 @@ import {
   encodeNotification,
   encodeOpen,
   encodeUpdate,
+  encodeEvpnUpdate,
+  EvpnAttrs,
   notifyText,
   openAs,
   openHostname,
 } from "./bgp-wire";
+import { AFI_L2VPN, SAFI_EVPN, EvpnRoute, Pmsi, evpnKey, sortEcs } from "./evpn-wire";
 
 // ---------------------------------------------------------------------------
 // Defaults (sources in the module comment)
@@ -112,6 +131,13 @@ export interface BgpPath {
   ebgp: boolean;
   local?: "network" | "redistribute";
   sinceMs: number;
+}
+
+/** An L2VPN EVPN path (route + attributes). */
+export interface EvpnPath extends BgpPath {
+  route: EvpnRoute;
+  extComms: number[][];
+  pmsi?: Pmsi;
 }
 
 export interface MsgCounters {
@@ -155,6 +181,12 @@ export interface PeerRt {
   cfgSig: string;
   bfdReg?: boolean;
   bfdLast?: string;
+  /** Multiprotocol capabilities the peer sent ("afi/safi"). */
+  mpRcvd?: string[];
+  /** L2VPN EVPN Adj-RIB-In: RD|prefix → path. */
+  evpnIn?: Record<string, EvpnPath>;
+  /** L2VPN EVPN Adj-RIB-Out: RD|prefix → attribute signature + route (for withdraws). */
+  evpnOut?: Record<string, { sig: string; route: EvpnRoute }>;
 }
 
 export interface BgpRt {
@@ -167,6 +199,35 @@ export interface BgpRt {
   /** Signature of every input (config, RIB, links); a change makes the daemon due. */
   sig: string;
   dirty?: boolean;
+  /** EVPN Loc-RIB: RD|prefix → "peer|signature" of the selected path. */
+  evpnBest?: Record<string, string>;
+}
+
+// ---------------------------------------------------------------------------
+// L2VPN EVPN hand-off to the VXLAN module
+
+export interface EvpnLocalRoute {
+  route: EvpnRoute;
+  nextHop: string;
+  extComms: number[][];
+  pmsi?: Pmsi;
+}
+
+export interface EvpnProvider {
+  /** Routes this VTEP originates (called only with `advertise-all-vni`). */
+  localRoutes(device: Device, cfg: BgpConfig, routerId: string): EvpnLocalRoute[];
+  /** The EVPN Loc-RIB changed (best paths, local ones included): import into VNIs. */
+  ribChanged(ctx: SimContext, device: Device, best: EvpnPath[]): void;
+}
+
+let evpnProvider: EvpnProvider | undefined;
+export function setEvpnProvider(p: EvpnProvider): void {
+  evpnProvider = p;
+}
+
+/** EVPN negotiated with this peer: activated locally and the peer sent MP 25/70. */
+export function evpnUp(nb: BgpNeighbor | undefined, p: PeerRt | undefined): boolean {
+  return !!nb?.evpn && !!p && (p.mpRcvd ?? []).includes(`${AFI_L2VPN}/${SAFI_EVPN}`);
 }
 
 const zero = (): MsgCounters => ({ open: 0, update: 0, notify: 0, keepalive: 0, refresh: 0 });
@@ -228,7 +289,7 @@ function inputSig(device: Device, cfg: BgpConfig | undefined): string {
 }
 
 function peerCfgSig(_cfg: BgpConfig, nb: BgpNeighbor): string {
-  return JSON.stringify([nb.remoteAs, nb.updateSource, nb.ebgpMultihop]);
+  return JSON.stringify([nb.remoteAs, nb.updateSource, nb.ebgpMultihop, !!nb.evpn]);
 }
 
 function newPeer(cfg: BgpConfig, nb: BgpNeighbor, now: number): PeerRt {
@@ -379,7 +440,7 @@ function tcpEstablished(ctx: SimContext, device: Device, cfg: BgpConfig, nb: Bgp
     myAs: cfg.localAs!,
     holdTime: hold,
     bgpId: bgpRouterId(device, cfg),
-    caps: [capMp(1, 1), capRefresh(), capEnhancedRr(), capAs4(cfg.localAs!), capExtMessage(), capFqdn(device.config.hostname || device.name)],
+    caps: [capMp(1, 1), ...(nb.evpn ? [capMp(AFI_L2VPN, SAFI_EVPN)] : []), capRefresh(), capEnhancedRr(), capAs4(cfg.localAs!), capExtMessage(), capFqdn(device.config.hostname || device.name)],
   });
   emit(ctx, device, "BGP_OPEN", `BGP OPEN AS${cfg.localAs} id ${bgpRouterId(device, cfg)} hold ${hold}s → ${nb.peer} (TCP/179)`);
   sendMsg(ctx, device, cfg, nb, p, open, "open", now);
@@ -417,6 +478,8 @@ function stopPeer(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, p
   p.kaAt = undefined;
   p.adjIn = {};
   p.adjOut = {};
+  p.evpnIn = {};
+  p.evpnOut = {};
   p.connectAt = !nb || nb.shutdown || nb.remoteAs === undefined ? undefined : now + BGP_DEFAULTS.idleHold * 1000;
   const rt = peekBgpRuntime(device);
   if (rt) rt.dirty = true;
@@ -451,6 +514,7 @@ function handleOpen(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNeig
   p.as4 = as4;
   p.remoteHost = openHostname(m);
   p.capsRcvd = m.caps.map((c) => c.code);
+  p.mpRcvd = m.caps.filter((c) => c.code === 1 && c.value.length === 4).map((c) => `${(c.value[0] << 8) | c.value[1]}/${c.value[3]}`);
   negotiate(cfg, nb, p, m.holdTime);
   p.state = "OpenConfirm";
   p.holdAt = p.holdTime ? now + p.holdTime * 1000 : undefined;
@@ -492,7 +556,28 @@ function handleUpdate(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNe
       p.adjIn[pfx] = { origin: a.origin, asPath: a.asPath, nextHop: a.nextHop, med: a.med, localPref: a.localPref, weight: 0, peer: p.peer, peerRid: p.remoteId ?? p.peer, ebgp: isEbgp(cfg, nb), sinceMs: sameAttrs ? old.sinceMs : now };
     }
   }
-  emit(ctx, device, "BGP_UPDATE", `BGP UPDATE from ${p.peer}: ${m.nlri.length} prefix(es)${m.withdrawn.length ? `, ${m.withdrawn.length} withdrawn` : ""}`);
+  if ((m.evpnReach || m.evpnUnreach) && evpnUp(nb, p)) {
+    // Not negotiated → ignored (bgp_mp_reach_parse: AFI/SAFI not activated).
+    const ein = (p.evpnIn ??= {});
+    for (const r of m.evpnUnreach ?? []) delete ein[evpnKey(r)];
+    if (m.evpnReach && m.attrs) {
+      const a = m.attrs;
+      for (const r of m.evpnReach.nlri) {
+        const k = evpnKey(r);
+        if (a.asPath.includes(cfg.localAs!)) {
+          p.aspathLoop++;
+          delete ein[k];
+          continue;
+        }
+        const path: EvpnPath = { origin: a.origin, asPath: a.asPath, nextHop: m.evpnReach.nextHop, med: a.med, localPref: a.localPref, weight: 0, peer: p.peer, peerRid: p.remoteId ?? p.peer, ebgp: isEbgp(cfg, nb), sinceMs: now, route: r, extComms: sortEcs(a.extComms ?? []), pmsi: a.pmsi };
+        const old = ein[k];
+        if (old && evpnSig(old) === evpnSig(path)) path.sinceMs = old.sinceMs;
+        ein[k] = path;
+      }
+    }
+  }
+  const nEvpn = (m.evpnReach?.nlri.length ?? 0) + (m.evpnUnreach?.length ?? 0);
+  emit(ctx, device, "BGP_UPDATE", `BGP UPDATE from ${p.peer}: ${nEvpn ? `${m.evpnReach?.nlri.length ?? 0} EVPN route(s)${m.evpnUnreach?.length ? `, ${m.evpnUnreach.length} withdrawn` : ""}` : `${m.nlri.length} prefix(es)${m.withdrawn.length ? `, ${m.withdrawn.length} withdrawn` : ""}`}`);
   peekBgpRuntime(device)!.dirty = true;
   converge(ctx, device, now);
 }
@@ -740,6 +825,104 @@ function converge(ctx: SimContext, device: Device, now: number): void {
       sendMsg(ctx, device, cfg, nb, p, encodeUpdate({ withdrawn: [], attrs: g.attrs, nlri: g.nlri }, p.as4), "update", now);
     }
   }
+  convergeEvpn(ctx, device, cfg, rt, now);
+}
+
+// ---------------------------------------------------------------------------
+// L2VPN EVPN RIB
+
+const hex = (ecs: number[][]) => ecs.map((e) => e.map((x) => x.toString(16).padStart(2, "0")).join("")).join(",");
+
+function evpnSig(a: { origin: number; asPath: number[]; nextHop: string; med?: number; localPref?: number; extComms: number[][]; pmsi?: Pmsi; route: EvpnRoute }): string {
+  const pm = a.pmsi ? `${a.pmsi.tunnelType}/${a.pmsi.vni}/${a.pmsi.endpoint}` : "";
+  return `${a.origin}|${a.asPath.join(" ")}|${a.nextHop}|${a.med ?? ""}|${a.localPref ?? ""}|${hex(a.extComms)}|${pm}|${a.route.vni ?? ""}`;
+}
+
+/** EVPN next hops resolve through any route, BGP-learned included (see module comment). */
+function evpnNexthopUsable(device: Device, nh: string): boolean {
+  if (ownsAddress(device, nh)) return true;
+  const m = longestPrefixMatch(device.routingTable, nh);
+  const iface = m ? findInterface(device, m.route.interfaceId) : undefined;
+  return !!iface && iface.operState === "up" && iface.adminState === "up";
+}
+
+/** All EVPN candidate paths per RD|prefix, best first. */
+export function evpnTable(device: Device): Map<string, { path: EvpnPath; valid: boolean }[]> {
+  const cfg = getBgpConfig(device);
+  const rt = peekBgpRuntime(device);
+  const table = new Map<string, { path: EvpnPath; valid: boolean }[]>();
+  if (!cfg) return table;
+  const rid = bgpRouterId(device, cfg);
+  if (cfg.advertiseAllVni && evpnProvider) {
+    for (const l of evpnProvider.localRoutes(device, cfg, rid)) {
+      const path: EvpnPath = { origin: 0, asPath: [], nextHop: l.nextHop, weight: 32768, peer: "0.0.0.0", peerRid: rid, ebgp: false, sinceMs: 0, route: l.route, extComms: l.extComms, pmsi: l.pmsi };
+      table.set(evpnKey(l.route), [{ path, valid: true }]);
+    }
+  }
+  for (const p of Object.values(rt?.peers ?? {})) {
+    if (p.state !== "Established" || !evpnUp(nbCfg(cfg, p.peer), p)) continue;
+    for (const [k, path] of Object.entries(p.evpnIn ?? {})) {
+      const list = table.get(k) ?? [];
+      list.push({ path, valid: evpnNexthopUsable(device, path.nextHop) });
+      table.set(k, list);
+    }
+  }
+  for (const list of table.values()) list.sort((x, y) => (x.valid !== y.valid ? (x.valid ? -1 : 1) : comparePaths(x.path, y.path)));
+  return table;
+}
+
+function convergeEvpn(ctx: SimContext, device: Device, cfg: BgpConfig, rt: BgpRt, now: number): void {
+  const best = new Map<string, EvpnPath>();
+  for (const [k, list] of evpnTable(device)) if (list[0]?.valid) best.set(k, list[0].path);
+  const newBest: Record<string, string> = {};
+  for (const [k, p] of best) newBest[k] = `${p.peer}|${evpnSig(p)}`;
+  const old = rt.evpnBest ?? {};
+  for (const k of new Set([...Object.keys(newBest), ...Object.keys(old)])) if (newBest[k] !== old[k]) rt.tableVersion++;
+  rt.evpnBest = newBest;
+  evpnProvider?.ribChanged(ctx, device, [...best.values()]);
+
+  for (const p of Object.values(rt.peers)) {
+    const nb = nbCfg(cfg, p.peer);
+    if (!nb || p.state !== "Established" || !p.tcb || !evpnUp(nb, p)) continue;
+    const ebgp = isEbgp(cfg, nb);
+    const want = new Map<string, { route: EvpnRoute; nextHop: string; attrs: EvpnAttrs; sig: string }>();
+    for (const [k, b] of best) {
+      if (b.peer === p.peer) continue; // never back to the sender
+      if (!ebgp && !b.ebgp && b.peer !== "0.0.0.0") continue; // iBGP split horizon
+      const attrs: EvpnAttrs = ebgp
+        ? { origin: b.origin, asPath: [cfg.localAs!, ...b.asPath], extComms: b.extComms, pmsi: b.pmsi }
+        : { origin: b.origin, asPath: b.asPath, med: b.med, localPref: b.localPref ?? BGP_DEFAULTS.localPref, extComms: b.extComms, pmsi: b.pmsi };
+      // next hop unchanged, also towards eBGP peers (bgp_updgrp_packet.c:577-590)
+      want.set(k, { route: b.route, nextHop: b.nextHop, attrs, sig: evpnSig({ ...attrs, nextHop: b.nextHop, route: b.route }) });
+    }
+    const out = (p.evpnOut ??= {});
+    const withdrawn = Object.keys(out).filter((k) => !want.has(k));
+    if (withdrawn.length) {
+      const routes = withdrawn.map((k) => out[k].route);
+      for (const k of withdrawn) delete out[k];
+      sendMsg(ctx, device, cfg, nb, p, encodeEvpnUpdate({ unreach: routes }, p.as4), "update", now);
+    }
+    const groups = new Map<string, { nextHop: string; attrs: EvpnAttrs; keys: string[]; routes: EvpnRoute[] }>();
+    for (const [k, w] of want) {
+      if (out[k]?.sig === w.sig) continue;
+      const gs = w.sig.replace(/\|[^|]*$/, ""); // group by attributes (not the per-route label)
+      const g = groups.get(gs) ?? { nextHop: w.nextHop, attrs: w.attrs, keys: [], routes: [] };
+      g.keys.push(k);
+      g.routes.push(w.route);
+      groups.set(gs, g);
+    }
+    for (const g of groups.values()) {
+      g.keys.forEach((k, i) => (out[k] = { sig: want.get(k)!.sig, route: g.routes[i] }));
+      sendMsg(ctx, device, cfg, nb, p, encodeEvpnUpdate({ reach: { nextHop: g.nextHop, nlri: g.routes, attrs: g.attrs } }, p.as4), "update", now);
+    }
+  }
+}
+
+/** The VXLAN module's local routes changed: run the decision process now. */
+export function evpnRefresh(ctx: SimContext, device: Device, now: number): void {
+  withDrain(() => {
+    if (getBgpConfig(device) && peekBgpRuntime(device)) converge(ctx, device, now);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -766,6 +949,7 @@ function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, 
     }
     device.routingTable = device.routingTable.filter((r) => r.type !== "bgp");
     delete device.config.features!["bgpd"];
+    evpnProvider?.ribChanged(ctx, device, []);
     return;
   }
   const live = ensureRuntime(device, cfg, now);
@@ -788,7 +972,8 @@ function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, 
     }
     const sig = peerCfgSig(cfg, nb);
     if (sig !== p.cfgSig) {
-      const reason = JSON.parse(sig)[0] !== JSON.parse(p.cfgSig)[0] ? "Remote AS changed" : "Update source change";
+      const [n, o] = [JSON.parse(sig), JSON.parse(p.cfgSig)];
+      const reason = n[0] !== o[0] ? "Remote AS changed" : n[3] !== o[3] ? "Address family activated" : "Update source change";
       p.cfgSig = sig;
       if (p.state !== "Idle") stopPeer(ctx, device, cfg, p, now, { reason, notify: { code: 6, subcode: 6 } });
       else if (nb.remoteAs !== undefined && !nb.shutdown && p.connectAt === undefined) p.connectAt = now;

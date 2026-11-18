@@ -1,5 +1,6 @@
 /**
- * MCLAG — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * MCLAG — KLISH config + show. The ICCP session, role, system-ID rewrite, MAC
+ * sync and peer-link isolation run in lib/protocols/mclag-daemon.ts (iccpd).
  *
  *   sonic(config)# mclag domain <1-4095>          create domain + enter sub-view
  *   sonic(config-mclag-domain)# source-ip <ip>    store MCLAG_DOMAIN fields
@@ -15,24 +16,24 @@
  *   sonic(config-mclag-domain)# no <any of the above>            clear a field
  *   sonic(config)# mclag gateway-mac <mac>        MCLAG_GW_MAC scalar
  *   sonic(config)# no mclag domain <id>           remove a whole domain
- *   sonic# show mclag [brief]                      render MCLAG_DOMAIN config
+ *   sonic(conf-if-po1)# [no] mclag <domain>       MCLAG_INTERFACE (device interface.xml:1436-1443)
+ *   sonic# show mclag [brief]                      show_mclag_brief.j2 (sonic_cli_mclag.py:357-399)
+ *   sonic# show mclag interface <po-id> <domain>   show_mclag_iface.j2 (sonic_cli_mclag.py:326-353)
  *
- * Mirrors the real box's sonic-mclag MCLAG_DOMAIN_LIST / MCLAG_GW_MAC CONFIG_DB
- * tables (see data/device-capture/klish-xml/mclag.xml). Config is stored honestly
- * and `show mclag brief` renders exactly what was configured.
- *
- * DATA-PLANE NOT SIMULATED: the MCLAG control-plane / session state is not
- * modelled — operational fields in `show mclag brief` (Role, Session Status,
- * Peer Link Status, System Mac) are left blank, and the operational display
- * commands (`show mclag interface`, `show mclag mac remote`,
- * `show mclag separate-ip-interfaces`, `show mclag peer-gateway-interfaces`) are
- * NOT handled here (they fall through rather than being fabricated).
+ * Mirrors the real box's sonic-mclag MCLAG_DOMAIN_LIST / MCLAG_INTERFACE_LIST /
+ * MCLAG_GW_MAC CONFIG_DB tables (see data/device-capture/klish-xml/mclag.xml).
+ * Operational fields (Role, Session Status, Peer Link Status, System Mac,
+ * Local/Remote status) come from the iccpd runtime; Role/Session Status stay blank
+ * until the first session (no MCLAG_TABLE row yet). keepalive/session-timeout show
+ * their defaults 1/30 s when unset (sonic_cli_mclag.py:368-371). `show mclag mac`,
+ * `separate-ip-interfaces`, `peer-gateway-interfaces` are not handled.
  */
 import { OutputLine, line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpList, cpGet } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
-import { Device } from "../../../models/device";
+import { Device, interfaceByName } from "../../../models/device";
+import { localSystemId, mclagConfig, mclagRuntime } from "../../../protocols/mclag-daemon";
 
 // KLISH sub-command -> MCLAG_DOMAIN_LIST field (single-value fields).
 const DOMAIN_FIELDS: Record<string, { field: string; numeric?: boolean }> = {
@@ -137,7 +138,8 @@ registerModal({
       clearField(ctx.device, id, f.field);
       return { output: [] };
     }
-    const value = args.join(" ");
+    // `peer-link PortChannel 2` / `peer-link Ethernet 4` → PortChannel2 / Ethernet4 (sonic_cli_mclag.py:66-71).
+    const value = head === "peer-link" ? args.join("").replace(/^portchannel/i, "PortChannel").replace(/^ethernet/i, "Ethernet") : args.join(" ");
     if (!value) return { output: [err(`% ${head} requires a value`)] };
     if (f.numeric && !/^\d+$/.test(value)) return { output: [err(`% ${head} must be an integer`)] };
     setField(ctx.device, id, f.field, value);
@@ -145,20 +147,34 @@ registerModal({
   },
 });
 
-// `show mclag brief` layout (matches the box). Rows without a `field` are
-// operational state we do NOT simulate — they are rendered blank, never faked.
-const BRIEF_ROWS: { label: string; field?: string; suffix?: string }[] = [
+// configure-lag-view: `mclag <domain>` adds the PortChannel to MCLAG_INTERFACE.
+registerModal({
+  id: "mclag-interface",
+  views: ["configure-lag-view"],
+  keywords: ["mclag"],
+  run({ isNo, args, ifname, ctx }) {
+    const dom = args[0];
+    if (!dom || !/^\d+$/.test(dom) || Number(dom) < 1 || Number(dom) > 4095) return { output: [err("% MCLAG domain ID must be an integer (1-4095)")] };
+    const key = `${dom}|${ifname}`;
+    if (isNo) cpRemove(ctx.device, "mclag", "interfaces", "key", key);
+    else cpUpsert(ctx.device, "mclag", "interfaces", { key, domain_id: dom, if_name: ifname, if_type: "PortChannel" }, "key");
+    return { output: [] };
+  },
+});
+
+// `show mclag brief` layout (matches the box). Operational rows read the iccpd runtime.
+const BRIEF_ROWS: { label: string; field?: string; op?: "role" | "session" | "peerlink" | "sysmac"; suffix?: string; dflt?: string }[] = [
   { label: "Domain ID", field: "domain_id" },
-  { label: "Role" },
-  { label: "Session Status" },
-  { label: "Peer Link Status" },
+  { label: "Role", op: "role" },
+  { label: "Session Status", op: "session" },
+  { label: "Peer Link Status", op: "peerlink" },
   { label: "Source Address", field: "source_ip" },
   { label: "Peer Address", field: "peer_ip" },
   { label: "Peer Link", field: "peer_link" },
-  { label: "Keepalive Interval", field: "keepalive_interval", suffix: " secs" },
-  { label: "Session Timeout", field: "session_timeout", suffix: " secs" },
+  { label: "Keepalive Interval", field: "keepalive_interval", suffix: " secs", dflt: "1" },
+  { label: "Session Timeout", field: "session_timeout", suffix: " secs", dflt: "30" },
   { label: "Delay Restore", field: "delay_restore", suffix: " secs" },
-  { label: "System Mac" },
+  { label: "System Mac", op: "sysmac" },
   { label: "Mclag System Mac", field: "mclag_system_mac" },
 ];
 
@@ -174,8 +190,34 @@ const EXTRA_ROWS: { label: string; field: string; suffix?: string }[] = [
 
 const W = 21;
 const fmt = (label: string, value: string): string => `${label.padEnd(W)}: ${value}`;
+const operOf = (device: Device, name: unknown) => (name ? (interfaceByName(device, String(name))?.operState ?? "down") : "");
 
-// enable-view: `show mclag` / `show mclag brief` render the configured domains.
+function opValue(device: Device, d: Record<string, unknown>, op: string): string {
+  const rt = mclagRuntime(device);
+  const live = rt && rt.domain === String(d.domain_id) && rt.everUp ? rt : undefined; // MCLAG_TABLE row exists
+  if (op === "peerlink") return operOf(device, d.peer_link);
+  if (!live) return "";
+  if (op === "role") return live.role;
+  if (op === "session") return live.session ? "up" : "down";
+  if (op === "sysmac") {
+    const c = mclagConfig(device);
+    return (live.role === "active" && c ? localSystemId(device, c) : (live.remoteSystemId ?? "")).toLowerCase();
+  }
+  return "";
+}
+
+/** Local/remote status per MLAG interface (sonic_cli_mclag.py:308-322). */
+function mlagIfaces(device: Device, domainId: unknown): { name: string; local: string; remote: string }[] {
+  const rt = mclagRuntime(device);
+  return cpList(device, "mclag", "interfaces")
+    .filter((i) => i.domain_id === domainId)
+    .map((i) => {
+      const name = String(i.if_name);
+      return { name, local: operOf(device, name), remote: rt?.remoteIfs[name] ?? "down" };
+    });
+}
+
+// enable-view: `show mclag` / `show mclag brief` / `show mclag interface <po> <domain>`.
 registerModal({
   id: "mclag-show",
   views: ["enable-view"],
@@ -183,7 +225,29 @@ registerModal({
   run({ args, ctx }) {
     if (args[0]?.toLowerCase() !== "mclag") return null; // not ours
     const sub = args[1]?.toLowerCase();
-    if (sub && sub !== "brief") return null; // operational displays — not simulated
+    if (sub === "interface") {
+      const po = args[2];
+      const dom = args[3];
+      if (!po || !dom) return { output: [err("% Usage: show mclag interface <portchannel-id> <domain-id>")] };
+      const name = `PortChannel${po}`;
+      const it = mlagIfaces(ctx.device, dom).find((i) => i.name === name);
+      if (!it) return { output: [line(`No MCLAG Interface ${name} in MCLAG domain ${dom} or domain not found`)] };
+      const rt = mclagRuntime(ctx.device);
+      const cfg = cpList(ctx.device, "mclag", "domains").find((d) => d.domain_id === dom);
+      const peerLink = cfg ? interfaceByName(ctx.device, String(cfg.peer_link ?? "")) : undefined;
+      // MCLAG_LOCAL_INTF_TABLE port_isolate_peer_link: isolation active for this interface.
+      const isolate = !!rt?.session && !!peerLink && rt.remoteIfs[name] === "up";
+      return {
+        output: [
+          line(" "),
+          line(""),
+          line(`${"Local/Remote Status".padEnd(20)} : ${it.local}/${it.remote}`),
+          line(`${"TrafficDisable".padEnd(20)} : No`),
+          line(`${"IsolateWithPeerLink".padEnd(20)} : ${isolate ? "Yes" : "No"}`),
+        ],
+      };
+    }
+    if (sub && sub !== "brief") return null; // other operational displays — not simulated
 
     const domains = cpList(ctx.device, "mclag", "domains");
     const gwMac = (cpGet(ctx.device, "mclag") ?? {})["gateway_mac"] as string | undefined;
@@ -192,14 +256,22 @@ registerModal({
     const out: OutputLine[] = [];
     if (gwMac) out.push(line(fmt("Gateway Mac", gwMac)));
     for (const d of domains) {
-      out.push(line(""));
+      out.push(line(" "));
       for (const r of BRIEF_ROWS) {
-        const v = r.field ? d[r.field] : undefined;
+        let v = r.op ? opValue(ctx.device, d, r.op) : d[r.field!];
+        if ((v === undefined || v === "") && r.dflt) v = r.dflt;
         out.push(line(fmt(r.label, v === undefined || v === "" ? "" : String(v) + (r.suffix ?? ""))));
       }
       for (const r of EXTRA_ROWS) {
         const v = d[r.field];
         if (v !== undefined && v !== "") out.push(line(fmt(r.label, String(v) + (r.suffix ?? ""))));
+      }
+      const ifs = mlagIfaces(ctx.device, d.domain_id);
+      out.push(line(" "), line(`Number of MLAG Interfaces:${ifs.length}`));
+      if (ifs.length) {
+        const dash = "-".repeat(59);
+        out.push(line(dash), line(`${"MLAG Interface".padEnd(20)} ${"Local/Remote Status".padEnd(20)}`), line(dash));
+        for (const i of ifs) out.push(line(`${i.name.padEnd(25)}${i.local}/${i.remote}`));
       }
     }
     return { output: out };

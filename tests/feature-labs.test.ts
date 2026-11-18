@@ -61,8 +61,8 @@ describe("SONiC feature labs (loadFeatureLab)", () => {
   it("config-plane features load a sandbox with a relevant device selected", () => {
     S().loadFeatureLab("snmp"); // SNMP lab selects the NMS (manager) to show its hint
     expect(net().devices[S().selectedDeviceId!].name).toBe("NMS");
-    S().loadFeatureLab("vrf"); // L3 → routing sandbox
-    expect(net().devices[S().selectedDeviceId!].type).toBe("router");
+    S().loadFeatureLab("vrf"); // VRF lab: S1 with Vrf-red selected
+    expect(net().devices[S().selectedDeviceId!].name).toBe("S1");
   });
 
   it("every implemented feature loads some lab without throwing", () => {

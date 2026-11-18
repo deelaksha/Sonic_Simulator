@@ -4,6 +4,7 @@
  */
 import { CommandHandler, CommandContext, CommandResult, OutputLine, line, err, muted } from "./types";
 import { takeFlagValue, firstPositional } from "./parser";
+import { vrfNames } from "../models/vrf";
 import { isValidIpv4 } from "../models/ip";
 import { PingFailure, PingReply } from "../engine";
 import { formatRouteLine } from "./ip";
@@ -105,6 +106,14 @@ export const pingCommand: CommandHandler = {
     const count = countStr ? Math.max(1, Math.min(5000, parseInt(countStr, 10) || 4)) : 4;
     const sizeStr = takeFlagValue(a, "-s");
     const size = sizeStr ? Math.max(0, Math.min(65507, parseInt(sizeStr, 10) || 56)) : 56;
+    // VRF: `ping -I Vrf-red …` (Linux, binds to the VRF device) or KLISH `ping vrf Vrf-red …`.
+    let vrf = takeFlagValue(a, "-I");
+    const vi = a.indexOf("vrf");
+    if (vi >= 0 && a[vi + 1]) {
+      vrf = a[vi + 1];
+      a.splice(vi, 2);
+    }
+    if (vrf && !vrfNames(ctx.device).includes(vrf)) return { output: [err(`ping: ${vrf}: unknown VRF or interface`)] };
     const target = firstPositional(a);
     if (!target) return { output: [err("ping: usage: ping [-c count] [-s size] <destination>")] };
 
@@ -122,7 +131,7 @@ export const pingCommand: CommandHandler = {
       pre.push(muted(`; resolved ${target} → ${dst} (DNS ${dnsRun.value.server})`));
     }
 
-    const { value: summary, events: pingEvents } = ctx.runSim((sim) => sim.runPing(ctx.device.id, dst, { count, size }));
+    const { value: summary, events: pingEvents } = ctx.runSim((sim) => sim.runPing(ctx.device.id, dst, { count, size, vrf }));
     const events = [...(dnsEvents as never[]), ...(pingEvents ?? [])];
     const out: OutputLine[] = [...pre];
     out.push(line(`PING ${target} (${dst}) ${size}(${size + 28}) bytes of data.`));

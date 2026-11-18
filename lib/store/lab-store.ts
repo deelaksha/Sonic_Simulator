@@ -1020,52 +1020,6 @@ export const useLabStore = create<LabState>((set, get) => {
         return;
       }
 
-      case "vrrp": {
-        // Gateway redundancy: PC — SW1 — R1/R2 (VRRP VIP 10.0.0.1) — SW2 — SRV.
-        // R1 priority 110 = Master, R2 100 = Backup; both VIPs fail over together.
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 40, y: 180 });
-        const sw1 = get().addDevice("switch", { x: 240, y: 180 }, 4);
-        const r1 = get().addDevice("router", { x: 440, y: 90 }, 2);
-        const r2 = get().addDevice("router", { x: 440, y: 270 }, 2);
-        const sw2 = get().addDevice("switch", { x: 640, y: 180 }, 4);
-        const srv = get().addDevice("server", { x: 840, y: 180 });
-        get().setInterfaceIp(pc1, `${pc1}-if0`, "10.0.0.10", 24);
-        get().setDefaultGateway(pc1, "10.0.0.1"); // the VRRP VIP
-        get().setInterfaceIp(r1, `${r1}-if0`, "10.0.0.2", 24);
-        get().setInterfaceIp(r1, `${r1}-if1`, "10.9.9.2", 24);
-        get().setInterfaceIp(r2, `${r2}-if0`, "10.0.0.3", 24);
-        get().setInterfaceIp(r2, `${r2}-if1`, "10.9.9.3", 24);
-        get().setInterfaceIp(srv, `${srv}-if0`, "10.9.9.9", 24);
-        get().setDefaultGateway(srv, "10.9.9.1"); // the WAN-side VIP
-        get().connect(pc1, `${pc1}-if0`, sw1, `${sw1}-if0`);
-        get().connect(r1, `${r1}-if0`, sw1, `${sw1}-if1`);
-        get().connect(r2, `${r2}-if0`, sw1, `${sw1}-if2`);
-        get().connect(r1, `${r1}-if1`, sw2, `${sw2}-if0`);
-        get().connect(r2, `${r2}-if1`, sw2, `${sw2}-if1`);
-        get().connect(srv, `${srv}-if0`, sw2, `${sw2}-if2`);
-        const next = structuredClone(get().network);
-        const R1 = next.devices[r1], R2 = next.devices[r2];
-        R1.config.features = { vrrp: { instances: [
-          { iface: R1.interfaces[0].name, vrid: 1, vip: "10.0.0.1", priority: 110 },
-          { iface: R1.interfaces[1].name, vrid: 2, vip: "10.9.9.1", priority: 110 },
-        ] } };
-        R2.config.features = { vrrp: { instances: [
-          { iface: R2.interfaces[0].name, vrid: 1, vip: "10.0.0.1", priority: 100 },
-          { iface: R2.interfaces[1].name, vrid: 2, vip: "10.9.9.1", priority: 100 },
-        ] } };
-        set({ network: next, labName: "VRRP Lab — R1 (Master) / R2 (Backup), VIP 10.0.0.1", selectedDeviceId: pc1 });
-        hint(pc1, [
-          "VRRP gateway redundancy: R1=Master (pri 110), R2=Backup (pri 100), VIP 10.0.0.1.",
-          "1) On R1 run `vrrp` — the timeline shows R1 advertising the VIP (gratuitous ARP).",
-          "2) From PC: `ping 10.0.0.1` (gateway) and `ping 10.9.9.9` (server via the gateway).",
-          "3) FAIL OVER on R1:  `ip link set eth0 down`  then  `ip link set eth1 down`.",
-          "4) On R2 run `vrrp` — the timeline shows VRRP_FAILOVER: R1 → R2 takes over.",
-          "   Ping from PC still works (seamless, same VIP) — now forwarded via R2.",
-        ]);
-        return;
-      }
-
       case "dhcp": {
         get().newLab();
         const pc1 = get().addDevice("pc", { x: 160, y: 160 });

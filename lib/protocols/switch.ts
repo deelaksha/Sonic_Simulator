@@ -14,6 +14,7 @@ import { SimContext } from "../engine/context";
 import { MacTableRow } from "../engine/events";
 import { routerReceive } from "./router";
 import { getStpPortState } from "./stp-daemon";
+import { allowBridgeEgress, floodVirtual, forwardVirtual, isExtraLocalMac, lagOf } from "../control/hooks";
 import { buildArpReply } from "./arp";
 import { echoPayload, ICMP_ECHO_TOTAL } from "./icmp";
 import { IPV4_HEADER_BYTES } from "./ipv4";
@@ -46,8 +47,14 @@ function classifyIngress(iface: NetInterface, frame: Frame): { vid: number | nul
 }
 
 /** Does this port carry the given VLAN (and is it usable)? */
-function participates(iface: NetInterface, vid: number): boolean {
-  if (iface.management || iface.logical) return false; // mgmt + logical ifaces are not in the L2 fabric
+/** A logical interface that is a bridge port (a PortChannel); other logical ifaces are L3. */
+function isBridgeLogical(iface: NetInterface): boolean {
+  return iface.logical === true && /^PortChannel\d+$/.test(iface.name);
+}
+
+function participates(sw: Device, iface: NetInterface, vid: number): boolean {
+  if (iface.management || (iface.logical && !isBridgeLogical(iface))) return false; // mgmt + SVIs/loopbacks are not bridge ports
+  if (lagOf(sw, iface) !== undefined) return false; // LAG members are represented by their PortChannel
   if (iface.operState !== "up" || iface.adminState !== "up") return false;
   if (iface.vlan.mode === "access") return iface.vlan.accessVlan === vid;
   return iface.vlan.allowedVlans.includes(vid);
@@ -159,7 +166,7 @@ export function switchForward(
   const svi = sviFor(sw, vid);
   if (svi) {
     const dstMac = frame.ethernet.dstMac;
-    if (normalizeMac(dstMac) === normalizeMac(svi.mac)) {
+    if (normalizeMac(dstMac) === normalizeMac(svi.mac) || isExtraLocalMac(sw, svi, dstMac)) {
       punt(ctx, sw, svi, frame);
       return;
     }
@@ -258,13 +265,41 @@ export function switchInject(ctx: SimContext, sw: Device, vid: number, frame: Fr
   forwardInVlan(ctx, sw, null, vid, frame);
 }
 
-function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null, vid: number, frame: Frame): void {
+/**
+ * Frame arriving from a virtual bridge port (e.g. a VXLAN tunnel, id "vtep:<ip>"):
+ * learn the source MAC on that virtual port and forward it within the VLAN.
+ */
+export function bridgeInput(ctx: SimContext, sw: Device, virtualId: string, vid: number, frame: Frame): void {
+  const src = normalizeMac(frame.ethernet.srcMac);
+  if (!isBroadcast(src) && !isMulticast(src) && src !== NULL_MAC) {
+    const existing = sw.macTable.find((e) => normalizeMac(e.mac) === src && e.vlan === vid);
+    if (!existing) sw.macTable.push({ mac: src, interfaceId: virtualId, vlan: vid });
+    else existing.interfaceId = virtualId;
+  }
+  const svi = sviFor(sw, vid);
+  if (svi) {
+    const dstMac = frame.ethernet.dstMac;
+    if (normalizeMac(dstMac) === normalizeMac(svi.mac) || isExtraLocalMac(sw, svi, dstMac)) {
+      punt(ctx, sw, svi, frame);
+      return;
+    }
+    if (isBroadcast(dstMac) || isMulticast(dstMac)) punt(ctx, sw, svi, frame);
+  }
+  forwardInVlan(ctx, sw, null, vid, frame, virtualId);
+}
+
+function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null, vid: number, frame: Frame, virtualIngress?: string): void {
   const src = frame.ethernet.srcMac;
   const at = ingress ?? sviFor(sw, vid);
+  const ingressId = ingress?.id ?? virtualIngress ?? null;
   // --- Destination lookup ---
   const dst = frame.ethernet.dstMac;
   const candidates = sw.interfaces.filter(
-    (i) => i.id !== ingress?.id && participates(i, vid) && getStpPortState(sw, i.id, ctx.state) !== "BLOCKING",
+    (i) =>
+      i.id !== ingress?.id &&
+      participates(sw, i, vid) &&
+      getStpPortState(sw, i.id, ctx.state) !== "BLOCKING" &&
+      allowBridgeEgress(ctx, sw, ingressId, i, vid, frame),
   );
   const broadcast = isBroadcast(dst) || isMulticast(dst);
   const normDst = normalizeMac(dst);
@@ -300,7 +335,15 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
     });
   } else {
     const port = sw.interfaces.find((i) => i.id === known.interfaceId);
-    if (!port || port.id === ingress?.id || !participates(port, vid) || getStpPortState(sw, port.id, ctx.state) === "BLOCKING") {
+    // A MAC learned behind a virtual port (VXLAN tunnel): hand it to that port's owner.
+    if (!port && known.interfaceId !== virtualIngress && forwardVirtual(ctx, sw, known.interfaceId, vid, frame)) return;
+    if (
+      !port ||
+      port.id === ingress?.id ||
+      !participates(sw, port, vid) ||
+      getStpPortState(sw, port.id, ctx.state) === "BLOCKING" ||
+      !allowBridgeEgress(ctx, sw, ingressId, port, vid, frame)
+    ) {
       ctx.emit({
         type: "FRAME_DROPPED",
         deviceId: sw.id,
@@ -340,4 +383,6 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
   for (const port of egressPorts) {
     ctx.transmit(sw.id, port.id, egressFrame(frame, port, vid));
   }
+  // Broadcast / unknown unicast also go to virtual ports (remote VTEPs).
+  if (broadcast || !known) floodVirtual(ctx, sw, ingressId, vid, frame);
 }

@@ -9,5 +9,11 @@ import "../protocols/ospf-daemon";
 import "../protocols/bgp-daemon";
 import "../protocols/snmp-daemon";
 import "../protocols/stp-daemon";
+import "../protocols/lacp-daemon";
+import "../protocols/mclag-daemon";
+import "../protocols/acl-daemon";
+import "../protocols/vxlan-daemon";
+import "../protocols/vrrp-daemon";
 
 export * from "./daemon";
+export * from "./hooks";

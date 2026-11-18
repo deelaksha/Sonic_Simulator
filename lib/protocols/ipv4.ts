@@ -49,6 +49,8 @@ export interface IpOutputOpts {
   rawL3?: number[];
   /** IP protocol number when protocol is "OTHER". */
   protocolNumber?: number;
+  /** VRF whose routing table is used (default "default"). */
+  vrf?: string;
   upperBytes: number; // bytes above the IP header (L4 + data)
   summary: string;
 }
@@ -60,7 +62,7 @@ export interface IpOutputResult {
 }
 
 export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): IpOutputResult {
-  const match = longestPrefixMatch(device.routingTable, opts.dstIp);
+  const match = longestPrefixMatch(device.routingTable, opts.dstIp, opts.vrf);
   const egress = match ? findInterface(device, match.route.interfaceId) : undefined;
 
   ctx.emit({

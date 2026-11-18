@@ -11,6 +11,16 @@
  *                            (:9557 status, :9440 prefix width 17, next hop 16,
  *                            %10u metric, %7u locprf, "%7u " weight, path, origin)
  *   show ip bgp neighbors    bgp_vty.c:14077+ bgp_show_peer (key lines)
+ *   show bgp l2vpn evpn [route [type macip|multicast|2|3]]
+ *                            bgp_evpn_vty.c:3099 evpn_show_all_routes: legend
+ *                            (:334-357), "Route Distinguisher:" per RD (:292),
+ *                            route_vty_out (bgp_route.c:9678) — 5-char status
+ *                            (:9621-9665), prefix then newline + 20 spaces when
+ *                            longer than 17 (:9486), MP next hop (:9806-9838),
+ *                            ext. communities on their own line (:10133-10146),
+ *                            "Displayed N prefixes (M paths)" (:3268)
+ *   show bgp l2vpn evpn summary   bgp_vty.c:12784 "L2VPN EVPN Summary:" + the
+ *                            same table, EVPN-activated peers only
  *
  * One-line Click forms (the KLISH sub-modes in sonic-cli/features/bgp.ts delegate here):
  *   config router bgp <as> | no
@@ -22,6 +32,12 @@
  *   config router bgp [no] network <cidr>
  *   config router bgp [no] timers <ka> <hold>           (= FRR `timers bgp`)
  *   config router bgp [no] redistribute connected
+ *   config router bgp neighbor <ip> activate evpn      (l2vpn evpn: neighbor X activate)
+ *   config router bgp no neighbor <ip> activate evpn
+ *   config router bgp [no] advertise-all-vni            (l2vpn evpn: advertise-all-vni)
+ *
+ * The VXLAN Click commands (config/show vxlan, show evpn ...) are appended to this
+ * module's lists (lib/protocols/vxlan-cli.ts).
  *
  * Ranges: AS 1..4294967295; ebgp-multihop 1..255; keepalive 0..65535, hold 0 or
  * 3..65535 (FRR bgp_vty.c / bgp_packet.c:2025); connect 1..65535 (KLISH RANGE_1_65535).
@@ -33,6 +49,9 @@ import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
 import { BgpConfig, BgpNeighbor, bgpConfigState, getBgpConfig } from "../../protocols/bgp";
 import { BGP_DEFAULTS, BgpPath, FsmState, PeerRt, bgpRouterId, bgpTable, peekBgpRuntime, totalMsgs } from "../../protocols/bgp-daemon";
 import { ORIGIN_STR, notifyText } from "../../protocols/bgp-wire";
+import { EvpnPath, evpnTable, evpnUp } from "../../protocols/bgp-daemon";
+import { ecListStr, evpnPrefixStr } from "../../protocols/evpn-wire";
+import { vxlanClickConfig, vxlanClickShow } from "../../protocols/vxlan-cli";
 import { frrUptime } from "./frr-route";
 
 const AS = { min: 1, max: 4294967295 };
@@ -111,6 +130,10 @@ function setNeighborAttr(ctx: CommandContext, st: BgpConfig, nb: BgpNeighbor, ke
       nb.shutdown = true;
       return ok(`neighbor ${peer} shutdown`);
     case "activate":
+      if (rest[0] === "evpn" || rest[0] === "l2vpn") {
+        nb.evpn = true;
+        return ok(`neighbor ${peer} activated for L2VPN EVPN`);
+      }
       return ok(`neighbor ${peer} activated for IPv4 unicast`);
   }
   return { output: [err(`config router bgp neighbor: unknown option '${key}'`)] };
@@ -140,6 +163,7 @@ const config: SonicCmd[] = [
         st.networks = [];
         st.keepalive = st.holdtime = undefined;
         st.redistributeConnected = undefined;
+        st.advertiseAllVni = undefined;
         return { output: [muted("BGP instance removed")] };
       }
       const as = parseInRange(positional(args)[0], AS.min, AS.max);
@@ -195,7 +219,12 @@ const config: SonicCmd[] = [
       if (!peer) return { output: [err("Usage: config router bgp no neighbor <ip> [<attribute>]")] };
       const nb = st.neighbors.find((n) => n.peer === peer);
       if (args[1] !== undefined) {
-        const keys = args[1] === "timers" && args[2] === "connect" ? (["connectRetry"] as (keyof BgpNeighbor)[]) : UNSET[args[1]];
+        const keys =
+          args[1] === "timers" && args[2] === "connect"
+            ? (["connectRetry"] as (keyof BgpNeighbor)[])
+            : args[1] === "activate" && (args[2] === "evpn" || args[2] === "l2vpn")
+              ? (["evpn"] as (keyof BgpNeighbor)[])
+              : UNSET[args[1]];
         if (!keys) return { output: [err(`config router bgp no neighbor: unknown option '${args[1]}'`)] };
         if (nb) for (const k of keys) delete nb[k];
         return { output: [muted(`neighbor ${peer} ${args[1]} removed`)] };
@@ -272,6 +301,25 @@ const config: SonicCmd[] = [
       return { output: [muted("redistribute connected removed")] };
     },
   },
+  {
+    path: ["router", "bgp", "advertise-all-vni"],
+    summary: "L2VPN EVPN: advertise all local VNIs (config router bgp advertise-all-vni)",
+    run(_a, ctx): CommandResult {
+      const st = getBgpConfig(ctx.device);
+      if (!st) return { output: [err(NOT_CONFIGURED)] };
+      st.advertiseAllVni = true;
+      return { output: [muted("advertise-all-vni configured")] };
+    },
+  },
+  {
+    path: ["router", "bgp", "no", "advertise-all-vni"],
+    summary: "L2VPN EVPN: stop advertising local VNIs",
+    run(_a, ctx): CommandResult {
+      const st = getBgpConfig(ctx.device);
+      if (st) st.advertiseAllVni = undefined;
+      return { output: [muted("advertise-all-vni removed")] };
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -294,17 +342,19 @@ function stateOf(rt: PeerRt | undefined): FsmState {
   return rt?.state ?? "Idle";
 }
 
-export function renderBgpSummary(ctx: CommandContext, now = Date.now()): string[] {
+export function renderBgpSummary(ctx: CommandContext, now = Date.now(), evpn = false): string[] {
   const cfg = getBgpConfig(ctx.device);
   if (!cfg) return ["% BGP instance not found"];
   const rt = peekBgpRuntime(ctx.device);
-  const peers = configuredPeers(cfg);
+  const peers = configuredPeers(cfg).filter((n) => !evpn || n.evpn);
   if (!peers.length) return ["% No BGP neighbors found in VRF default"];
-  const ribEntries = bgpTable(ctx.device).size;
+  const ribEntries = evpn ? evpnRibEntries(ctx) : bgpTable(ctx.device).size;
+  const rcvd = (p: PeerRt) => (evpn ? Object.keys(p.evpnIn ?? {}).length : Object.keys(p.adjIn).length);
+  const sent = (p: PeerRt) => (evpn ? Object.keys(p.evpnOut ?? {}).length : Object.keys(p.adjOut).length);
   const width = Math.max(16, ...peers.map((n) => n.peer.length + 1));
   const out = [
     "",
-    "IPv4 Unicast Summary:",
+    evpn ? "L2VPN EVPN Summary:" : "IPv4 Unicast Summary:",
     `BGP router identifier ${bgpRouterId(ctx.device, cfg)}, local AS number ${cfg.localAs} VRF default vrf-id 0`,
     `BGP table version ${rt?.tableVersion ?? 0}`,
     // sizes as used by SONiC's KLISH summary template (128 B / RIB entry, 71 KiB / peer)
@@ -317,7 +367,8 @@ export function renderBgpSummary(ctx: CommandContext, now = Date.now()): string[
     const p = rt?.peers[nb.peer];
     const st = stateOf(p);
     let tail: string;
-    if (st === "Established") tail = ` ${String(Object.keys(p!.adjIn).length).padStart(12)} ${String(Object.keys(p!.adjOut).length).padStart(8)}`;
+    if (st === "Established" && evpn && !evpnUp(nb, p)) tail = ` ${"NoNeg".padStart(12)} ${"NoNeg".padStart(8)}`;
+    else if (st === "Established") tail = ` ${String(rcvd(p!)).padStart(12)} ${String(sent(p!)).padStart(8)}`;
     else tail = `${nb.shutdown ? " Idle (Admin)" : ` ${st.padStart(12)}`} ${"0".padStart(8)}`;
     const desc = nb.description ? nb.description.slice(0, 20) : "N/A";
     out.push(
@@ -413,6 +464,7 @@ export function renderBgpNeighbors(ctx: CommandContext, filter?: string, now = D
     if (st === "Established" && p) {
       const has = (c: number) => p.capsRcvd.includes(c);
       out.push("  Neighbor capabilities:", capLine("4 Byte AS", has(65)), capLine("Extended Message", has(6)), `    Route refresh: advertised${has(2) ? " and received(new)" : ""}`, capLine("Enhanced Route Refresh", has(70)), capLine("Address Family IPv4 Unicast", has(1)));
+      if (nb.evpn) out.push(capLine("Address Family L2VPN EVPN", (p.mpRcvd ?? []).includes("25/70")));
       out.push(`    Hostname Capability: advertised (name: ${ctx.device.config.hostname || ctx.device.name},domain name: n/a)${has(73) ? ` received (name: ${p.remoteHost ?? "n/a"},domain name: n/a)` : " not received"}`);
     }
     const s = p?.sent ?? { open: 0, update: 0, notify: 0, keepalive: 0, refresh: 0 };
@@ -455,6 +507,68 @@ export function renderBgpNeighbors(ctx: CommandContext, filter?: string, now = D
   return out;
 }
 
+/** RD nodes + prefixes in the EVPN table (FRR counts both levels of the 2-level table). */
+function evpnRibEntries(ctx: CommandContext): number {
+  const keys = [...evpnTable(ctx.device).keys()];
+  return keys.length + new Set(keys.map((k) => k.split("|")[0])).size;
+}
+
+const rdOrder = (rd: string) => {
+  const [a, n] = rd.split(":");
+  return a.split(".").reduce((x, o) => x * 256 + Number(o), 0) * 65536 + Number(n);
+};
+const evpnOrder = (k: string) => k.split("|")[1]; // [2]… before [3]…, then by MAC/IP
+
+function evpnPathLines(path: EvpnPath, valid: boolean, best: boolean): string[] {
+  const internal = path.peer !== "0.0.0.0" && !path.ebgp;
+  const status = ` ${valid ? "*" : " "}${best ? ">" : " "}${internal ? "i" : " "} `;
+  const pfx = evpnPrefixStr(path.route);
+  const head = pfx.length >= 17 ? `${status}${pfx}\n${" ".repeat(20)}` : `${status}${pfx.padEnd(17)}`;
+  const nh = path.nextHop.length >= 16 ? `${path.nextHop}\n${" ".repeat(36)}` : path.nextHop.padEnd(16);
+  const metric = path.med !== undefined ? String(path.med).padStart(10) : " ".repeat(10);
+  const lp = path.localPref !== undefined ? String(path.localPref).padStart(7) : " ".repeat(7);
+  const as = path.asPath.length ? `${path.asPath.join(" ")} ` : "";
+  const out = `${head}${nh}${metric}${lp}${String(path.weight).padStart(7)} ${as}${ORIGIN_STR[path.origin] ?? "?"}`.split("\n");
+  if (path.extComms.length) out.push(`${" ".repeat(20)}${ecListStr(path.extComms)}`);
+  return out;
+}
+
+export function renderEvpnTable(ctx: CommandContext, type?: 2 | 3): string[] {
+  const cfg = getBgpConfig(ctx.device);
+  if (!cfg) return ["No BGP process is configured"];
+  const rt = peekBgpRuntime(ctx.device);
+  const table = evpnTable(ctx.device);
+  const keys = [...table.keys()]
+    .filter((k) => !type || table.get(k)![0].path.route.type === type)
+    .sort((a, b) => rdOrder(a.split("|")[0]) - rdOrder(b.split("|")[0]) || evpnOrder(a).localeCompare(evpnOrder(b)));
+  if (!keys.length) return [`No EVPN prefixes ${type ? "(of requested type) " : ""}exist`];
+  const out = [
+    `BGP table version is ${rt?.tableVersion ?? 0}, local router ID is ${bgpRouterId(ctx.device, cfg)}`,
+    "Status codes: s suppressed, d damped, h history, * valid, > best, i - internal",
+    "Origin codes: i - IGP, e - EGP, ? - incomplete",
+    "EVPN type-1 prefix: [1]:[EthTag]:[ESI]:[IPlen]:[VTEP-IP]:[Frag-id]",
+    "EVPN type-2 prefix: [2]:[EthTag]:[MAClen]:[MAC]:[IPlen]:[IP]",
+    "EVPN type-3 prefix: [3]:[EthTag]:[IPlen]:[OrigIP]",
+    "EVPN type-4 prefix: [4]:[ESI]:[IPlen]:[OrigIP]",
+    "EVPN type-5 prefix: [5]:[EthTag]:[IPlen]:[IP]",
+    "",
+    "   Network          Next Hop            Metric LocPrf Weight Path",
+    `${" ".repeat(19)} Extended Community`,
+  ];
+  let rd = "";
+  let paths = 0;
+  for (const k of keys) {
+    const r = k.split("|")[0];
+    if (r !== rd) out.push(`Route Distinguisher: ${(rd = r)}`);
+    table.get(k)!.forEach((e, i) => {
+      out.push(...evpnPathLines(e.path, e.valid, i === 0 && e.valid));
+      paths++;
+    });
+  }
+  out.push("", `Displayed ${keys.length} prefixes (${paths} paths)${type ? " (of requested type)" : ""}`);
+  return out;
+}
+
 const toLines = (ls: string[]): OutputLine[] => ls.map((l) => (l.startsWith("%") ? muted(l) : line(l)));
 
 const summaryCmd = (path: string[]): SonicCmd => ({ path, summary: "Show BGP neighbor summary (FRR format)", run: (_a, ctx) => ({ output: toLines(renderBgpSummary(ctx)) }) });
@@ -470,4 +584,21 @@ for (const base of [["ip", "bgp"], ["bgp"], ["bgp", "ipv4", "unicast"], ["ip", "
   show.push(summaryCmd([...base, "summary"]), neighborsCmd([...base, "neighbors"]), ribCmd(base));
 }
 
-export const bgpModule: SonicFeatureModule = { id: "bgp", config, show };
+const EVPN_TYPE: Record<string, 2 | 3> = { macip: 2, "2": 2, multicast: 3, "3": 3 };
+const evpnRouteCmd = (path: string[]): SonicCmd => ({
+  path,
+  summary: "Show the L2VPN EVPN table (FRR format)",
+  run(a, ctx) {
+    const i = a.indexOf("type");
+    const type = i >= 0 ? EVPN_TYPE[a[i + 1] ?? ""] : undefined;
+    if (i >= 0 && !type) return { output: [err("% type must be macip|multicast|2|3")] };
+    return { output: toLines(renderEvpnTable(ctx, type)) };
+  },
+});
+show.push(
+  evpnRouteCmd(["bgp", "l2vpn", "evpn"]),
+  evpnRouteCmd(["bgp", "l2vpn", "evpn", "route"]),
+  { path: ["bgp", "l2vpn", "evpn", "summary"], summary: "Show L2VPN EVPN neighbor summary (FRR format)", run: (_a, ctx) => ({ output: toLines(renderBgpSummary(ctx, Date.now(), true)) }) },
+);
+
+export const bgpModule: SonicFeatureModule = { id: "bgp", config: [...config, ...vxlanClickConfig], show: [...show, ...vxlanClickShow] };

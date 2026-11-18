@@ -11,6 +11,7 @@ import { generateMac } from "./mac";
 import { networkAddress } from "./ip";
 import { networkAddress6, isLinkLocal6, sameSubnet6 } from "./ipv6";
 import { Route, carryInstallTime } from "./route";
+import { vrfOf, DEFAULT_VRF } from "./vrf";
 
 let macCounter = 1;
 
@@ -95,6 +96,7 @@ export function rebuildConnectedRoutes(device: Device): void {
 
   for (const iface of device.interfaces) {
     if (iface.operState !== "up" && iface.adminState !== "up") continue;
+    const vrf = vrfOf(device, iface);
     for (const addr of iface.ipv4) {
       derived.push({
         destination: networkAddress(addr.address, addr.prefix),
@@ -103,6 +105,7 @@ export function rebuildConnectedRoutes(device: Device): void {
         interfaceId: iface.id,
         type: "connected",
         metric: 0,
+        ...(vrf !== DEFAULT_VRF ? { vrf } : {}),
       });
     }
   }

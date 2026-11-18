@@ -36,9 +36,11 @@ function macTable(ctx: CommandContext): OutputLine[] {
     line("-----  ----  ------------------  -----------  --------"),
   ];
   ctx.device.macTable.forEach((m, i) => {
-    const port = findInterface(ctx.device, m.interfaceId)?.name ?? m.interfaceId;
+    // EVPN-installed remote MACs sit behind a VXLAN tunnel (fdbshow prints the tunnel, type Static).
+    const remote = m.interfaceId.startsWith("vtep:");
+    const port = remote ? `VxLAN DIP: ${m.interfaceId.slice(5)}` : (findInterface(ctx.device, m.interfaceId)?.name ?? m.interfaceId);
     out.push(
-      line(`${String(i + 1).padEnd(5)}  ${String(m.vlan).padEnd(4)}  ${m.mac.padEnd(18)}  ${port.padEnd(11)}  Dynamic`),
+      line(`${String(i + 1).padEnd(5)}  ${String(m.vlan).padEnd(4)}  ${m.mac.padEnd(18)}  ${port.padEnd(11)}  ${remote ? "Static" : "Dynamic"}`),
     );
   });
   out.push(muted(`Total number of entries ${ctx.device.macTable.length}`));

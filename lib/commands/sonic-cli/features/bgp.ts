@@ -12,6 +12,10 @@
  *   sonic(config-router-bgp-neighbor)# address-family ipv4 unicast -> nbr-af view: activate
  *   sonic(config-router-bgp)# address-family ipv4 unicast  -> configure-router-bgp-ipv4-view
  *   sonic(config-router-bgp-af)# network 192.168.1.0/24 | redistribute connected
+ *   sonic(config-router-bgp)# address-family l2vpn evpn  -> configure-router-bgp-l2vpn-view
+ *   sonic(config-router-bgp-af)# advertise-all-vni       (bgp_af_l2vpn: advertise-all-vni)
+ *   sonic(config-router-bgp-af)# neighbor 10.0.0.2 activate   (FRR vtysh form)
+ *   sonic(config-router-bgp-neighbor)# address-family l2vpn evpn -> nbr-l2vpn view: [no] activate
  *
  * FRR-vtysh one-liners are accepted in the BGP view too (`neighbor X remote-as N`,
  * `network`, `timers bgp K H`, `redistribute connected`). Every clause delegates to
@@ -81,10 +85,25 @@ registerModal({
     if (head === "redistribute") return { output: delegate(`config router bgp ${no}redistribute ${args[0] ?? ""}`) };
     if (head === "address-family") {
       if (isNo) return { output: [] };
+      if (args[0]?.toLowerCase() === "l2vpn") return { output: [], enter: subViewFrame("configure-router-bgp-l2vpn-view", "l2vpn") };
       if (args[0]?.toLowerCase() !== "ipv4") return null;
       return { output: [], enter: subViewFrame("configure-router-bgp-ipv4-view", "ipv4") };
     }
     return null;
+  },
+});
+
+// configure-router-bgp-l2vpn-view (prompt config-router-bgp-af): advertise-all-vni,
+// plus FRR's `neighbor X activate` form.
+registerModal({
+  id: "bgp-l2vpn",
+  views: ["configure-router-bgp-l2vpn-view"],
+  keywords: ["advertise-all-vni", "neighbor"],
+  run({ head, isNo, args, delegate }) {
+    const no = isNo ? "no " : "";
+    if (head === "advertise-all-vni") return { output: delegate(`config router bgp ${no}advertise-all-vni`) };
+    if (args[1]?.toLowerCase() !== "activate" || !args[0]) return null;
+    return { output: delegate(isNo ? `config router bgp no neighbor ${args[0]} activate evpn` : `config router bgp neighbor ${args[0]} activate evpn`) };
   },
 });
 
@@ -111,7 +130,8 @@ registerModal({
   run({ head, isNo, args, viewctx, delegate }) {
     const peer = viewctx ?? "";
     if (head === "address-family") {
-      if (isNo) return { output: [] };
+      if (isNo) return args[0]?.toLowerCase() === "l2vpn" ? { output: delegate(`config router bgp no neighbor ${peer} activate evpn`) } : { output: [] };
+      if (args[0]?.toLowerCase() === "l2vpn") return { output: [], enter: subViewFrame("configure-router-bgp-nbr-l2vpn-view", peer) };
       if (args[0]?.toLowerCase() !== "ipv4") return null;
       return { output: [], enter: subViewFrame("configure-router-bgp-nbr-ipv4-view", peer) };
     }
@@ -127,6 +147,16 @@ registerModal({
   keywords: ["activate"],
   run({ viewctx, delegate }) {
     return { output: delegate(`config router bgp neighbor ${viewctx ?? ""} activate`) };
+  },
+});
+
+// configure-router-bgp-nbr-l2vpn-view: [no] activate → MP capability AFI 25 / SAFI 70.
+registerModal({
+  id: "bgp-nbr-l2vpn",
+  views: ["configure-router-bgp-nbr-l2vpn-view"],
+  keywords: ["activate"],
+  run({ isNo, viewctx, delegate }) {
+    return { output: delegate(`config router bgp ${isNo ? "no " : ""}neighbor ${viewctx ?? ""} activate evpn`) };
   },
 });
 

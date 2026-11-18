@@ -1,14 +1,14 @@
 /**
- * vrrp — run the VRRP election and advertise (gratuitous ARP) for the current
- * master(s). Emits packets/events (VRRP_MASTER, VRRP_FAILOVER, the gratuitous
- * ARP flood) so the failover is visible in the packet timeline: run it, shut the
- * master, run it again → the timeline shows the backup taking over.
+ * vrrp — report every VRRP group's LIVE roles (from the running VRRP daemon,
+ * lib/protocols/vrrp-daemon.ts) and have each current Master re-announce its
+ * VIP with a gratuitous ARP, so the result is visible in the packet timeline.
+ * Failover itself is driven by the daemon's timers, not by this command.
  */
 import { CommandHandler, CommandResult, OutputLine, line, muted } from "./types";
 
 export const vrrpCommand: CommandHandler = {
   name: "vrrp",
-  summary: "Run VRRP election + advertise the master (shows failover in the timeline)",
+  summary: "Show live VRRP roles and re-announce each Master (gratuitous ARP)",
   usage: "vrrp",
   help: [
     "VRRP",
@@ -16,10 +16,10 @@ export const vrrpCommand: CommandHandler = {
     "Usage:",
     "  vrrp",
     "",
-    "Runs the VRRP master election and has each current Master send a gratuitous",
-    "ARP for its virtual IP. Watch the packet timeline: after you shut the current",
-    "master's interface, running `vrrp` again shows the VRRP_FAILOVER event and the",
-    "backup announcing the virtual MAC as it takes over.",
+    "Lists each VRRP group with the live Master/Backup role of every router (the",
+    "protocol runs continuously: advertisements every interval, Backup takes over",
+    "after Master_Down_Interval), and has each current Master send a gratuitous ARP",
+    "for its virtual IP. Shut the Master's interface, wait ~3-4 s, run it again.",
   ],
   run(_args, ctx): CommandResult {
     const { value: status, events } = ctx.runSim((sim) => sim.runVrrp());

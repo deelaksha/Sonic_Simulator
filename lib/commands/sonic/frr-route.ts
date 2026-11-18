@@ -40,6 +40,7 @@ interface Entry {
   nextHop: string | null;
   ifName: string;
   since: number;
+  vrf: string;
 }
 
 function entries(device: Device, nowMs: number): Entry[] {
@@ -55,6 +56,7 @@ function entries(device: Device, nowMs: number): Entry[] {
       nextHop: r.nextHop,
       ifName: ifName(r.interfaceId),
       since: r.installedAtMs ?? nowMs,
+      vrf: r.vrf ?? "default",
     });
     // FRR 10 installs a /32 local route for every connected address.
     if (r.type === "connected") {
@@ -71,10 +73,16 @@ function entries(device: Device, nowMs: number): Entry[] {
 
 const ipKey = (ip: string) => ip.split(".").reduce((n, o) => n * 256 + Number(o), 0);
 
-export function renderFrrRoutes(device: Device, nowMs: number, filter?: { network: string; prefix: number }): string[] {
-  let all = entries(device, nowMs);
+export function renderFrrRoutes(
+  device: Device,
+  nowMs: number,
+  filter?: { network: string; prefix: number },
+  vrf = "default",
+  omitCodes = false,
+): string[] {
+  let all = entries(device, nowMs).filter((e) => e.vrf === vrf);
   if (filter) all = all.filter((e) => e.dest === filter.network && e.prefix === filter.prefix);
-  const lines = [...FRR_ROUTE_CODES, "", "IPv4 unicast VRF default:"];
+  const lines = [...(omitCodes ? [] : FRR_ROUTE_CODES), "", `IPv4 unicast VRF ${vrf}:`];
   const byPrefix = new Map<string, Entry[]>();
   for (const e of all) {
     const k = `${e.dest}/${e.prefix}`;

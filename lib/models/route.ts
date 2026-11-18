@@ -18,6 +18,8 @@ export interface Route {
   distance?: number;
   /** Wall-clock ms the route was installed (FRR uptime column). */
   installedAtMs?: number;
+  /** VRF the route belongs to; undefined = "default". */
+  vrf?: string;
 }
 
 const DEFAULT_DISTANCE: Record<RouteType, number> = { connected: 0, static: 1, default: 1, ospf: 110, bgp: 20 };
@@ -36,9 +38,10 @@ export interface RouteMatch {
  * Longest-prefix match. Returns the most specific matching route, or null when
  * the destination is unreachable from this table (spec §9, §37).
  */
-export function longestPrefixMatch(table: Route[], dstIp: string): RouteMatch | null {
+export function longestPrefixMatch(table: Route[], dstIp: string, vrf = "default"): RouteMatch | null {
   let best: Route | null = null;
   for (const r of table) {
+    if ((r.vrf ?? "default") !== vrf) continue; // VRFs are separate routing tables
     if (!cidrContains(r.destination, r.prefix, dstIp)) continue;
     if (
       best === null ||

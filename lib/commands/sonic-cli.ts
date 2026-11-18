@@ -23,7 +23,7 @@ import { CommandContext, OutputLine, muted, err } from "./types";
 import { execute } from "./index";
 import { runModalHandlers } from "./sonic-cli/registry";
 import { cpStoreLine } from "./sonic-cli/config-plane";
-import { viewForStackTop, isKnownCommand, resolveModeEntry } from "../sonic/grammar";
+import { viewForStackTop, isKnownCommand, resolveModeEntry, subViewFrame } from "../sonic/grammar";
 import "./sonic-cli/features"; // side-effect: registers all feature handlers
 
 /** Mode stack: [] = bash; ["exec"] = sonic#; [...,"config"]; [...,"if-Ethernet0"]. */
@@ -220,6 +220,10 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
 
   // Mode entry (core navigation) — enters a per-interface sub-view.
   if (head === "interface") {
+    // VXLAN VTEP: `interface vxlan <name>` enters the VTEP sub-mode (vxlan.xml configure-vxlan-view).
+    if (args[0]?.toLowerCase() === "vxlan" && args[1] && !isNo) {
+      return { output: [], stack: [...stack, subViewFrame("configure-vxlan-view", args[1])] };
+    }
     const name = ifName(args);
     if (!name) return stay([err(`% Invalid interface "${args.join(" ")}".`)]);
     if (isNo) {

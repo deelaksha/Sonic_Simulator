@@ -149,12 +149,39 @@ describe("SONiC LACP / PortChannel feature (config-plane)", () => {
     expect(text(execute("show portchannel summary", ctxFor(state, sw)))).toContain("No PortChannels configured");
   });
 
-  it("does not fabricate LACP negotiated state: summary carries the not-simulated note", () => {
+  it("does not fabricate LACP negotiated state: an un-negotiated member is deselected/not synced", () => {
+    // LACP now runs in lib/protocols/lacp-daemon.ts; without a partner (no daemon tick
+    // here) the member must show D* (teamshow: deselected, not synced), never S.
     const state = build();
     const sw = state.devices.sw1;
     execute("config portchannel add PortChannel10", ctxFor(state, sw));
     execute("config portchannel member add PortChannel10 Ethernet0", ctxFor(state, sw));
     const out = text(execute("show portchannel summary", ctxFor(state, sw)));
-    expect(out).toContain("not simulated");
+    expect(out).toContain("Ethernet0(D*)");
+    expect(out).not.toContain("Ethernet0(S)");
+  });
+
+  it("config portchannel add creates the PortChannel interface (oper down) and del removes it", () => {
+    const state = build();
+    const sw = state.devices.sw1;
+    execute("config portchannel add PortChannel10 --fast-rate true", ctxFor(state, sw));
+    const pc = sw.interfaces.find((i) => i.name === "PortChannel10");
+    expect(pc?.logical).toBe(true);
+    expect(pc?.operState).toBe("down");
+    expect(peekFeatureState<LacpState>(sw, "lacp")!.portchannels[0]).toMatchObject({ fastRate: true });
+    execute("config portchannel member add PortChannel10 Ethernet0", ctxFor(state, sw));
+    // sonic-utilities config/main.py: members must be removed first.
+    expect(text(execute("config portchannel del PortChannel10", ctxFor(state, sw)))).toContain("contains members");
+    execute("config portchannel member del PortChannel10 Ethernet0", ctxFor(state, sw));
+    execute("config portchannel del PortChannel10", ctxFor(state, sw));
+    expect(sw.interfaces.some((i) => i.name === "PortChannel10")).toBe(false);
+  });
+
+  it("rejects a non-Ethernet member and an invalid --fast-rate", () => {
+    const state = build();
+    const sw = state.devices.sw1;
+    execute("config portchannel add PortChannel10", ctxFor(state, sw));
+    expect(execute("config portchannel member add PortChannel10 PortChannel10", ctxFor(state, sw)).output.some((o) => o.kind === "error")).toBe(true);
+    expect(execute("config portchannel add PortChannel11 --fast-rate maybe", ctxFor(state, sw)).output.some((o) => o.kind === "error")).toBe(true);
   });
 });

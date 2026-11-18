@@ -88,4 +88,26 @@ describe("sonic-cli LACP channel-group (member management)", () => {
     const r = runSonicCli("channel-group", ["exec", "config", "if-Ethernet0"], ctxFor(state, device));
     expect(r.output.some((o) => o.kind === "error")).toBe(true);
   });
+
+  it("lag-view min-links / fallback / fast_rate update the PORTCHANNEL row; KLISH-created LAG accepts channel-group", () => {
+    const { state, device } = sw();
+    const { text } = session(state, device, ["exec"], [
+      "configure terminal",
+      "interface PortChannel 3",
+      "min-links 2",
+      "min-links 0",
+      "fallback",
+      "fast_rate",
+      "exit",
+      "interface Ethernet 1",
+      "channel-group 3",
+      "end",
+    ]);
+    expect(text).toContain('Invalid min-links "0"');
+    expect(text).toContain("Ethernet1 added to PortChannel3");
+    const pc = peekFeatureState<LacpState & { portchannels: { minLinks?: number; fallback?: boolean; fastRate?: boolean }[] }>(device, "lacp")!.portchannels[0];
+    expect(pc).toMatchObject({ name: "PortChannel3", members: ["Ethernet1"], minLinks: 2, fallback: true, fastRate: true });
+    session(state, device, ["exec"], ["configure terminal", "interface PortChannel 3", "no fast_rate", "no min-links", "end"]);
+    expect(pc).toMatchObject({ minLinks: 1, fastRate: false });
+  });
 });

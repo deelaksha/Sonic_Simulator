@@ -5,5 +5,11 @@ import "./bfd-lab";
 import "./ospf-lab";
 import "./bgp-lab";
 import "./snmp-lab";
+import "./lacp-lab";
+import "./mclag-lab";
+import "./acl-lab";
+import "./vxlan-lab";
+import "./vrrp-lab";
+import "./vrf-lab";
 
 export * from "./registry";
