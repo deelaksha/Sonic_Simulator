@@ -22,6 +22,7 @@ import { sflowAgentTick } from "../sflow/agent";
 import { nextControlDue, runControlTick } from "../control";
 import { getLab, LabApi } from "../labs";
 import { getMission, holds, makeCheckCtx } from "../missions";
+import { autoLease, markStatic, wantsAutoDhcp } from "../models/auto-dhcp";
 import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
 import { isSwitch } from "../models/device";
 import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
@@ -92,7 +93,9 @@ interface LabState {
   removeDevice(id: string): void;
   renameDevice(id: string, name: string): void;
   moveDevice(id: string, x: number, y: number): void;
-  connect(aDeviceId: string, aIfaceId: string, bDeviceId: string, bIfaceId: string): ConnectResult;
+  /** Cable two ports. `autoDhcp` (the topology editor): a PC port without a manual
+   *  address then runs DHCP (lib/models/auto-dhcp.ts). */
+  connect(aDeviceId: string, aIfaceId: string, bDeviceId: string, bIfaceId: string, opts?: { autoDhcp?: boolean }): ConnectResult;
   disconnect(connectionId: string): void;
 
   // interface / device config
@@ -546,6 +549,42 @@ export const useLabStore = create<LabState>((set, get) => {
     }
   };
 
+  /**
+   * A PC port was cabled without a manual address: run DHCP like the OS would. A real
+   * exchange first (a dhcp-server / relay answers on the wire, and the packets animate);
+   * if nobody answers, the built-in lab DHCP picks an address (lib/models/auto-dhcp.ts).
+   */
+  const autoDhcp = (deviceId: string, ifaceId: string): void => {
+    const state = get();
+    const draft = structuredClone(state.network);
+    const sim = new Simulation(draft, { wallBase: Date.now() });
+    const r = sim.runDhcp(deviceId, ifaceId);
+    const dev = draft.devices[deviceId];
+    const iface = dev?.interfaces.find((i) => i.id === ifaceId);
+    if (!dev || !iface) return;
+    const lines: string[] = [];
+    if (r.success && r.assignedIp) {
+      lines.push(`dhclient ${iface.name}: DHCPACK of ${r.assignedIp}/${r.prefix ?? "?"} — bound${r.gateway ? `, gateway ${r.gateway}` : ""}`);
+    } else {
+      const lease = autoLease(draft, deviceId, ifaceId);
+      if (!lease.address) return;
+      iface.ipv4 = [{ address: lease.address, prefix: lease.prefix }];
+      if (lease.gateway) dev.config.defaultGateway = lease.gateway;
+      rebuildConnectedRoutes(dev);
+      const leases = ((dev.config.features ??= {}).dhclientLeases ??= {}) as Record<string, unknown>;
+      leases[iface.name] = { address: lease.address, prefix: lease.prefix, server: "lab DHCP (simulated)", gateway: lease.gateway };
+      lines.push(
+        `dhclient ${iface.name}: no DHCP server answered — lab DHCP (simulated) assigned ${lease.address}/${lease.prefix}${lease.gateway ? `, gateway ${lease.gateway}` : " (no gateway on this segment)"}`,
+      );
+    }
+    set({ network: draft, events: sim.events, captures: [...state.captures, ...sim.captures].slice(-CAPTURE_LIMIT) });
+    feedCaptures(sim.captures);
+    get().appendTerminal(deviceId, [
+      { text: `# cable connected on ${iface.name} — requesting an address with DHCP (set one by hand to make it static)`, kind: "output", lineKind: "muted" },
+      ...lines.map((text) => ({ text, kind: "output" as const })),
+    ]);
+  };
+
   /** Stream newly recorded frames into every running tcpdump session. */
   const feedCaptures = (fresh: CaptureRecord[]) => {
     const sessions = get().liveCaptures;
@@ -761,7 +800,7 @@ export const useLabStore = create<LabState>((set, get) => {
     set({ network: next });
   },
 
-  connect(aDeviceId, aIfaceId, bDeviceId, bIfaceId) {
+  connect(aDeviceId, aIfaceId, bDeviceId, bIfaceId, opts) {
     const { network } = get();
     if (aDeviceId === bDeviceId && aIfaceId === bIfaceId) {
       return { ok: false, error: "Cannot connect an interface to itself" };
@@ -777,6 +816,13 @@ export const useLabStore = create<LabState>((set, get) => {
     // connected routes may change once a link comes up
     for (const dev of [next.devices[aDeviceId], next.devices[bDeviceId]]) if (dev) rebuildConnectedRoutes(dev);
     set({ network: next });
+    if (opts?.autoDhcp) {
+      for (const [d, i] of [[aDeviceId, aIfaceId], [bDeviceId, bIfaceId]]) {
+        const dev = next.devices[d];
+        const iface = dev?.interfaces.find((x) => x.id === i);
+        if (dev && iface && wantsAutoDhcp(dev, iface)) autoDhcp(d, i);
+      }
+    }
     return { ok: true };
   },
 
@@ -792,6 +838,7 @@ export const useLabStore = create<LabState>((set, get) => {
     const iface = next.devices[deviceId]?.interfaces.find((i) => i.id === ifaceId);
     if (iface) {
       iface.ipv4 = [{ address, prefix }]; // MVP: single primary address per interface
+      markStatic(next.devices[deviceId], ifaceId); // set by hand: automatic DHCP leaves it alone
       rebuildConnectedRoutes(next.devices[deviceId]);
     }
     set({ network: next });

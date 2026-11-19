@@ -110,7 +110,7 @@ function CanvasInner() {
   const onConnect = useCallback(
     (c: Connection) => {
       if (!c.source || !c.target || !c.sourceHandle || !c.targetHandle) return;
-      const res = connect(c.source, c.sourceHandle, c.target, c.targetHandle);
+      const res = connect(c.source, c.sourceHandle, c.target, c.targetHandle, { autoDhcp: true });
       if (!res.ok) flash(res.error ?? "Invalid connection");
     },
     [connect, flash],

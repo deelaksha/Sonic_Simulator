@@ -19,6 +19,7 @@ import { NetInterface } from "../models/interface";
 import { Route } from "../models/route";
 import { broadcastAddress, isValidIpv4, isValidPrefix, networkAddress } from "../models/ip";
 import { rebuildConnectedRoutes } from "../models/factory";
+import { markStatic } from "../models/auto-dhcp";
 import { renderIp6Addr, renderIp6Route } from "../protocols/radv-daemon";
 import { renderMaddr } from "../protocols/mcast-host";
 
@@ -99,6 +100,7 @@ function addrAdd(ctx: CommandContext, args: string[]): CommandResult {
     return { output: [err(`ip: address ${parsed.address} already assigned`)] };
   }
   iface.ipv4.push(parsed);
+  markStatic(ctx.device, iface.id); // set by hand: automatic DHCP leaves this port alone
   rebuildConnectedRoutes(ctx.device);
   return { output: [muted(`added ${parsed.address}/${parsed.prefix} to ${iface.name}`)] };
 }
