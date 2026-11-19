@@ -293,3 +293,26 @@ export function hopUsesCpu(d: Device, hop: PacketHop, dir: "in" | "out"): boolea
   return f.ethernet.dstMac.toUpperCase().startsWith("01:80:C2"); // link-local control (LLDP, LACP, STP)
 }
 
+/**
+ * The route each kind of frame took, as device chains: consecutive hops of the same
+ * label where one hop starts where the previous ended form one path
+ * ("ping request: H1 → S1 → S3 → H3"). ARP is link-local, so it shows as pairs.
+ */
+export function routeSummary(hops: readonly PacketHop[], nameOf: (deviceId: string) => string): { label: string; color: string; paths: string[] }[] {
+  const out: { label: string; color: string; paths: string[] }[] = [];
+  for (const h of hops) {
+    let row = out.find((r) => r.label === h.label);
+    if (!row) out.push((row = { label: h.label, color: h.color, paths: [] }));
+    const last = row.paths[row.paths.length - 1];
+    const tail = last?.split(" → ").pop();
+    // ARP is never forwarded: each exchange is its own one-wire pair.
+    if (!h.frame?.arp && last !== undefined && tail === nameOf(h.fromDeviceId) && !last.includes(` → ${nameOf(h.toDeviceId)}`) && !last.startsWith(`${nameOf(h.toDeviceId)} `)) {
+      row.paths[row.paths.length - 1] = `${last} → ${nameOf(h.toDeviceId)}`;
+    } else {
+      const p = `${nameOf(h.fromDeviceId)} → ${nameOf(h.toDeviceId)}`;
+      if (!row.paths.includes(p)) row.paths.push(p);
+    }
+  }
+  return out;
+}
+

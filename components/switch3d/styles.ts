@@ -85,5 +85,8 @@ export const CSS = `
 @keyframes swPktOutHigh { from { transform: translate(-50%, 4px); opacity: .3; } to { transform: translate(-50%, -40px); opacity: 1; } }
 @keyframes swPktInLow { from { transform: translate(-50%, 40px); opacity: 1; } to { transform: translate(-50%, -4px); opacity: .2; } }
 @keyframes swPktOutLow { from { transform: translate(-50%, -4px); opacity: .3; } to { transform: translate(-50%, 40px); opacity: 1; } }
+.flow-fwd, .flow-rev { stroke-dasharray: 2 14; stroke-linecap: round; filter: drop-shadow(0 0 3px currentColor); }
+.flow-fwd { animation: swFlowF .7s linear infinite; } .flow-rev { animation: swFlowR .7s linear infinite; }
+@keyframes swFlowF { to { stroke-dashoffset: -16; } } @keyframes swFlowR { to { stroke-dashoffset: 16; } }
 .sw-handle { width: 8px; border-radius: 3px; background: linear-gradient(90deg, #6b7280, #9ca3af, #6b7280); }
 `;

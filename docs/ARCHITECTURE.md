@@ -244,11 +244,17 @@ of the canvas): the whole lab as hardware — network gear in a rack (ONT shelf,
 routers, switches, rack servers), PCs on a desk (monitor + tower with NIC), and patch
 cables drawn port-to-port from each connection (measured from the port elements on
 screen). Dashed = link down; a dot runs along a cable in the direction a port's TX
-counter moved. Clicking a device opens its hardware view. When a command runs (ping,
+counter moved. Clicking a device selects it (the Device panel opens the hardware
+view). When a command runs (ping,
 traceroute…), its FRAME_SENT events (`packetHops`, lib/switch3d/model.ts) are replayed
 hop by hop: a labelled packet (ARP amber, request green, reply blue) travels along the
 exact cable in the sent direction, the receiving device is outlined, a caption shows
-the hop; speed 0.5–2× and Replay. The same player (`components/switch3d/packetPlayer.tsx`) drives
+the hop; speed 0.5–2× and Replay. The route so far stays lit: used cables carry
+marching arrows in the direction(s) frames flowed and a step number (order of first
+use), unused cables dim, and a Route card lists each frame type's path
+(`routeSummary`; ARP shown as one-wire pairs since it is never forwarded). Playback state is shared (store `packetAnim`: hop index, speed, replay
+counter) and advanced by one `PacketClock` mounted in the page, so Replay / speed in
+any view drive every view in sync. The same player (`components/switch3d/packetPlayer.tsx`) drives
 the topology canvas: its edges are `PacketEdge`s (components/topology) that carry
 the packet along their own curve, and the receiving node glows. The hardware view uses it
 too: on the panel a packet badge slides into / out of the exact port; inside, the

@@ -168,6 +168,9 @@ interface LabState {
   advancePacketAnim(): void;
   stopPacketAnim(): void;
   setPacketSpeed(speed: number): void;
+  /** Order the learner arranged devices in, in the realistic scene (rack units, desk). */
+  sceneOrder: string[];
+  setSceneOrder(ids: string[]): void;
   /** Main area (topology / realistic scene / hardware view) shown full screen. */
   mainMaximized: boolean;
   setMainMaximized(on: boolean): void;
@@ -654,6 +657,7 @@ export const useLabStore = create<LabState>((set, get) => {
   canvasMode: "topology",
   mainMaximized: false,
   packetAnim: { index: -1, speed: 1, run: 0 },
+  sceneOrder: [],
   events: [],
   captures: [],
   terminals: {},
@@ -1208,6 +1212,10 @@ export const useLabStore = create<LabState>((set, get) => {
 
   setCanvasMode(mode) {
     set({ canvasMode: mode });
+  },
+
+  setSceneOrder(ids) {
+    set({ sceneOrder: ids });
   },
 
   startPacketAnim() {

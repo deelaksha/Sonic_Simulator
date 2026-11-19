@@ -123,3 +123,38 @@ describe("packet path inside a device", () => {
     vi.useRealTimers();
   });
 });
+
+describe("shared packet animation state", () => {
+  it("one state for every view: start/advance/stop, speed and the replay counter", () => {
+    resetAll();
+    const a0 = S().packetAnim;
+    S().startPacketAnim();
+    expect(S().packetAnim).toMatchObject({ index: 0, run: a0.run + 1 });
+    S().advancePacketAnim();
+    S().advancePacketAnim();
+    expect(S().packetAnim.index).toBe(2);
+    S().setPacketSpeed(2);
+    S().startPacketAnim(); // Replay from any view restarts it for all, keeping the speed
+    expect(S().packetAnim).toMatchObject({ index: 0, speed: 2, run: a0.run + 2 });
+    S().stopPacketAnim();
+    expect(S().packetAnim.index).toBe(-1);
+  });
+});
+
+describe("route summary", () => {
+  it("ping across the OSPF triangle reads as the real paths", async () => {
+    const { packetHops, routeSummary } = await import("../lib/switch3d/model");
+    vi.useFakeTimers();
+    resetAll();
+    S().loadFeatureLab("ospf");
+    advance(20_000);
+    S().execCommand(byName("H1").id, "ping -c 1 192.168.3.10");
+    const name = (id: string) => S().network.devices[id].name;
+    const r = routeSummary(packetHops(S().events), name);
+    const of = (l: string) => r.find((x) => x.label === l)!.paths;
+    expect(of("ping request")).toEqual(["H1 → S1 → S3 → H3"]);
+    expect(of("ping reply")).toEqual(["H3 → S3 → S1 → H1"]);
+    expect(of("ARP who-has")).toEqual(expect.arrayContaining(["H1 → S1"]));
+    vi.useRealTimers();
+  });
+});
