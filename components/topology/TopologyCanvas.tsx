@@ -172,7 +172,7 @@ function CanvasInner() {
       )}
 
       {player.hops.length > 0 && (
-        <div className="pointer-events-auto absolute left-1/2 top-12 z-20 max-w-[70%] -translate-x-1/2">
+        <div className="pointer-events-auto absolute left-1/2 top-12 z-20 w-[min(760px,90%)] -translate-x-1/2">
           <PacketCaption p={player} idleHint="" />
         </div>
       )}

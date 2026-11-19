@@ -6,7 +6,18 @@
  *   pc/srv  ports → NIC — PCIe → CPU running the OS network stack and applications
  * Dots run along a trace whenever that path's real counters changed in the last tick.
  */
-import { ChassisKind, CpuView, PortView, fmtBps } from "@/lib/switch3d/model";
+import { ChassisKind, CpuView, PacketHop, PortView, fmtBps } from "@/lib/switch3d/model";
+import { PacketOnPath } from "./packetPlayer";
+
+/** The current hop as seen by this device: which port, in or out, and whether the CPU is an end. */
+export interface DevicePacket {
+  hop: PacketHop;
+  ifaceId: string;
+  dir: "in" | "out";
+  cpu: boolean;
+  ms: number;
+  animKey: string;
+}
 
 interface Chip {
   title: string;
@@ -45,7 +56,9 @@ export function Internals(props: {
   cpu?: CpuView;
   mgmtActive: boolean;
   hasMgmt: boolean;
+  mgmtId?: string;
   sel?: string;
+  packet?: DevicePacket;
 }) {
   const { kind, W, D, ports, active, sel } = props;
   const spec = CHIPS[kind];
@@ -62,6 +75,11 @@ export function Internals(props: {
   const mgmtPath = `M ${mgmtX} ${D - 20} L ${mgmtX} ${cpuBox.y + cpuBox.h}`;
   const fans = kind === "pc" ? 1 : 4;
   const cpuStats = props.cpu ? `trapped ${props.cpu.totalTrapped} · policed ${props.cpu.totalPoliced}` : undefined;
+  // Packet route inside the box, drawn in arrival order (port → chip → [PCIe → CPU]);
+  // a departing packet runs it backwards.
+  const pk = props.packet;
+  const pi = pk ? ports.findIndex((p) => p.id === pk.ifaceId) : -1;
+  const pkPath = !pk ? undefined : pi >= 0 ? trace(pi) + (pk.cpu && spec.cpu ? ` ${pcie}` : "") : pk.ifaceId === props.mgmtId && spec.cpu ? mgmtPath : undefined;
   return (
     <svg width={W} height={D} viewBox={`0 0 ${W} ${D}`} className="sw-pcb">
       <defs>
@@ -160,12 +178,13 @@ export function Internals(props: {
           </text>
         </>
       )}
+      {pk && pkPath && <PacketOnPath hop={pk.hop} path={pkPath} forward={pk.dir === "in"} ms={pk.ms} animKey={pk.animKey} />}
     </svg>
   );
 }
 
 /** Inside the ISP handoff: optics → SoC → LAN, and the fiber out to the (simulated) internet. */
-export function InternetInternals({ W, D, ports, active }: { W: number; D: number; ports: PortView[]; active: Set<string> }) {
+export function InternetInternals({ W, D, ports, active, packet }: { W: number; D: number; ports: PortView[]; active: Set<string>; packet?: DevicePacket }) {
   const busy = ports.some((p) => active.has(p.id));
   const soc = { x: W * 0.45, y: D * 0.55, w: 170, h: 60 };
   const optics = { x: 70, y: D * 0.55, w: 120, h: 60 };
@@ -224,6 +243,14 @@ export function InternetInternals({ W, D, ports, active }: { W: number; D: numbe
           </text>
         </g>
       ))}
+      {packet &&
+        (() => {
+          const i = ports.findIndex((p) => p.id === packet.ifaceId);
+          if (i < 0) return null;
+          // LAN port → SoC → optics → fiber → the internet (arrival order)
+          const path = `${lan(i)} M ${soc.x} ${soc.y + 30} L ${optics.x + optics.w} ${optics.y + 30} ${fiber}`;
+          return <PacketOnPath hop={packet.hop} path={path} forward={packet.dir === "in"} ms={packet.ms} animKey={packet.animKey} />;
+        })()}
     </svg>
   );
 }

@@ -248,6 +248,13 @@ counter moved. Clicking a device opens its hardware view. When a command runs (p
 traceroute…), its FRAME_SENT events (`packetHops`, lib/switch3d/model.ts) are replayed
 hop by hop: a labelled packet (ARP amber, request green, reply blue) travels along the
 exact cable in the sent direction, the receiving device is outlined, a caption shows
-the hop; speed 0.5–2× and Replay. The main area (topology,
+the hop; speed 0.5–2× and Replay. The same player (`components/switch3d/packetPlayer.tsx`) drives
+the topology canvas: its edges are `PacketEdge`s (components/topology) that carry
+the packet along their own curve, and the receiving node glows. The hardware view uses it
+too: on the panel a packet badge slides into / out of the exact port; inside, the
+packet follows the device's real path — switch: port → ASIC → port for transit,
+continuing over PCIe to the CPU only for frames to/from the switch itself
+(`hopUsesCpu`); router: port → route processor; host: port → NIC → CPU; ONT:
+port → SoC → fiber → cloud. The main area (topology,
 realistic scene, hardware view) has a full-screen toggle (⤢ / Esc), like the terminal.
 

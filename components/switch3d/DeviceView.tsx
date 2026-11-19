@@ -11,11 +11,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLabStore } from "@/lib/store/lab-store";
 import { Device } from "@/lib/models/device";
-import { ChassisKind, activityOf, chassisKind, cpuView, hostView, peerOf, portViews, routeRows } from "@/lib/switch3d/model";
+import { ChassisKind, activityOf, chassisKind, cpuView, hopUsesCpu, hostView, peerOf, portViews, routeRows } from "@/lib/switch3d/model";
+import { PacketCaption, usePacketPlayer } from "./packetPlayer";
 import { CSS } from "./styles";
 import { Btn, Seg } from "./parts";
 import { FaceProps, InternetFace, PcRear, RouterFace, ServerRear, SwitchFace } from "./faces";
-import { Internals, InternetInternals } from "./internals";
+import { DevicePacket, Internals, InternetInternals } from "./internals";
 import { CpuPanel, HostPanel, INTERNET_INTRO, PortInspector, RouterPanel } from "./panels";
 
 /** Box size per kind (px): width, panel height, depth. */
@@ -119,6 +120,18 @@ function Stage({ device, kind, onClose }: { device: Device; kind: ChassisKind; o
   const scale = Math.max(0.2, Math.min(1, (room.w - 32) / W, (room.h - HEADER - MIN_PANELS) / wanted));
 
   const linksUp = ports.filter((p) => p.oper === "up").length;
+
+  // Packet animation: the current hop of the last command, if it enters or leaves this device.
+  const player = usePacketPlayer();
+  const hop = player.hop;
+  const devPacket: DevicePacket | undefined = !hop
+    ? undefined
+    : hop.toDeviceId === device.id
+      ? { hop, ifaceId: hop.toIfaceId, dir: "in", cpu: hopUsesCpu(device, hop, "in"), ms: player.hopMs, animKey: `${hop.id}-${player.run}` }
+      : hop.fromDeviceId === device.id
+        ? { hop, ifaceId: hop.fromIfaceId, dir: "out", cpu: hopUsesCpu(device, hop, "out"), ms: player.hopMs, animKey: `${hop.id}-${player.run}` }
+        : undefined;
+
   const face: FaceProps = {
     device,
     ports,
@@ -127,6 +140,7 @@ function Stage({ device, kind, onClose }: { device: Device; kind: ChassisKind; o
     onSelect: setSel,
     beacon,
     mgmt: mgmt ? { id: mgmt.id, up: mgmt.operState === "up", peer: peerOf(net, device, mgmt)?.deviceName, active: active.has(mgmt.id) } : undefined,
+    packets: devPacket ? { [devPacket.ifaceId]: { label: devPacket.hop.label, color: devPacket.hop.color, dir: devPacket.dir, ms: devPacket.ms, key: devPacket.animKey } } : undefined,
   };
   const mgmtIp = mgmt?.ipv4[0]?.address ?? "—";
   const oled: [string, string, string] =
@@ -173,6 +187,11 @@ function Stage({ device, kind, onClose }: { device: Device; kind: ChassisKind; o
         </Btn>
       </div>
 
+      {player.hops.length > 0 && (
+        <div className="absolute left-1/2 top-[64px] z-10 w-[min(760px,92%)] -translate-x-1/2">
+          <PacketCaption p={player} idleHint="" />
+        </div>
+      )}
       <div className="sw-stage relative flex shrink-0 items-center justify-center overflow-hidden" style={{ height: stageH }}>
         <div style={{ transform: `scale(${scale})`, perspective: 1600 }}>
           <div className={`sw-box ${silver ? "sw-silver" : ""} ${dark ? "sw-dark" : ""}`} style={{ width: W, height: H, transform: `rotateX(${-rot.rx}deg) rotateY(${rot.ry}deg)` }}>
@@ -191,9 +210,9 @@ function Stage({ device, kind, onClose }: { device: Device; kind: ChassisKind; o
             </div>
             <div className="sw-face" style={{ width: W, height: D, top: (H - D) / 2, transform: `rotateX(90deg) translateZ(${H / 2}px)` }}>
               {shot === "inside" && kind === "internet" ? (
-                <InternetInternals W={W} D={D} ports={ports} active={active} />
+                <InternetInternals W={W} D={D} ports={ports} active={active} packet={devPacket} />
               ) : shot === "inside" && kind !== "internet" ? (
-                <Internals kind={kind} W={W} D={D} ports={ports} active={active} cpuActive={cpuActive} cpu={cpu} mgmtActive={face.mgmt?.active ?? false} hasMgmt={!!mgmt} sel={sel} />
+                <Internals kind={kind} W={W} D={D} ports={ports} active={active} cpuActive={cpuActive} cpu={cpu} mgmtActive={face.mgmt?.active ?? false} hasMgmt={!!mgmt} mgmtId={mgmt?.id} sel={sel} packet={devPacket} />
               ) : (
                 <div className={kind === "internet" ? "sw-lid sw-ont" : host ? "sw-lid sw-steel" : "sw-lid"} />
               )}

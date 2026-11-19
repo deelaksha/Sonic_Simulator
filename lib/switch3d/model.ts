@@ -238,6 +238,7 @@ export interface PacketHop {
   text: string;
   label: string;
   color: string;
+  frame?: Frame;
 }
 
 /** Short label + colour for a frame: ARP amber, ping request green, reply blue, others violet. */
@@ -267,10 +268,28 @@ export function packetHops(events: readonly SimEvent[], max = 200): PacketHop[] 
       toDeviceId: e.link.toDeviceId,
       toIfaceId: e.link.toInterfaceId,
       text: e.message,
+      frame: e.frame,
       ...st,
     });
     if (out.length >= max) break;
   }
   return out;
+}
+
+/**
+ * Does this hop start (dir "out") or end (dir "in") at the device's CPU rather than
+ * only crossing its forwarding chip? Hosts and routers always process in software;
+ * a switch only for frames addressed to itself (ARP for / ping to its own IP) or
+ * that it originates (its ARP replies, protocol packets).
+ */
+export function hopUsesCpu(d: Device, hop: PacketHop, dir: "in" | "out"): boolean {
+  const k = chassisKind(d.type);
+  if (k !== "switch") return true;
+  const f = hop.frame;
+  if (!f) return false;
+  const own = (ip?: string) => !!ip && d.interfaces.some((i) => i.ipv4.some((a) => a.address === ip));
+  if (f.arp) return dir === "in" ? own(f.arp.targetIp) : own(f.arp.senderIp);
+  if (f.ipv4) return dir === "in" ? own(f.ipv4.dstIp) : own(f.ipv4.srcIp);
+  return f.ethernet.dstMac.toUpperCase().startsWith("01:80:C2"); // link-local control (LLDP, LACP, STP)
 }
 

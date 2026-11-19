@@ -9,7 +9,7 @@
  */
 import { Device } from "@/lib/models/device";
 import { PortView } from "@/lib/switch3d/model";
-import { Ear, Port, StaticJack, SysLed } from "./parts";
+import { Ear, Port, PortPacket, StaticJack, SysLed } from "./parts";
 
 export interface FaceProps {
   device: Device;
@@ -19,12 +19,14 @@ export interface FaceProps {
   onSelect(id: string): void;
   beacon: boolean;
   mgmt?: { id: string; up: boolean; peer?: string; active: boolean };
+  /** Frames entering / leaving ports right now (port id → packet). */
+  packets?: Record<string, PortPacket>;
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => <span className="sw-silk-sub font-mono text-[7.5px] uppercase">{children}</span>;
 
 function portEl(p: FaceProps, port: PortView, bottom = false) {
-  return <Port key={port.id} p={port} bottom={bottom} blinking={p.active.has(port.id)} selected={p.sel === port.id} onClick={() => p.onSelect(port.id)} />;
+  return <Port key={port.id} p={port} bottom={bottom} blinking={p.active.has(port.id)} selected={p.sel === port.id} onClick={() => p.onSelect(port.id)} packet={p.packets?.[port.id]} />;
 }
 
 /* ---------------------------------------------------------------- switch */

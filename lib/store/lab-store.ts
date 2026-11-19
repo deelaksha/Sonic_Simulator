@@ -158,6 +158,16 @@ interface LabState {
   /** Main area: the editable topology canvas, or the realistic rack-and-desk scene. */
   canvasMode: "topology" | "realistic";
   setCanvasMode(mode: "topology" | "realistic"): void;
+  /**
+   * Packet animation shared by every view (topology, realistic scene, hardware view):
+   * the hop of the last command being shown (-1 = idle), playback speed, and a
+   * counter bumped on every (re)start so SVG animations restart.
+   */
+  packetAnim: { index: number; speed: number; run: number };
+  startPacketAnim(): void;
+  advancePacketAnim(): void;
+  stopPacketAnim(): void;
+  setPacketSpeed(speed: number): void;
   /** Main area (topology / realistic scene / hardware view) shown full screen. */
   mainMaximized: boolean;
   setMainMaximized(on: boolean): void;
@@ -643,6 +653,7 @@ export const useLabStore = create<LabState>((set, get) => {
   deviceViewId: null,
   canvasMode: "topology",
   mainMaximized: false,
+  packetAnim: { index: -1, speed: 1, run: 0 },
   events: [],
   captures: [],
   terminals: {},
@@ -1197,6 +1208,24 @@ export const useLabStore = create<LabState>((set, get) => {
 
   setCanvasMode(mode) {
     set({ canvasMode: mode });
+  },
+
+  startPacketAnim() {
+    const a = get().packetAnim;
+    set({ packetAnim: { ...a, index: 0, run: a.run + 1 } });
+  },
+
+  advancePacketAnim() {
+    const a = get().packetAnim;
+    set({ packetAnim: { ...a, index: a.index + 1 } });
+  },
+
+  stopPacketAnim() {
+    set({ packetAnim: { ...get().packetAnim, index: -1 } });
+  },
+
+  setPacketSpeed(speed) {
+    set({ packetAnim: { ...get().packetAnim, speed } });
   },
 
   setMainMaximized(on) {

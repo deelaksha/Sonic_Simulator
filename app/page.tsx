@@ -9,6 +9,7 @@ import { PacketTimeline } from "@/components/timeline/PacketTimeline";
 import { SessionManagerModal } from "@/components/cloud/SessionManagerModal";
 import { DeviceView } from "@/components/switch3d/DeviceView";
 import { RealisticScene } from "@/components/switch3d/RealisticScene";
+import { PacketClock } from "@/components/switch3d/packetPlayer";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 
 function PanelHeader({ title, hint }: { title: string; hint?: string }) {
@@ -196,6 +197,8 @@ export default function LabPage() {
             </aside>
             {/* 3D hardware view: covers canvas + inspector, keeps the terminal usable below */}
             <DeviceView />
+            {/* one clock for the packet animation shown in every view */}
+            <PacketClock />
           </div>
 
           {/* bottom: terminal + packet timeline */}

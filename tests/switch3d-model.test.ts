@@ -101,3 +101,25 @@ describe("packet animation hops", () => {
     vi.useRealTimers();
   });
 });
+
+describe("packet path inside a device", () => {
+  it("switch CPU only for frames to/from itself; transit stays in the ASIC; hosts always use the CPU", async () => {
+    const { packetHops, hopUsesCpu } = await import("../lib/switch3d/model");
+    vi.useFakeTimers();
+    resetAll();
+    S().loadFeatureLab("ospf");
+    advance(20_000);
+    S().execCommand(byName("H1").id, "ping -c 1 192.168.3.10");
+    const s1 = byName("S1");
+    const h1 = byName("H1");
+    const hops = packetHops(S().events);
+    const arpIn = hops.find((h) => h.label === "ARP who-has" && h.toDeviceId === s1.id)!;
+    const arpOut = hops.find((h) => h.label === "ARP reply" && h.fromDeviceId === s1.id)!;
+    const transit = hops.find((h) => h.label === "ping request" && h.toDeviceId === s1.id)!;
+    expect(hopUsesCpu(s1, arpIn, "in")).toBe(true); // ARP for S1's own 192.168.1.1
+    expect(hopUsesCpu(s1, arpOut, "out")).toBe(true); // S1's CPU answers
+    expect(hopUsesCpu(s1, transit, "in")).toBe(false); // routed by the ASIC towards S3
+    expect(hopUsesCpu(h1, transit, "out")).toBe(true); // a host always sends from its OS
+    vi.useRealTimers();
+  });
+});

@@ -53,8 +53,17 @@ export function SysLed({ label, on, blink }: { label: string; on?: "green" | "bl
   );
 }
 
+/** A frame entering or leaving a port right now (packet animation). */
+export interface PortPacket {
+  label: string;
+  color: string;
+  dir: "in" | "out";
+  ms: number;
+  key: string;
+}
+
 /** One network port with its link/activity LED and, when cabled, the plug or transceiver. */
-export function Port({ p, bottom, blinking, selected, onClick }: { p: PortView; bottom?: boolean; blinking: boolean; selected: boolean; onClick(): void }) {
+export function Port({ p, bottom, blinking, selected, onClick, packet }: { p: PortView; bottom?: boolean; blinking: boolean; selected: boolean; onClick(): void; packet?: PortPacket }) {
   const c = cableColor(p.peer?.deviceType);
   const tip = `${p.name} (${p.speedLabel}) — ${p.admin === "down" ? "admin down" : p.oper === "up" ? "link up" : "no link"}${p.peer ? ` · cabled to ${p.peer.deviceName} ${p.peer.ifName}` : " · empty"}`;
   // Activity: the link LED goes dark for one tick when frames moved (bursty blink).
@@ -64,6 +73,15 @@ export function Port({ p, bottom, blinking, selected, onClick }: { p: PortView; 
     <button data-port data-iface={p.id} className={`${p.kind === "sfp" ? "sw-sfp" : "sw-rj45"} ${bottom ? "sw-inv" : ""} ${selected ? "sw-sel" : ""}`} onClick={onClick} title={tip}>
       <span className={`sw-pled sw-pled-l ${led}`} />
       {p.admin === "down" && <span className="sw-pled sw-pled-r on-amber" title="administratively down" />}
+      {packet && (
+        <span
+          key={packet.key}
+          className={`sw-pkt ${packet.dir} ${bottom ? "low" : "high"}`}
+          style={{ background: packet.color, ["--ms" as string]: `${packet.ms}ms` }}
+        >
+          {packet.label}
+        </span>
+      )}
       <div className={p.kind === "sfp" ? "sw-sfp-cavity" : "sw-rj45-cavity"}>{p.kind === "sfp" && !p.peer && <div className="sw-sfp-rail" />}</div>
       {p.peer &&
         (p.kind === "sfp" ? (

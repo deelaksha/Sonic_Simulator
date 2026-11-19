@@ -77,5 +77,13 @@ export const CSS = `
 .sw-sc { width: 20px; height: 26px; border-radius: 2px; background: linear-gradient(180deg, #22c55e, #15803d); box-shadow: 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4); position: relative; }
 .sw-sc::after { content: ''; position: absolute; left: 7px; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: #f8fafc; box-shadow: inset 0 1px 1px rgba(0,0,0,.5); }
 .sw-fiber { position: absolute; left: 50%; top: 24px; width: 4px; height: 40px; transform: translateX(-50%); border-radius: 2px; background: linear-gradient(90deg, #ca8a04, #facc15, #ca8a04); box-shadow: 1px 3px 4px rgba(0,0,0,.4); }
+.sw-pkt { position: absolute; left: 50%; z-index: 8; pointer-events: none; white-space: nowrap; font: 700 9.5px ui-monospace, monospace; color: #06090d; padding: 2px 5px; border-radius: 3px; box-shadow: 0 0 6px rgba(255,255,255,.5); }
+.sw-pkt.high { top: 0; } .sw-pkt.low { bottom: 0; }
+.sw-pkt.in.high { animation: swPktInHigh var(--ms) linear forwards; } .sw-pkt.out.high { animation: swPktOutHigh var(--ms) linear forwards; }
+.sw-pkt.in.low { animation: swPktInLow var(--ms) linear forwards; } .sw-pkt.out.low { animation: swPktOutLow var(--ms) linear forwards; }
+@keyframes swPktInHigh { from { transform: translate(-50%, -40px); opacity: 1; } to { transform: translate(-50%, 4px); opacity: .2; } }
+@keyframes swPktOutHigh { from { transform: translate(-50%, 4px); opacity: .3; } to { transform: translate(-50%, -40px); opacity: 1; } }
+@keyframes swPktInLow { from { transform: translate(-50%, 40px); opacity: 1; } to { transform: translate(-50%, -4px); opacity: .2; } }
+@keyframes swPktOutLow { from { transform: translate(-50%, -4px); opacity: .3; } to { transform: translate(-50%, 40px); opacity: 1; } }
 .sw-handle { width: 8px; border-radius: 3px; background: linear-gradient(90deg, #6b7280, #9ca3af, #6b7280); }
 `;
