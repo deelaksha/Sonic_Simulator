@@ -16,34 +16,25 @@
  * `enter: subViewFrame(...)`, and a sub-view handler stores each field keyed on
  * the counter name. viewctx carries the counter name into the sub-view.
  *
- * Drop counting is a DATA-PLANE feature (the ASIC increments per-reason drop
- * counters). The sim cannot forward/drop packets, so we store + show the config
- * honestly and mark dataPlaneNotSimulated. Runtime counters and hardware
- * `capabilities` are operational state we do not model, so they are never
- * fabricated on show.
+ * The counters live in the shared drop-counter CONFIG_DB (lib/control/drops.ts),
+ * the same store Click `config dropcounters install` writes, so a counter
+ * configured here gets a live column in `show dropcounters counts` (the engine
+ * attributes every drop to a SAI drop reason). `show dropcounters capabilities`
+ * renders the simulated DEBUG_COUNTER_CAPABILITIES (the reasons the engine can
+ * attribute) in the dropcounters.xml DOCGEN layout.
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
-import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
-
-type Counter = {
-  name: string;
-  description?: string;
-  alias?: string;
-  group?: string;
-  type?: string;
-  enabled?: boolean;
-  mirror?: string;
-  reasons?: string[];
-};
-
-// DEBUG_COUNTER_TYPE ptype enum (dropcounters.xml `type` param).
-const COUNTER_TYPES = ["PORT_INGRESS_DROPS", "PORT_EGRESS_DROPS", "SWITCH_INGRESS_DROPS", "SWITCH_EGRESS_DROPS"];
-
-function getCounter(counters: Counter[], name: string): Counter | undefined {
-  return counters.find((c) => c.name === name);
-}
+import {
+  CAPABILITIES,
+  COUNTER_TYPES,
+  addCounterReasons,
+  debugCounters,
+  deleteDebugCounter,
+  removeCounterReasons,
+  upsertDebugCounter,
+} from "../../../control/drops";
 
 // configure-view: `dropcounters <name>` — create (upsert) + enter the sub-view;
 // `no dropcounters <name>` — delete the counter.
@@ -55,10 +46,10 @@ registerModal({
     const name = args[0];
     if (!name) return { output: [err("% Dropcounter name required.")] };
     if (isNo) {
-      cpRemove(ctx.device, "dropcounters", "counters", "name", name);
+      deleteDebugCounter(ctx.device, name);
       return { output: [] };
     }
-    cpUpsert(ctx.device, "dropcounters", "counters", { name }, "name");
+    upsertDebugCounter(ctx.device, name, {});
     return { output: [], enter: subViewFrame("configure-dropcounters-view", name) };
   },
 });
@@ -71,13 +62,13 @@ registerModal({
   run({ head, isNo, args, viewctx, ctx }) {
     const name = viewctx;
     if (!name) return null;
-    const upsert = (patch: Partial<Counter>) => {
-      cpUpsert(ctx.device, "dropcounters", "counters", { name, ...patch }, "name");
+    const upsert = (patch: Parameters<typeof upsertDebugCounter>[2]) => {
+      upsertDebugCounter(ctx.device, name, patch);
       return { output: [] as OutputLine[] };
     };
     switch (head) {
       case "description":
-        return upsert({ description: isNo ? "" : args.join(" ").replace(/^"|"$/g, "") });
+        return upsert({ desc: isNo ? "" : args.join(" ").replace(/^"|"$/g, "") });
       case "alias":
         return upsert({ alias: isNo ? "" : args[0] ?? "" });
       case "group":
@@ -89,19 +80,16 @@ registerModal({
       case "type": {
         if (isNo) return upsert({ type: "" });
         const t = (args[0] ?? "").toUpperCase();
-        if (!COUNTER_TYPES.includes(t)) return { output: [err(`% type must be one of ${COUNTER_TYPES.join("|")}`)] };
+        if (!(COUNTER_TYPES as readonly string[]).includes(t)) return { output: [err(`% type must be one of ${COUNTER_TYPES.join("|")}`)] };
         return upsert({ type: t });
       }
       case "add-reason":
       case "delete-reason": {
         if (!args[0]) return { output: [err("% reason required.")] };
         const incoming = args[0].split(",").map((r) => r.trim().toUpperCase()).filter(Boolean);
-        const current = getCounter(cpList(ctx.device, "dropcounters", "counters") as Counter[], name)?.reasons ?? [];
-        const reasons =
-          head === "add-reason"
-            ? [...current, ...incoming.filter((r) => !current.includes(r))]
-            : current.filter((r) => !incoming.includes(r));
-        return upsert({ reasons });
+        if (head === "add-reason") addCounterReasons(ctx.device, name, incoming);
+        else removeCounterReasons(ctx.device, name, incoming);
+        return { output: [] };
       }
     }
     return null;
@@ -120,11 +108,19 @@ registerModal({
   keywords: ["show"],
   run({ args, ctx }) {
     if (args[0]?.toLowerCase() !== "dropcounters") return null; // not ours
-    // `capabilities` is hardware runtime data (not CONFIG_DB); we never fabricate it.
-    if (args[1]?.toLowerCase() === "capabilities")
-      return { output: [muted("Drop-counter capabilities are hardware runtime data; not simulated")] };
+    if (args[1]?.toLowerCase() === "capabilities") {
+      // dropcounters.xml:28-36 DOCGEN: tabulate table, then each type with its reasons indented.
+      const w = Math.max(...COUNTER_TYPES.map((t) => t.length), "Counter Type".length + 2);
+      const out: OutputLine[] = [line(`${"Counter Type".padEnd(w)}    Total`), line(`${"-".repeat(w)}  -------`)];
+      for (const t of COUNTER_TYPES) out.push(line(`${t.padEnd(w)}  ${String(CAPABILITIES[t].count).padStart(7)}`));
+      for (const t of COUNTER_TYPES) {
+        out.push(line(""), line(t));
+        for (const r of CAPABILITIES[t].reasons) out.push(line(`  ${r}`));
+      }
+      return { output: out };
+    }
 
-    const counters = cpList(ctx.device, "dropcounters", "counters") as Counter[];
+    const counters = debugCounters(ctx.device);
     if (!counters.length) return { output: [muted("No drop counters configured")] };
 
     const out: OutputLine[] = [line(HDR), muted("-".repeat(HDR.length))];

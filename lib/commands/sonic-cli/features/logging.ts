@@ -10,15 +10,20 @@
  *   sonic(config)# no logging security-profile            clear scalar
  *   sonic(config)# no logging                             clear all
  *   sonic# show logging servers                           render from stored state
+ *   sonic# show logging [lines <n>]                       the device syslog (last n lines)
+ *   sonic# clear logging                                  empty the device syslog
  *
  * Mirrors the real box's SYSLOG_SERVER / SYSLOG CONFIG_DB tables: config is
- * stored honestly and `show logging servers` renders exactly what was set.
- * NOTE: the runtime effect (actual syslog forwarding to the remote server, and
- * the `show logging` message stream) is NOT simulated — only config is modelled.
+ * stored honestly and `show logging servers` renders exactly what was set. The
+ * server list is the same one Click `config syslog add` writes, and the syslog
+ * daemon (lib/protocols/syslog-daemon.ts) forwards new lines to every UDP server
+ * (remote-port, severity, source-interface honoured; tcp/tls and vrf not modelled).
+ * `show logging` / `show logging lines` / `clear logging`: data/device-capture/klish-xml/logging.xml:19-28.
  */
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpList } from "../config-plane";
+import { clearSyslog, formatSyslog, peekSyslog } from "../../../control/syslog";
 
 const PROTOCOLS = ["tcp", "tls", "udp"];
 const SEVERITIES = ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"];
@@ -120,7 +125,15 @@ registerModal({
   keywords: ["show"],
   run({ args, ctx }) {
     if (args[0]?.toLowerCase() !== "logging") return null; // not ours
-    if (args[1]?.toLowerCase() !== "servers") return null; // runtime log stream — do not fabricate
+    const sub = args[1]?.toLowerCase();
+    if (sub === undefined || sub === "lines") {
+      const all = (peekSyslog(ctx.device)?.lines ?? []).map((l) => line(formatSyslog(ctx.device, l)));
+      if (sub === undefined) return { output: all };
+      const n = Number(args[2] ?? "0");
+      if (!/^\d+$/.test(args[2] ?? "0")) return { output: [err("% Error: lines must be a number")] };
+      return { output: n === 0 ? all : all.slice(-n) }; // PARAM lines default="0" = everything
+    }
+    if (sub !== "servers") return null;
     const servers = cpList(ctx.device, "logging", "servers");
     if (!servers.length) return { output: [muted("No logging servers configured")] };
     const cell = (v: unknown) => (v === undefined || v === "" ? "-" : String(v));
@@ -148,5 +161,17 @@ registerModal({
       );
     }
     return { output: out };
+  },
+});
+
+// enable-view: `clear logging` (logging.xml:19-20) empties the device syslog.
+registerModal({
+  id: "logging-clear",
+  views: ["enable-view"],
+  keywords: ["clear"],
+  run({ args, ctx }) {
+    if (args[0]?.toLowerCase() !== "logging" || args.length > 1) return null;
+    clearSyslog(ctx.device);
+    return { output: [] };
   },
 });

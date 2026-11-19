@@ -32,6 +32,9 @@ export interface SimContext {
    */
   transmit(deviceId: string, interfaceId: string, frame: Frame): void;
 
+  /** Mark the received copies of a frame on a device as trapped to its CPU. */
+  markTrapped(deviceId: string, frameId: string): void;
+
   /** Append a frame to an interface's capture buffer (for tcpdump, spec §19). */
   capture(deviceId: string, interfaceId: string, dir: CaptureDir, frame: Frame): void;
 

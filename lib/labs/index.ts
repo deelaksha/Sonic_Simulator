@@ -11,5 +11,7 @@ import "./acl-lab";
 import "./vxlan-lab";
 import "./vrrp-lab";
 import "./vrf-lab";
+import "./copp-lab";
+import "./qos-lab";
 
 export * from "./registry";

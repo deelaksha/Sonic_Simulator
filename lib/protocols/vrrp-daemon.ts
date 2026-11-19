@@ -45,6 +45,7 @@ import { featureState, peekFeatureState } from "../models/feature-state";
 import { ipToInt } from "../models/ip";
 import { BROADCAST_MAC } from "../models/mac";
 import { registerDaemon } from "../control/daemon";
+import { logEvent } from "../control/syslog";
 import { registerDataPlaneHook } from "../control/hooks";
 import { ipv4Packet, ipPayload, multicastMac } from "../control/packet";
 import { buildFrame } from "./ethernet";
@@ -87,6 +88,7 @@ function changeState(ctx: SimContext, device: Device, iface: NetInterface | unde
   const from = r.state;
   r.state = to;
   r.transitions++;
+  logEvent(device, ctx.wallNow(), "INFO", "bgp#vrrpd", `[CORE] [VRID ${inst.vrid}] [IPv4] ${from} -> ${to}`); // vrrpd/vrrp.c:1476-1478
   if (to === "Backup") r.advertAt = undefined;
   if (to === "Initialize") {
     r.masterAdverInterval = 0;

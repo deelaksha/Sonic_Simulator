@@ -1,9 +1,10 @@
 /**
- * CoPP (control-plane policing) SONiC feature module. Config-plane only
- * (simulated CONFIG_DB): commands mutate per-device feature state and
- * `show copp ...` renders SOLELY from that stored state. Nothing rate-limits or
- * drops real control-plane traffic — that needs a packet-engine hook not present
- * yet, so NO counters/drops are fabricated here; this is educational.
+ * CoPP (control-plane policing) SONiC feature module. The commands mutate the
+ * simulated CONFIG_DB (features["copp"]); the CPU path (lib/protocols/
+ * cpu-daemon.ts) reads it on every trapped packet, so a bound action group's
+ * trap-queue / police cir/cbs / meter-type / trap-action really steer and
+ * police control traffic. Unconfigured trap ids use the image defaults
+ * (copp_cfg.j2, lib/protocols/cpu-traps.ts).
  *
  * Commands mirror the SONiC management-framework CoPP forms in copp.txt, wrapped
  * as click-style `config copp ...` / `show copp ...` sub-commands (path
@@ -15,6 +16,7 @@
  *   config copp action set <name> trap-queue <n>  <- set trap-queue <n>
  *   config copp action set <name> trap-priority <n> <- set trap-priority <n>
  *   config copp action set <name> police cir <n> cbs <n> <- police cir <n> cbs <n>
+ *   config copp action set <name> meter-type packets|bytes <- police ... meter-type (copp.xml)
  *   config copp classifier add <name>             <- class-map <name> match-type copp
  *   config copp classifier del <name>             <- no class-map <name>
  *   config copp classifier match <name> <proto>   <- match protocol <proto>
@@ -25,6 +27,8 @@
  *   show copp classifiers                         <- show copp classifiers
  *   show copp policy                              <- show copp policy
  *   show copp protocols                           <- show copp protocols
+ *   show copp counters                            <- show copp counters (copp.xml:91, show_copp_counters.j2)
+ *   show copp configuration [detailed -t|-g]      <- sonic-utilities show/copp.py
  *
  * Enums/ranges are taken verbatim from copp.txt: COPP_TRAP_ACTION values
  * trap|drop|forward|copy|copy_cancel|log|deny|transit (lines 320-327); trap-queue
@@ -38,45 +42,23 @@
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
+import {
+  CoppActionGroup, CoppState, DEFAULT_GROUPS, DEFAULT_TRAPS, TRAP_PROTOCOLS, resolveTrap,
+} from "../../protocols/cpu-traps";
+import { peekCoppRuntime } from "../../protocols/cpu-daemon";
 
 /** COPP_TRAP_ACTION enum (copp.txt lines 320-327). */
 const TRAP_ACTIONS = ["trap", "drop", "forward", "copy", "copy_cancel", "log", "deny", "transit"] as const;
 type TrapAction = (typeof TRAP_ACTIONS)[number];
 
-/** Protocols the CoPP classifier accepts (copp.txt: match protocol <p>). */
-const SUPPORTED_PROTOCOLS = ["arp_req", "arp_resp", "bgp", "eapol", "isis", "lacp", "ldp", "lldp", "ssh", "stp"];
+/** Protocols the CoPP classifier accepts (copp.txt: match protocol <p>; trap ids from copporch.cpp:60-100). */
+const SUPPORTED_PROTOCOLS = TRAP_PROTOCOLS;
 
 const QUEUE = { min: 0, max: 31 }; // COPP_RANGE_0_31 (TC-26)
 const PRIORITY = { min: 0, max: 1023 }; // COPP_RANGE_0_1023 (TC-27)
 const RATE = { min: 1, max: 4294967295 }; // uint32 (TC-28/TC-29)
 
 const POLICY_NAME = "copp-system-policy"; // copp.txt line 49
-
-interface CoppActionGroup {
-  name: string;
-  trapAction?: TrapAction;
-  trapQueue?: number;
-  trapPriority?: number;
-  cir?: number;
-  cbs?: number;
-}
-
-interface CoppClassifier {
-  name: string;
-  protocols: string[];
-}
-
-interface CoppBinding {
-  classifier: string; // Flow
-  action: string; // bound copp-action
-  priority: number;
-}
-
-interface CoppState {
-  actions: CoppActionGroup[];
-  classifiers: CoppClassifier[];
-  bindings: CoppBinding[];
-}
 
 function state(ctx: CommandContext): CoppState {
   return featureState<CoppState>(ctx.device, "copp", () => ({ actions: [], classifiers: [], bindings: [] }));
@@ -168,6 +150,12 @@ const config: SonicCmd[] = [
           if (upd.cbs !== undefined) g.cbs = upd.cbs;
           const shown = [upd.cir !== undefined ? `cir ${upd.cir}` : "", upd.cbs !== undefined ? `cbs ${upd.cbs}` : ""].filter(Boolean).join(" ");
           return { output: [muted(`CoPP action group ${name}: police ${shown}`)] };
+        }
+        case "meter-type": {
+          const v = pos[2];
+          if (v !== "packets" && v !== "bytes") return { output: [err("% Error: Invalid input — meter-type must be packets|bytes")] };
+          g.meterType = v;
+          return { output: [muted(`CoPP action group ${name}: meter-type ${v}`)] };
         }
         default:
           return { output: [err(`% Error: Invalid input — unknown field '${field}'`)] };
@@ -285,6 +273,7 @@ function actionFieldLines(g: CoppActionGroup): OutputLine[] {
   if (g.cir !== undefined || g.cbs !== undefined) {
     const parts = [g.cir !== undefined ? `cir ${g.cir}` : "", g.cbs !== undefined ? `cbs ${g.cbs}` : ""].filter(Boolean);
     out.push(line(`police ${parts.join(" ")}`));
+    if (g.meterType !== undefined) out.push(line(`  meter-type ${g.meterType}`));
   }
   return out;
 }
@@ -343,11 +332,111 @@ function renderSummary(ctx: CommandContext): OutputLine[] {
   ];
 }
 
+/** printf-style %-Ns / %Ns. */
+const L = (v: string, w: number) => v.padEnd(w);
+const R = (v: string, w: number) => v.padStart(w);
+
+/** show copp counters — show_copp_counters.j2 over the per-trap flow counters (xfmr_copp.go:157-238, sorted by trap name). */
+function renderCounters(ctx: CommandContext): OutputLine[] {
+  const traps = peekCoppRuntime(ctx.device)?.traps ?? {};
+  const names = Object.keys(traps).sort();
+  if (names.length === 0) return [line("No trap flow counters available")];
+  const fmt = (a: string, b: string, c: string, d: string) => `${L(a, 20)} ${R(b, 15)} ${R(c, 15)} ${R(d, 10)}`;
+  return [
+    line(fmt("Trap Name", "Packets", "Bytes", "PPS")),
+    line(fmt("-".repeat(20), "-".repeat(15), "-".repeat(15), "-".repeat(10))),
+    ...names.map((n) => line(fmt(n, String(traps[n].pkts), String(traps[n].bytes), traps[n].pps.toFixed(2)))),
+  ];
+}
+
+interface MergedTrap { trapIds: string[]; group: string }
+interface MergedGroup { trapAction: string; trapPriority?: number; queue?: number; cir?: number; cbs?: number; meterType?: string; mode?: string; redAction?: string }
+
+/** COPP_GROUP / COPP_TRAP as show/copp.py merge_copp_config sees them: copp_cfg defaults + KLISH-written entries. */
+function mergedConfig(ctx: CommandContext): { groups: Record<string, MergedGroup>; traps: Record<string, MergedTrap> } {
+  const groups: Record<string, MergedGroup> = {};
+  for (const [k, gr] of Object.entries(DEFAULT_GROUPS)) groups[k] = { ...gr };
+  const traps: Record<string, MergedTrap> = {};
+  for (const [k, t] of Object.entries(DEFAULT_TRAPS)) traps[k] = { trapIds: t.trapIds, group: t.group };
+  const st = peekFeatureState<CoppState>(ctx.device, "copp");
+  for (const a of st?.actions ?? []) {
+    groups[a.name] = { trapAction: a.trapAction ?? "", trapPriority: a.trapPriority, queue: a.trapQueue, cir: a.cir, cbs: a.cir !== undefined ? (a.cbs ?? a.cir) : a.cbs, meterType: a.meterType ?? (a.cir !== undefined ? "packets" : undefined), mode: a.cir !== undefined ? "sr_tcm" : undefined, redAction: a.cir !== undefined ? "drop" : undefined };
+  }
+  for (const b of st?.bindings ?? []) {
+    const c = st?.classifiers.find((x) => x.name === b.classifier);
+    if (c && c.protocols.length) traps[c.name] = { trapIds: c.protocols, group: b.action };
+  }
+  return { groups, traps };
+}
+
+/** HW Status (STATE_DB COPP_TRAP_TABLE|<trap_id> hw_status): installed when this row's group is the one programmed. */
+function hwStatus(ctx: CommandContext, trapId: string, group: string): string {
+  return resolveTrap(ctx.device, trapId)?.group === group ? "installed" : "not-installed";
+}
+
+const opt = (v: number | string | undefined) => (v === undefined ? "" : String(v));
+
+/** python tabulate "simple" with numeric columns right-aligned. */
+function simpleTable(header: string[], rows: string[][]): OutputLine[] {
+  const numeric = header.map((_, i) => rows.length > 0 && rows.every((r) => r[i] === "" || /^\d+$/.test(r[i])) && rows.some((r) => r[i] !== ""));
+  const w = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
+  const fmt = (cells: string[]) => cells.map((c, i) => (numeric[i] ? R(c, w[i]) : L(c, w[i]))).join("  ").replace(/\s+$/, "");
+  return [line(fmt(header)), line(w.map((n) => "-".repeat(n)).join("  ")), ...rows.map((r) => line(fmt(r)))];
+}
+
+function renderConfiguration(ctx: CommandContext): OutputLine[] {
+  const { groups, traps } = mergedConfig(ctx);
+  const rows: string[][] = [];
+  for (const t of Object.values(traps)) {
+    const gr = groups[t.group];
+    if (!gr) continue;
+    for (const id of t.trapIds) rows.push([id, t.group, gr.trapAction, opt(gr.cbs), opt(gr.cir), opt(gr.meterType), opt(gr.mode), hwStatus(ctx, id, t.group)]);
+  }
+  rows.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }) || a[1].localeCompare(b[1]));
+  return simpleTable(["TrapId", "Trap Group", "Action", "CBS", "CIR", "Meter Type", "Mode", "HW Status"], rows);
+}
+
+function flagVal(args: string[], short: string, long: string): string | undefined {
+  const i = args.findIndex((a) => a === short || a === long);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+/** show copp configuration detailed --trapid <id> | --group <g> (show/copp.py:229-268, print_single_copp_entry). */
+function renderDetailed(args: string[], ctx: CommandContext): OutputLine[] {
+  const trapid = flagVal(args, "-t", "--trapid");
+  const group = flagVal(args, "-g", "--group");
+  if (!trapid && !group) return [line("Either trapid or group must be provided.")];
+  if (trapid && group) return [line("Either trapid or group must be provided, but not both.")];
+  const { groups, traps } = mergedConfig(ctx);
+  let gname = group;
+  if (trapid) {
+    const owners = Object.values(traps).filter((t) => t.trapIds.includes(trapid));
+    gname = (owners.find((t) => hwStatus(ctx, trapid, t.group) === "installed") ?? owners[0])?.group;
+  }
+  const gr = gname ? groups[gname] : undefined;
+  if (!gname || !gr) return [];
+  const out: OutputLine[] = [];
+  const dots = (label: string, v: string) => line(`${label.padEnd(28, ".")} ${v}`);
+  if (!trapid) {
+    const ids = Object.values(traps).filter((t) => t.group === gname).flatMap((t) => t.trapIds);
+    out.push(dots("Trap Id(s)", ids.join(",")));
+  } else out.push(dots("Trap Group", gname));
+  out.push(dots("Trap Action", gr.trapAction), dots("Trap Priority", opt(gr.trapPriority)), dots("Queue", opt(gr.queue)));
+  out.push(dots("CBS", opt(gr.cbs)), dots("CIR", opt(gr.cir)), dots("Meter Type", opt(gr.meterType)), dots("Mode", opt(gr.mode)));
+  if (gr.mode === "sr_tcm" || gr.mode === "tr_tcm") out.push(dots("Yellow Action", "forward"));
+  out.push(dots("Green Action", "forward"), dots("Red Action", opt(gr.redAction)));
+  if (trapid) out.push(dots("HW Status", hwStatus(ctx, trapid, gname)));
+  return out;
+}
+
 const show: SonicCmd[] = [
   { path: ["copp", "actions"], summary: "Show configured CoPP action groups", run: (_a, ctx) => ({ output: renderActions(ctx) }) },
   { path: ["copp", "classifiers"], summary: "Show configured CoPP classifiers", run: (_a, ctx) => ({ output: renderClassifiers(ctx) }) },
   { path: ["copp", "policy"], summary: "Show the copp-system-policy bindings", run: (_a, ctx) => ({ output: renderPolicy(ctx) }) },
   { path: ["copp", "protocols"], summary: "Show supported CoPP classifier protocols", run: () => ({ output: renderProtocols() }) },
+  { path: ["copp", "counters"], summary: "Show per-trap CoPP flow counters (packets, bytes, PPS)", run: (_a, ctx) => ({ output: renderCounters(ctx) }) },
+  { path: ["copp", "configuration"], summary: "Show CoPP trap/group configuration with HW status", run: (_a, ctx) => ({ output: renderConfiguration(ctx) }) },
+  { path: ["copp", "configuration", "detailed"], summary: "Show one trap id (-t) or trap group (-g) in detail", run: (a, ctx) => ({ output: renderDetailed(a, ctx) }) },
   { path: ["copp"], summary: "Show a CoPP configuration summary", run: (_a, ctx) => ({ output: renderSummary(ctx) }) },
 ];
 

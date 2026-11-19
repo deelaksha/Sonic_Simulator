@@ -7,6 +7,7 @@
  *   tcpdump: the print-snmp.c style decode.
  */
 import { registerDaemon } from "../control/daemon";
+import { logEvent } from "../control/syslog";
 import { l4Payload, ownsAddress, sendIpv4 } from "../control/packet";
 import { Device } from "../models/device";
 import { Frame } from "../models/packet";
@@ -183,7 +184,15 @@ export function describeSnmp(frame: Frame, verbose: boolean): string | undefined
 registerDaemon({
   id: "snmp",
   nextDue: (device, now) => agentDue(device, now),
-  tick: (ctx, device, now) => (isAgentDevice(device) ? agentTick(ctx, device, now) : false),
+  tick: (ctx, device, now) => {
+    if (!isAgentDevice(device)) return false;
+    const started = peekAgent(device)?.startedAt;
+    const r = agentTick(ctx, device, now);
+    // net-snmp agent/snmpd.c:1500 (stop) and :1181 (start), LOG_INFO.
+    if (started !== undefined && peekAgent(device)?.startedAt !== started) logEvent(device, now, "INFO", "snmp#snmpd", "Received TERM or STOP signal...  shutting down...");
+    if (peekAgent(device)?.startedAt !== started) logEvent(device, now, "INFO", "snmp#snmpd", "NET-SNMP version 5.9.3");
+    return r;
+  },
   receiveL3: (ctx, device, _ingress, frame) => receive(ctx, device, frame),
   describe: (frame, verbose) => describeSnmp(frame, verbose),
 });

@@ -16,6 +16,7 @@
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
+import { featureRows } from "../../../protocols/cpu-features";
 
 type FeatureRow = { name: string; state?: string; autorestart?: string };
 
@@ -66,7 +67,8 @@ registerModal({
     if (!["status", "autorestart", "config"].includes(sub))
       return { output: [err("% Usage: show feature <status|autorestart|config> [<name>]")] };
     const filter = args[2];
-    let feats = (cpList(ctx.device, "feature", "features") as FeatureRow[]).slice();
+    // FEATURE table = image defaults (init_cfg.json) merged with configured state.
+    let feats: FeatureRow[] = featureRows(ctx.device).map((f) => ({ name: f.name, state: f.state, autorestart: f.autoRestart }));
     if (filter) feats = feats.filter((f) => f.name === filter);
     feats.sort((a, b) => a.name.localeCompare(b.name));
     if (!feats.length) return { output: [muted("No features configured")] };

@@ -149,6 +149,7 @@ Features that change forwarding register a `DataPlaneHook`
 | `allowEgress` | bridge flooding/forwarding | MCLAG peer-link isolation |
 | `flood` / `forwardVirtual` + `bridgeInput()` | VLAN flood / MAC entry on a virtual port / decap input | VXLAN (`vtep:<ip>` ports) |
 | `isLocalMac` | SVI punt | VRRP virtual MAC |
+| `toCpu` via `trapToCpu()` | link-local control frames; ARP / multicast / IP-to-me / TTL≤1 in `routerReceive` | CoPP (`lib/protocols/cpu-daemon.ts`: trap groups, CPU queues, policers) |
 
 **VRF**: membership comes from the VRF config (`lib/models/vrf.ts`); every
 route carries `vrf` and `longestPrefixMatch(table, dst, vrf = "default")`
@@ -156,3 +157,31 @@ only sees that VRF, so the default VRF is isolated automatically. Routers use
 the ingress interface's VRF for local delivery and forwarding; ping takes
 `-I <vrf>` / `vrf <name>`; static routes and `show ip route vrf <name>|all`
 are per VRF.
+
+**ECMP**: equal-best routes are picked per flow with `flowHash5` (src/dst IP,
+protocol, ports) in `longestPrefixMatch(…, flowHash)`; one flow keeps one path.
+
+## Visibility: CPU path, counters, logs, databases, QoS
+
+- **Hardware vs VS data plane** — per switch (`features["dataplane-mode"]`, Device
+  panel toggle). Frames forwarded in the ASIC carry `frame.meta.forwarded`;
+  frames reaching the CPU mark their captures `trapped`. In hardware mode the
+  store's tcpdump feed on front-panel ports shows only trapped rx and
+  CPU-originated tx, like a real switch.
+- **Drops** — every engine drop on a switch/router is classified to a SAI drop
+  reason (`lib/control/drops.ts`) → `show dropcounters`, `show interfaces counters` DRP.
+- **Counters** — `counters-daemon.ts` polls every 1 s (portstat rates);
+  `macaging-daemon.ts` ages the FDB (`config mac aging_time`).
+- **Syslog** — daemons call `logEvent()` (`lib/control/syslog.ts`); `show logging`,
+  remote UDP/514 forwarding in `syslog-daemon.ts`.
+- **SONiC DBs** — `lib/sonicdb/*` projects the model into CONFIG/APPL/STATE/ASIC/
+  COUNTERS_DB for `sonic-db-cli` / `redis-cli` (read-only); `config save|reload|load`
+  snapshot and restore (`persist.ts`: runtime keys are never saved).
+- **QoS** — a flow-level model (`lib/protocols/qos-model.ts`) on top of the packet
+  engine: iperf3 flows traced through the real path, DSCP→TC→queue, strict/DWRR,
+  WRED/tail drop, PFC; feeds queue/PFC/port counters.
+- **Protocol timeline** — control-tick events are kept in `controlEvents`
+  (timeline "Protocol traffic" view).
+- **Host TCP** — `lib/protocols/tcp-stack.ts` (listeners, handshake, data, FIN/RST)
+  behind `nc`, `hping3`, `arping`, `mtr` (`lib/commands/nettools.ts`).
+

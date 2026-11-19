@@ -66,6 +66,7 @@ export function bytesToFrame(bytes: Uint8Array, summary: string): Frame {
       protocol,
       identification: u16(bytes, l3 + 4),
       ...(protocol === "OTHER" ? { protocolNumber: protoNum } : {}),
+      ...(bytes[l3 + 1] >> 2 ? { dscp: bytes[l3 + 1] >> 2 } : {}),
     };
     parseL4(frame, bytes, l3 + ihl, protoNum);
   } else if (type === 0x86dd && bytes.length >= l3 + 40) {

@@ -61,8 +61,9 @@ function participates(sw: Device, iface: NetInterface, vid: number): boolean {
 }
 
 /** Produce the frame as it should leave a given egress port (tag/untag). */
-function egressFrame(frame: Frame, egress: NetInterface, vid: number): Frame {
+function egressFrame(frame: Frame, egress: NetInterface, vid: number, bridged = true): Frame {
   const out = cloneFrame(frame);
+  if (bridged) out.meta.forwarded = true; // transit frame, not sent by the switch CPU
   const cfg = egress.vlan;
   const wasTagged = !!out.vlan;
 
@@ -120,8 +121,9 @@ export function switchForward(
   const src = normalizeMac(frame.ethernet.srcMac);
   if (!isBroadcast(src) && !isMulticast(src) && src !== NULL_MAC) {
     const existing = sw.macTable.find((e) => normalizeMac(e.mac) === src && e.vlan === vid);
+    if (existing) existing.lastSeenMs = ctx.wallNow();
     if (!existing) {
-      sw.macTable.push({ mac: src, interfaceId: ingress.id, vlan: vid });
+      sw.macTable.push({ mac: src, interfaceId: ingress.id, vlan: vid, lastSeenMs: ctx.wallNow() });
       ctx.emit({
         type: "MAC_LEARNED",
         deviceId: sw.id,
@@ -273,8 +275,11 @@ export function bridgeInput(ctx: SimContext, sw: Device, virtualId: string, vid:
   const src = normalizeMac(frame.ethernet.srcMac);
   if (!isBroadcast(src) && !isMulticast(src) && src !== NULL_MAC) {
     const existing = sw.macTable.find((e) => normalizeMac(e.mac) === src && e.vlan === vid);
-    if (!existing) sw.macTable.push({ mac: src, interfaceId: virtualId, vlan: vid });
-    else existing.interfaceId = virtualId;
+    if (!existing) sw.macTable.push({ mac: src, interfaceId: virtualId, vlan: vid, lastSeenMs: ctx.wallNow() });
+    else {
+      existing.interfaceId = virtualId;
+      existing.lastSeenMs = ctx.wallNow();
+    }
   }
   const svi = sviFor(sw, vid);
   if (svi) {
@@ -380,8 +385,9 @@ function forwardInVlan(ctx: SimContext, sw: Device, ingress: NetInterface | null
     });
   }
 
+  const bridged = ingress !== null || virtualIngress !== undefined; // null ingress = CPU via SVI
   for (const port of egressPorts) {
-    ctx.transmit(sw.id, port.id, egressFrame(frame, port, vid));
+    ctx.transmit(sw.id, port.id, egressFrame(frame, port, vid, bridged));
   }
   // Broadcast / unknown unicast also go to virtual ports (remote VTEPs).
   if (broadcast || !known) floodVirtual(ctx, sw, ingressId, vid, frame);

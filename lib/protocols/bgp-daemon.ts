@@ -72,6 +72,7 @@ import { SimContext } from "../engine/context";
 import { registerDaemon } from "../control/daemon";
 import { sendIpv4, l4Payload, ownsAddress } from "../control/packet";
 import { bfd } from "../control/bfd-api";
+import { logEvent } from "../control/syslog";
 import { BgpConfig, BgpNeighbor, BgpSummary, getBgpConfig } from "./bgp";
 import {
   BGP_PORT,
@@ -484,6 +485,8 @@ function stopPeer(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, p
   const rt = peekBgpRuntime(device);
   if (rt) rt.dirty = true;
   if (wasUp) emit(ctx, device, "BGP_ESTABLISHED", `BGP neighbor ${p.peer} Down ${o.reason}${notify ? ` (${notifyText(notify.code, notify.subcode)})` : ""}`);
+  // bgp_fsm.c:1383-1395 (bgp log-neighbor-changes, set by SONiC's bgpd.main.conf.j2:72): "%pBP" = host(hostname|Unknown).
+  if (wasUp) logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf default Down ${o.reason}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +534,7 @@ function handleKeepalive(ctx: SimContext, device: Device, cfg: BgpConfig, nb: Bg
   p.uptimeMs = now;
   p.vConnect = nb.connectRetry ?? BGP_DEFAULTS.connectRetry;
   emit(ctx, device, "BGP_ESTABLISHED", `BGP neighbor ${p.peer} (AS${p.remoteAs}) Up — Established`);
+  logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf default Up`); // bgp_fsm.c:2172-2178
   peekBgpRuntime(device)!.dirty = true;
   converge(ctx, device, now);
 }

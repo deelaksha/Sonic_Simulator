@@ -187,6 +187,29 @@ function Table({ title, rows, empty }: { title: string; rows: string[]; empty: s
   );
 }
 
+/** SONiC-VS (kernel forwards) vs hardware ASIC (only CPU traffic visible to tcpdump). */
+function DataplaneMode({ device }: { device: Device }) {
+  const setMode = useLabStore((s) => s.setDataplaneMode);
+  const mode = (device.config.features?.["dataplane-mode"] as { mode?: string } | undefined)?.mode === "hardware" ? "hardware" : "vs";
+  return (
+    <div className="rounded-md border border-edge bg-panel-2 p-2.5">
+      <div className="text-[11px] font-semibold text-[#e6edf3]">Data plane</div>
+      <div className="mt-1 flex overflow-hidden rounded border border-edge text-[11px]">
+        {(["vs", "hardware"] as const).map((m) => (
+          <button key={m} onClick={() => setMode(device.id, m)} className={`flex-1 px-2 py-1 ${mode === m ? "bg-accent-2/20 text-accent-2" : "text-[#8b98a5] hover:text-[#e6edf3]"}`}>
+            {m === "vs" ? "SONiC-VS (kernel)" : "Hardware ASIC"}
+          </button>
+        ))}
+      </div>
+      <div className="mt-1 text-[10px] leading-relaxed text-[#6b7789]">
+        {mode === "vs"
+          ? "The Linux kernel forwards: tcpdump on EthernetN sees every frame."
+          : "The ASIC forwards transit traffic: tcpdump on EthernetN only sees frames trapped to the CPU (ARP, LACP, BGP, OSPF, …) and frames the CPU sends."}
+      </div>
+    </div>
+  );
+}
+
 export function DeviceConfigPanel() {
   const device = useLabStore((s) => (s.selectedDeviceId ? s.network.devices[s.selectedDeviceId] : undefined));
   const network = useLabStore((s) => s.network);
@@ -272,6 +295,8 @@ export function DeviceConfigPanel() {
           </span>
         ))}
       </div>
+
+      {isSwitch(device.type) && <DataplaneMode device={device} />}
 
       {isSwitch(device.type) && (
         <div className="rounded-md border border-edge bg-panel-2 p-2.5">

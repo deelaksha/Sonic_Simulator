@@ -59,7 +59,9 @@ describe("sonic-cli feature (config-plane)", () => {
     s = run(state, device, s, "configure terminal").stack;
     run(state, device, s, "feature state stp enabled");
     run(state, device, s, "no feature stp");
-    expect(run(state, device, ["exec"], "show feature status").text).toContain("No features configured");
+    const status = run(state, device, ["exec"], "show feature status").text;
+    expect(status).not.toMatch(/\bstp\b/); // only image defaults remain
+    expect(status).toMatch(/bgp\s+enabled/);
   });
 
   it("rejects an invalid state value", () => {

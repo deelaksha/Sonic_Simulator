@@ -14,6 +14,11 @@ import "../protocols/mclag-daemon";
 import "../protocols/acl-daemon";
 import "../protocols/vxlan-daemon";
 import "../protocols/vrrp-daemon";
+import "../protocols/macaging-daemon";
+import "../protocols/counters-daemon";
+import "../protocols/syslog-daemon";
+import "../protocols/cpu-daemon";
+import "../protocols/qos-daemon";
 
 export * from "./daemon";
 export * from "./hooks";

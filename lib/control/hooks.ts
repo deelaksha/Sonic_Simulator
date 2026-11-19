@@ -15,6 +15,9 @@
  *   forwardVirtual deliver to a MAC-table entry whose interfaceId is not a local
  *                  port (e.g. "vtep:10.0.0.3")
  *   isLocalMac     extra MACs an L3 interface accepts as its own (VRRP vMAC)
+ *   toCpu          a packet is trapped from the ASIC to the switch CPU (hostif
+ *                  trap); return false to drop it (CoPP policer), or a string
+ *                  naming another drop cause
  *
  * Every hook is optional; with nothing registered the engine behaves as before.
  */
@@ -36,6 +39,7 @@ export interface DataPlaneHook {
   flood?(ctx: SimContext, sw: Device, ingressId: string | null, vid: number, frame: Frame): void;
   forwardVirtual?(ctx: SimContext, sw: Device, entryInterfaceId: string, vid: number, frame: Frame): boolean;
   isLocalMac?(device: Device, iface: NetInterface, mac: string): boolean;
+  toCpu?(ctx: SimContext, device: Device, iface: NetInterface, frame: Frame): boolean | string;
 }
 
 const HOOKS: DataPlaneHook[] = [];
@@ -88,6 +92,31 @@ export function floodVirtual(ctx: SimContext, sw: Device, ingressId: string | nu
 export function forwardVirtual(ctx: SimContext, sw: Device, entryInterfaceId: string, vid: number, frame: Frame): boolean {
   for (const h of HOOKS) if (h.forwardVirtual?.(ctx, sw, entryInterfaceId, vid, frame)) return true;
   return false;
+}
+
+/**
+ * A frame reaches the switch CPU. Marks its captures as trapped; returns false
+ * if a hook (CoPP) dropped it.
+ */
+export function trapToCpu(ctx: SimContext, device: Device, iface: NetInterface, frame: Frame): boolean {
+  for (const h of HOOKS) {
+    const r = h.toCpu?.(ctx, device, iface, frame) ?? true;
+    if (r !== true) {
+      ctx.emit({
+        type: "FRAME_DROPPED",
+        deviceId: device.id,
+        deviceName: device.name,
+        interfaceId: iface.id,
+        interfaceName: iface.name,
+        message: `${device.name} ${iface.name}: ${typeof r === "string" ? r : "dropped on ingress by CoPP policer (trap to CPU)"}`,
+        osiLayers: [2, 3],
+        frame,
+      });
+      return false;
+    }
+  }
+  ctx.markTrapped(device.id, frame.id);
+  return true;
 }
 
 export function isExtraLocalMac(device: Device, iface: NetInterface, mac: string): boolean {

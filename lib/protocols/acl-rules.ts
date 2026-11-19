@@ -323,7 +323,7 @@ export function ruleMatches(r: ParsedRule, f: Frame, vid: number | null): boolea
   if (!addrHit(r.src, src) || !addrHit(r.dst, dst)) return false;
   const l4 = f.tcp ?? f.udp;
   if (!inRange(l4?.srcPort, r.sport) || !inRange(l4?.dstPort, r.dport)) return false;
-  if (r.dscp !== undefined && r.dscp !== 0) return false; // frames carry no DSCP: all are CS0/default
+  if (r.dscp !== undefined && r.dscp !== (f.ipv4?.dscp ?? 0)) return false;
   if (r.icmpType !== undefined && r.icmpType !== icmpType) return false;
   if (r.icmpCode !== undefined && r.icmpCode !== icmpCode) return false;
   if (r.flagsSet.length || r.flagsClear.length || r.established) {

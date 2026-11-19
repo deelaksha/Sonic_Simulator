@@ -40,7 +40,7 @@ import { interfaceByName } from "../../models/device";
 
 type WatchdogAction = "drop" | "forward" | "alert";
 
-interface PfcwdState {
+export interface PfcwdState {
   started: boolean;
   action?: WatchdogAction;
   detectionTime?: number;
@@ -51,12 +51,12 @@ interface PfcwdState {
   ports?: string[];
 }
 
-interface PfcInterface {
+export interface PfcInterface {
   asymmetric?: boolean;
   priorities?: number[];
 }
 
-interface PfcState {
+export interface PfcState {
   pfcwd: PfcwdState;
   interfaces: Record<string, PfcInterface>;
 }

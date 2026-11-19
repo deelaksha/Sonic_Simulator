@@ -67,6 +67,17 @@ interface LabState {
   traffic: TrafficRun | null;
   /** Last sFlow agent export problems per switch (diagnostics for the monitor). */
   sflowErrors: Record<string, string[]>;
+  /** Recent events from the protocol daemons (OSPF/BGP/BFD/LLDP/…), newest last. */
+  controlEvents: SimEvent[];
+  /** Which stream the packet timeline shows. */
+  timelineSource: "commands" | "protocols";
+  setTimelineSource(src: "commands" | "protocols"): void;
+  /**
+   * Switch data-plane model: "vs" (SONiC-VS: the Linux kernel forwards, tcpdump
+   * on EthernetN sees everything) or "hardware" (an ASIC forwards; tcpdump on
+   * EthernetN only sees frames trapped to the CPU or sent by it).
+   */
+  setDataplaneMode(deviceId: string, mode: "vs" | "hardware"): void;
   terminalFocusNonce: number;
   deviceSeq: number;
   lineSeq: number;
@@ -223,9 +234,15 @@ export const useLabStore = create<LabState>((set, get) => {
       if (!pred || !dev) continue;
       const out: { text: string; kind: "output" }[] = [];
       let done = false;
+      const hw = (dev.config.features?.["dataplane-mode"] as { mode?: string } | undefined)?.mode === "hardware";
       for (const rec of fresh) {
         if (rec.deviceId !== id) continue;
         if (sess.spec.interfaceIds && !sess.spec.interfaceIds.includes(rec.interfaceId)) continue;
+        if (hw) {
+          // ASIC switch: the kernel netdev only sees trapped frames and CPU-sent frames.
+          const port = dev.interfaces.find((i) => i.id === rec.interfaceId);
+          if (port && !port.management && !port.logical && (rec.dir === "rx" ? !rec.trapped : rec.frame.meta.forwarded)) continue;
+        }
         if (!pred(rec.frame)) continue;
         for (const text of formatCaptureRecord(rec, dev, sess.spec)) out.push({ text, kind: "output" });
         sess.matched += 1;
@@ -318,6 +335,8 @@ export const useLabStore = create<LabState>((set, get) => {
   liveCaptures: {},
   traffic: null,
   sflowErrors: {},
+  controlEvents: [],
+  timelineSource: "commands",
   terminalFocusNonce: 0,
   deviceSeq: 1,
   lineSeq: 1,
@@ -657,8 +676,24 @@ export const useLabStore = create<LabState>((set, get) => {
     const sim = new Simulation(draft, { wallBase: now });
     const changed = runControlTick(sim, draft, now);
     if (!changed && sim.captures.length === 0) return;
-    set({ network: draft, captures: [...state.captures, ...sim.captures].slice(-CAPTURE_LIMIT) });
+    set({
+      network: draft,
+      captures: [...state.captures, ...sim.captures].slice(-CAPTURE_LIMIT),
+      controlEvents: sim.events.length ? [...state.controlEvents, ...sim.events].slice(-600) : state.controlEvents,
+    });
     feedCaptures(sim.captures);
+  },
+
+  setTimelineSource(src) {
+    set({ timelineSource: src });
+  },
+
+  setDataplaneMode(deviceId, mode) {
+    const next = structuredClone(get().network);
+    const dev = next.devices[deviceId];
+    if (!dev) return;
+    (dev.config.features ??= {})["dataplane-mode"] = { mode };
+    set({ network: next });
   },
 
   setCollector(deviceId, listening, port) {
@@ -752,6 +787,7 @@ export const useLabStore = create<LabState>((set, get) => {
       liveCaptures: {},
       traffic: null,
       sflowErrors: {},
+      controlEvents: [],
       network: { devices: {}, connections: [] },
       labName: "Untitled Lab",
       events: [],

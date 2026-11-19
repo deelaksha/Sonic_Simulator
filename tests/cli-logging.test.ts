@@ -10,6 +10,7 @@ import { Simulation, CaptureRecord, resetIds, SimEvent } from "../lib/engine";
 import { CommandContext } from "../lib/commands";
 import { runSonicCli, CliStack } from "../lib/commands/sonic-cli";
 import { Device } from "../lib/models/device";
+import { logEvent } from "../lib/control/syslog";
 
 function sw(): { state: NetworkState; device: Device } {
   resetMacCounter(1);
@@ -59,5 +60,16 @@ describe("sonic-cli logging (config-plane)", () => {
     let s: CliStack = ["exec"];
     s = run(state, device, s, "configure terminal").stack;
     expect(run(state, device, s, "logging server 50.1.1.1 protocol bogus").text).toContain("protocol must be one of");
+  });
+
+  it("show logging [lines N] renders the device syslog; clear logging empties it", () => {
+    const { state, device } = sw();
+    for (let i = 1; i <= 3; i++) logEvent(device, 1_000_000 + i, "NOTICE", "swss#orchagent", `:- updatePortOperStatus: Port Ethernet${i} oper state set from up to down`);
+    const all = run(state, device, ["exec"], "show logging").text.split("\n");
+    expect(all).toHaveLength(3);
+    expect(all[2]).toMatch(/^\d{4} [A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d\.\d{6} sw1 NOTICE swss#orchagent: :- updatePortOperStatus: Port Ethernet3 oper state set from up to down$/);
+    expect(run(state, device, ["exec"], "show logging lines 1").text).toBe(all[2]);
+    run(state, device, ["exec"], "clear logging");
+    expect(run(state, device, ["exec"], "show logging").text).toBe("");
   });
 });

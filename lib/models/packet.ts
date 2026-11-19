@@ -45,6 +45,8 @@ export interface Ipv4Header {
   identification: number;
   /** IP protocol number when protocol is "OTHER". */
   protocolNumber?: number;
+  /** DiffServ code point (TOS >> 2); absent = 0 (CS0/best effort). */
+  dscp?: number;
 }
 
 export type IcmpType = "echo-request" | "echo-reply" | "time-exceeded" | "dest-unreachable";
@@ -192,6 +194,8 @@ export interface StpPayload {
 export interface FrameMeta {
   sizeBytes: number;
   summary: string; // one-line description for timelines / tcpdump
+  /** Transit frame (bridged or routed by a switch/router), not originated by its CPU. */
+  forwarded?: boolean;
 }
 
 export interface Frame {

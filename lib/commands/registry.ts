@@ -19,6 +19,11 @@ import { bgpCommand } from "./bgpctl";
 import { configCommand, showCommand } from "./sonic";
 import { sonicClearCommand } from "./sonic/arpnd";
 import { aclshowCommand } from "./sonic/acl";
+import { sonicDbCliCommand, redisCliCommand } from "./sonicdb";
+import { dockerCommand } from "./docker";
+import { loggerCommand } from "./logger";
+import { iperf3Command } from "./iperf3";
+import { ncCommand, hping3Command, arpingCommand, mtrCommand } from "./nettools";
 import { SNMP_CLIENT_COMMANDS } from "./snmpclient";
 import { ssCommand } from "./ss";
 import { curlCommand } from "./curl";
@@ -63,6 +68,15 @@ const helpCommand: CommandHandler = {
 
 export const COMMANDS: CommandHandler[] = [
   aclshowCommand,
+  sonicDbCliCommand,
+  redisCliCommand,
+  dockerCommand,
+  loggerCommand,
+  iperf3Command,
+  ncCommand,
+  hping3Command,
+  arpingCommand,
+  mtrCommand,
   sonicClearCommand,
   pingCommand,
   ping6Command,

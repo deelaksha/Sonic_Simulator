@@ -28,23 +28,51 @@ function ifaceStatus(ctx: CommandContext): OutputLine[] {
   return out;
 }
 
-function macTable(ctx: CommandContext): OutputLine[] {
+/**
+ * `show mac [-v vlan] [-p port] [-a mac] [-t type] [-c]` — scripts/fdbshow:
+ * HEADER No./Vlan/MacAddress/Port/Type (fdbshow:73), entries sorted by VLAN
+ * (:156), filters (:176-180), default tabulate (numbers right-aligned), then
+ * "Total number of entries N" (:189); `-c` prints only the total. fdbshow has
+ * no Age column. EVPN-installed remote MACs show the tunnel ("VxLAN DIP: ip"),
+ * type Static.
+ */
+function macTable(ctx: CommandContext, args: string[] = []): OutputLine[] {
   if (!isSwitch(ctx.device.type)) return [muted("MAC table is only available on switches")];
-  if (ctx.device.macTable.length === 0) return [muted("No entries present.")];
-  const out = [
-    line("No.    Vlan  MacAddress          Port         Type"),
-    line("-----  ----  ------------------  -----------  --------"),
+  const opt = (f: string, l: string) => {
+    const k = args.findIndex((a) => a === f || a === l);
+    return k >= 0 ? args[k + 1] : undefined;
+  };
+  const vlan = opt("-v", "--vlan");
+  const port = opt("-p", "--port");
+  const address = opt("-a", "--address");
+  const type = opt("-t", "--type");
+  if (vlan !== undefined && (!/^\d+$/.test(vlan) || Number(vlan) < 1 || Number(vlan) > 4095)) return [line(`Error: Invalid vlan id ${vlan}`)];
+  if (port !== undefined && !ctx.device.interfaces.some((i) => i.name === port)) return [line(`Error: Invalid port ${port}`)];
+  if (address !== undefined && !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(address)) return [line(`Error: Invalid mac address ${address}`)];
+  const want = type ? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase() : undefined;
+  if (want !== undefined && want !== "Static" && want !== "Dynamic") return [line(`Error: Invalid type ${type}`)];
+  const entries = ctx.device.macTable
+    .map((m) => {
+      const remote = m.interfaceId.startsWith("vtep:");
+      const p = remote ? `VxLAN DIP: ${m.interfaceId.slice(5)}` : (findInterface(ctx.device, m.interfaceId)?.name ?? m.interfaceId);
+      return { vlan: m.vlan, mac: m.mac.toUpperCase(), port: p, type: remote || m.static ? "Static" : "Dynamic" };
+    })
+    .filter((e) => (vlan === undefined || e.vlan === Number(vlan)) && (port === undefined || e.port === port) &&
+      (address === undefined || e.mac === address.toUpperCase()) && (want === undefined || e.type === want))
+    .sort((a, b) => a.vlan - b.vlan);
+  const total = line(`Total number of entries ${entries.length}`);
+  if (args.includes("-c") || args.includes("--count")) return [total];
+  const hdr = ["No.", "Vlan", "MacAddress", "Port", "Type"];
+  const rows = entries.map((e, i) => [String(i + 1), String(e.vlan), e.mac, e.port, e.type]);
+  const num = [true, true, false, false, false];
+  const w = hdr.map((h, c) => Math.max(h.length + 2, ...rows.map((r) => r[c].length)));
+  const cell = (v: string, c: number) => (num[c] ? v.padStart(w[c]) : v.padEnd(w[c]));
+  return [
+    line(hdr.map(cell).join("  ").trimEnd()),
+    line(w.map((n) => "-".repeat(n)).join("  ")),
+    ...rows.map((r) => line(r.map(cell).join("  ").trimEnd())),
+    total,
   ];
-  ctx.device.macTable.forEach((m, i) => {
-    // EVPN-installed remote MACs sit behind a VXLAN tunnel (fdbshow prints the tunnel, type Static).
-    const remote = m.interfaceId.startsWith("vtep:");
-    const port = remote ? `VxLAN DIP: ${m.interfaceId.slice(5)}` : (findInterface(ctx.device, m.interfaceId)?.name ?? m.interfaceId);
-    out.push(
-      line(`${String(i + 1).padEnd(5)}  ${String(m.vlan).padEnd(4)}  ${m.mac.padEnd(18)}  ${port.padEnd(11)}  ${remote ? "Static" : "Dynamic"}`),
-    );
-  });
-  out.push(muted(`Total number of entries ${ctx.device.macTable.length}`));
-  return out;
 }
 
 function ipInterfaces(ctx: CommandContext): OutputLine[] {
@@ -93,8 +121,8 @@ function runningConfig(ctx: CommandContext, section?: string): OutputLine[] {
 const show: SonicCmd[] = [
   { path: ["interfaces", "status"], summary: "Interface status", run: (_a, ctx) => ({ output: ifaceStatus(ctx) }) },
   { path: ["interface", "status"], summary: "Interface status", run: (_a, ctx) => ({ output: ifaceStatus(ctx) }) },
-  { path: ["mac", "address-table"], summary: "MAC address table", run: (_a, ctx) => ({ output: macTable(ctx) }) },
-  { path: ["mac"], summary: "MAC address table", run: (_a, ctx) => ({ output: macTable(ctx) }) },
+  { path: ["mac", "address-table"], summary: "MAC address table", run: (a, ctx) => ({ output: macTable(ctx, a) }) },
+  { path: ["mac"], summary: "MAC address table", run: (a, ctx) => ({ output: macTable(ctx, a) }) },
   { path: ["ip", "interfaces"], summary: "IPv4 interface addresses", run: (_a, ctx) => ({ output: ipInterfaces(ctx) }) },
   {
     path: ["running-configuration"],
@@ -121,11 +149,6 @@ const show: SonicCmd[] = [
 
 const config: SonicCmd[] = [
   {
-    path: ["save"],
-    summary: "Persist running configuration",
-    run: () => ({ output: [muted("Running configuration saved to startup.")] }),
-  },
-  {
     path: ["mac", "add"],
     summary: "Add static MAC address table entry (config mac add <vlan> <mac> <port>)",
     run(args, ctx): CommandResult {
@@ -141,7 +164,7 @@ const config: SonicCmd[] = [
       if (!iface) return { output: [err(`config mac add: port '${portName}' not found`)] };
       const normMac = normalizeMac(mac);
       ctx.device.macTable = ctx.device.macTable.filter((e) => !(e.vlan === vlanId && normalizeMac(e.mac) === normMac));
-      ctx.device.macTable.push({ mac: normMac, interfaceId: iface.id, vlan: vlanId });
+      ctx.device.macTable.push({ mac: normMac, interfaceId: iface.id, vlan: vlanId, static: true });
       return { output: [muted(`Added MAC ${normMac} on VLAN ${vlanId} dev ${iface.name}`)] };
     },
   },

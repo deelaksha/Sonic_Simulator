@@ -3,10 +3,11 @@
  * goes through ipOutput → ARP → switch/router forwarding exactly like ping, so
  * MAC learning, sFlow sampling, port counters and tcpdump all see it.
  *
- * Destination behaviour follows a Linux host with no application bound:
+ * Destination behaviour follows a Linux host:
  *   ICMP echo request → echo reply (existing ICMP handler)
- *   TCP SYN to a closed port → RST,ACK
- *   UDP → counted as received by the destination host
+ *   TCP → the host TCP stack (./tcp-stack.ts): listeners (nc -l, sshd, nginx)
+ *         complete the handshake; a closed port answers RST / RST,ACK
+ *   UDP → counted as received by the destination host (and logged by `nc -u -l`)
  */
 import { Device } from "../models/device";
 import { NetInterface, ownsIp, primaryIpv4 } from "../models/interface";
@@ -19,6 +20,7 @@ import { ipOutput, IpOutputResult } from "./ipv4";
 import { ip6Output } from "./ipv6";
 import { ICMP_HEADER_BYTES } from "./icmp";
 import { bytesToFrame } from "../packetgen/frame";
+import { tcpInput, tcpListenerOwner, udpListenerInput } from "./tcp-stack";
 
 /** "engine" = a packet built by the packet engine (lib/packetgen), any protocol. */
 export type TrafficProtocol = "icmp" | "udp" | "tcp" | "engine";
@@ -77,6 +79,7 @@ export function receiveTrafficUdp(ctx: SimContext, device: Device, ingress: NetI
   const s = sink(device);
   s.udp.packets += 1;
   s.udp.bytes += frame.meta.sizeBytes;
+  udpListenerInput(device, frame);
   ctx.emit({
     type: "UDP_DATAGRAM",
     deviceId: device.id,
@@ -97,29 +100,19 @@ export function receiveTrafficTcp(ctx: SimContext, device: Device, ingress: NetI
   const s = sink(device);
   s.tcp.packets += 1;
   s.tcp.bytes += frame.meta.sizeBytes;
+  const syn = tcp.flags.includes("SYN") && !tcp.flags.includes("ACK");
+  const closedPort = syn && !tcpListenerOwner(device, tcp.dstPort);
   ctx.emit({
     type: "TCP_SEGMENT",
     deviceId: device.id,
     deviceName: device.name,
     interfaceId: ingress.id,
     interfaceName: ingress.name,
-    message: `${device.name}: TCP [${tcp.flags.join(",")}] ${ip.srcIp}:${tcp.srcPort} → :${tcp.dstPort}${tcp.flags.includes("SYN") ? " — port closed, answering RST" : ""}`,
+    message: `${device.name}: TCP [${tcp.flags.join(",")}] ${ip.srcIp}:${tcp.srcPort} → :${tcp.dstPort}${closedPort ? " — port closed, answering RST" : ""}`,
     osiLayers: [4],
     frame,
   });
-  if (tcp.flags.includes("SYN") && !tcp.flags.includes("ACK")) {
-    ipOutput(ctx, device, {
-      srcIp: ip.dstIp,
-      dstIp: ip.srcIp,
-      ttl: 64,
-      protocol: "TCP",
-      identification: 0,
-      tcp: { srcPort: tcp.dstPort, dstPort: tcp.srcPort, seq: 0, ack: (tcp.seq + 1) >>> 0, flags: ["RST", "ACK"], window: 0 },
-      upperBytes: TCP_HEADER,
-      summary: `TCP ${tcp.dstPort} → ${tcp.srcPort} [RST, ACK]`,
-    });
-  }
-  return true;
+  return tcpInput(ctx, device, frame);
 }
 
 export type SendFailure = NonNullable<IpOutputResult["reason"]> | "ndp-failed" | "no-src-ip" | "iface-down" | "no-device";

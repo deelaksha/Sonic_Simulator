@@ -35,25 +35,50 @@ export interface RouteMatch {
 }
 
 /**
- * Longest-prefix match. Returns the most specific matching route, or null when
- * the destination is unreachable from this table (spec §9, §37).
+ * ECMP flow hash over the 5-tuple SONiC hashes by default (running-config
+ * `ip load-share hash ipv4 ipv4-src-ip / ipv4-dst-ip / ipv4-ip-proto /
+ * ipv4-l4-src-port / ipv4-l4-dst-port`). FNV-1a + fmix32: deterministic, so one
+ * flow always takes the same next hop and different flows spread.
  */
-export function longestPrefixMatch(table: Route[], dstIp: string, vrf = "default"): RouteMatch | null {
-  let best: Route | null = null;
+export function flowHash5(srcIp: string, dstIp: string, proto: string | number, srcPort = 0, dstPort = 0): number {
+  let h = 0x811c9dc5;
+  for (const c of `${srcIp}|${dstIp}|${proto}|${srcPort}|${dstPort}`) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 0x01000193);
+  }
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/**
+ * Longest-prefix match. Returns the most specific matching route, or null when
+ * the destination is unreachable from this table (spec §9, §37). Among equal
+ * best routes (same prefix, distance and metric — ECMP), `flowHash` picks one;
+ * without it the first is used.
+ */
+export function longestPrefixMatch(table: Route[], dstIp: string, vrf = "default", flowHash?: number): RouteMatch | null {
+  let best: Route[] = [];
   for (const r of table) {
     if ((r.vrf ?? "default") !== vrf) continue; // VRFs are separate routing tables
     if (!cidrContains(r.destination, r.prefix, dstIp)) continue;
-    if (
-      best === null ||
-      r.prefix > best.prefix ||
-      (r.prefix === best.prefix &&
-        (routeDistance(r) < routeDistance(best) || (routeDistance(r) === routeDistance(best) && r.metric < best.metric)))
-    ) {
-      best = r;
-    }
+    const b = best[0];
+    const cmp = !b
+      ? -1
+      : r.prefix !== b.prefix
+        ? b.prefix - r.prefix
+        : routeDistance(r) !== routeDistance(b)
+          ? routeDistance(r) - routeDistance(b)
+          : r.metric - b.metric;
+    if (cmp < 0) best = [r];
+    else if (cmp === 0) best.push(r);
   }
-  if (!best) return null;
-  return { route: best, nextHopIp: best.nextHop ?? dstIp };
+  if (!best.length) return null;
+  const chosen = best.length > 1 && flowHash !== undefined ? best[flowHash % best.length] : best[0];
+  return { route: chosen, nextHopIp: chosen.nextHop ?? dstIp };
 }
 
 /** Longest-prefix match over an IPv6 routing table (destination/nextHop are v6 strings). */

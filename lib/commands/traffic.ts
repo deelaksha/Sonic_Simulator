@@ -35,7 +35,7 @@ function diagnoseFailure(reason?: SendFailure): string {
 
 export const trafficCommand: CommandHandler = {
   name: "traffic",
-  aliases: ["iperf", "iperf3", "hping3"],
+  aliases: ["iperf"],
   summary: "Generate high-volume network traffic (UDP/TCP/ICMP) with payload data",
   usage: "traffic [-c count] [-s size] [-p udp|tcp|icmp] [-P port] <destination>",
   help: [
@@ -43,8 +43,9 @@ export const trafficCommand: CommandHandler = {
     "",
     "Usage:",
     "  traffic [-c count] [-s size] [-p udp|tcp|icmp] [-P port] <destination>",
-    "  iperf3 -c <destination> [-n count] [-l size] [-u] [-p port]",
-    "  hping3 [-c count] [-d size] [--udp | --icmp | --syn] <destination>",
+    "  iperf -c <destination> [-n count] [-l size] [-u] [-p port]",
+    "  traffic [-c count] [-d size] [--udp | --icmp | --syn] <destination>",
+    "  (iperf3 and hping3 are separate commands)",
     "",
     "Options:",
     "  -c, -n count   Number of packets to transmit (1-100000, default 1000)",

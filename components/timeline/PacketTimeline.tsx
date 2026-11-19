@@ -60,7 +60,63 @@ function Ctrl({ onClick, label, disabled }: { onClick: () => void; label: string
   );
 }
 
+function ProtocolEvents() {
+  const events = useLabStore((s) => s.controlEvents);
+  const selectedEventId = useLabStore((s) => s.selectedEventId);
+  const selectEvent = useLabStore((s) => s.selectEvent);
+  if (!events.length) {
+    return <div className="p-3 text-[11.5px] text-[#6b7789]">No protocol packets yet — load an OSPF/BGP/BFD/LLDP lab and wait a few seconds.</div>;
+  }
+  return (
+    <div className="flex-1 overflow-y-auto px-2 py-1">
+      {events
+        .slice()
+        .reverse()
+        .map((e) => (
+          <button
+            key={e.id}
+            onClick={() => selectEvent(e.id)}
+            className={`flex w-full items-start gap-2 rounded px-2 py-1 text-left text-[11.5px] leading-snug ${e.id === selectedEventId ? "bg-panel-3" : "hover:bg-panel-2"}`}
+          >
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: TYPE_COLOR[e.type] ?? "#64748b" }} />
+            <span className="text-[#c9d3de]">{e.message}</span>
+          </button>
+        ))}
+    </div>
+  );
+}
+
+function SourceToggle() {
+  const src = useLabStore((s) => s.timelineSource);
+  const setSrc = useLabStore((s) => s.setTimelineSource);
+  return (
+    <div className="flex overflow-hidden rounded border border-edge text-[11px]">
+      {(["commands", "protocols"] as const).map((v) => (
+        <button key={v} onClick={() => setSrc(v)} className={`px-2 py-0.5 ${src === v ? "bg-accent-2/20 text-accent-2" : "text-[#8b98a5] hover:text-[#e6edf3]"}`}>
+          {v === "commands" ? "Commands" : "Protocol traffic"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function PacketTimeline() {
+  const src = useLabStore((s) => s.timelineSource);
+  if (src === "protocols") {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-1.5 border-b border-edge px-3 py-1.5">
+          <SourceToggle />
+          <span className="ml-2 text-[11px] text-[#5f6b7a]">newest first · OSPF, BGP, BFD, LLDP, LACP, VRRP, ARP…</span>
+        </div>
+        <ProtocolEvents />
+      </div>
+    );
+  }
+  return <CommandTimeline />;
+}
+
+function CommandTimeline() {
   const events = useLabStore((s) => s.events);
   const { index, playing } = useLabStore((s) => s.playback);
   const selectedEventId = useLabStore((s) => s.selectedEventId);
@@ -85,9 +141,13 @@ export function PacketTimeline() {
 
   if (events.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-[#6b7789]">
-        Run a command that generates traffic (e.g. <code className="mx-1 text-accent-2">ping</code>) to
-        populate the packet timeline.
+      <div className="flex h-full flex-col">
+        <div className="border-b border-edge px-3 py-1.5">
+          <SourceToggle />
+        </div>
+        <div className="flex flex-1 items-center justify-center text-sm text-[#6b7789]">
+          Run a command that generates traffic (e.g. <code className="mx-1 text-accent-2">ping</code>) to populate the packet timeline.
+        </div>
       </div>
     );
   }
@@ -95,6 +155,7 @@ export function PacketTimeline() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1.5 border-b border-edge px-3 py-1.5">
+        <SourceToggle />
         <Ctrl onClick={stepPrev} label="⏮ Prev" disabled={index <= 0} />
         {playing ? (
           <Ctrl onClick={pause} label="⏸ Pause" />

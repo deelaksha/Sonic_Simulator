@@ -13,6 +13,7 @@
  */
 import { CommandHandler, CommandResult, OutputLine, line } from "./types";
 import { Device, isSwitch, isRouter } from "../models/device";
+import { tcpSockets } from "../protocols/tcp-stack";
 
 interface SocketEntry {
   netid: "tcp" | "udp";
@@ -31,8 +32,8 @@ function getDeviceSockets(dev: Device): SocketEntry[] {
   const sockets: SocketEntry[] = [];
   const feats = dev.config.features ?? {};
 
-  // Standard SSH daemon (active on all managed devices)
-  sockets.push({
+  // Standard SSH daemon (not on PCs; see lib/protocols/tcp-stack.ts built-in listeners)
+  if (dev.type !== "pc") sockets.push({
     netid: "tcp",
     state: "LISTEN",
     recvQ: 0,
@@ -156,6 +157,14 @@ function getDeviceSockets(dev: Device): SocketEntry[] {
       process: "bfdd",
       pid: 1104,
     });
+  }
+
+  // nc listeners and live TCP connections from the host TCP stack
+  const split = (a: string) => [a.slice(0, a.lastIndexOf(":")), a.slice(a.lastIndexOf(":") + 1)];
+  for (const r of tcpSockets(dev)) {
+    const [la, lp] = split(r.local);
+    const [pa, pp] = split(r.peer);
+    sockets.push({ netid: r.netid, state: r.state as SocketEntry["state"], recvQ: 0, sendQ: 0, localAddr: la, localPort: Number(lp), peerAddr: pa, peerPort: pp, process: r.process, pid: 2400 });
   }
 
   return sockets;

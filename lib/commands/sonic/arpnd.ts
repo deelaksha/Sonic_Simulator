@@ -23,6 +23,7 @@ import { ArpEntry, Device } from "../../models/device";
 import { findInterface, interfaceByName } from "../../models/device";
 import { addStaticArp, deleteArp, isPermanent, peekArpRuntime } from "../../protocols/arp";
 import { normalizeMac } from "../../models/mac";
+import { clearCounters, clearDropcounters, sonicClearFdbAll } from "./counters";
 
 /** Interface name an entry resolves to (e.g. "eth0" / "Ethernet0"), or the raw id. */
 function ifaceName(device: Device, e: ArpEntry): string {
@@ -203,11 +204,27 @@ export const sonicClearCommand: CommandHandler = {
   name: "sonic-clear",
   cli: "sonic",
   summary: "SONiC clear commands (sonic-clear arp ...)",
-  usage: "sonic-clear arp [<ip>] | sonic-clear ip arp [<ip>]",
-  help: ["SONIC-CLEAR", "", "Usage:", "  sonic-clear arp [<ipaddress>]     Clear IP ARP table", "  sonic-clear ip arp [<ipaddress>]"],
+  usage: "sonic-clear arp [<ip>] | sonic-clear ip arp [<ip>] | sonic-clear counters | sonic-clear dropcounters | sonic-clear fdb all",
+  help: [
+    "SONIC-CLEAR",
+    "",
+    "Usage:",
+    "  sonic-clear arp [<ipaddress>]     Clear IP ARP table",
+    "  sonic-clear ip arp [<ipaddress>]",
+    "  sonic-clear counters              Clear counters",
+    "  sonic-clear dropcounters          Clear drop counters",
+    "  sonic-clear fdb all               Clear All FDB entries",
+  ],
   run(args, ctx): CommandResult {
     const rest = args[0] === "ip" ? args.slice(1) : args;
     if (rest[0] === "arp") return { output: sonicClearArp(ctx, rest.slice(1)) };
+    // clear/main.py:167-171 (portstat -c), :209-213 (dropstat -c clear), :566-571 (fdbclear)
+    if (args[0] === "counters") {
+      clearCounters(ctx.device);
+      return { output: [line("Cleared counters")] };
+    }
+    if (args[0] === "dropcounters") return { output: clearDropcounters(ctx.device) };
+    if (args[0] === "fdb" && args[1] === "all") return { output: sonicClearFdbAll(ctx.device) };
     return { output: [err(`Error: No such command "${args[0] ?? ""}".`)] };
   },
 };

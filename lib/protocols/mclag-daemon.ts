@@ -46,6 +46,7 @@
  *   - ARP/ND sync, unique-ip, delay-restore, backup keepalive, traffic_disable are not modelled.
  */
 import { registerDaemon } from "../control/daemon";
+import { logEvent } from "../control/syslog";
 import { registerDataPlaneHook } from "../control/hooks";
 import { sendIpv4, l4Payload } from "../control/packet";
 import { Device, isSwitch } from "../models/device";
@@ -437,6 +438,7 @@ function tickDevice(ctx: SimContext, d: Device, now: number): boolean {
 
   // Session timeout (scheduler.c:82).
   if (rt.session && now - rt.lastRx > c.sessionTimeout * 1000) {
+    logEvent(d, now, "WARNING", "iccpd#iccpd", "[ICCP_FSM.WARN] iccpd connection timeout (heartbeat)"); // iccpd/src/scheduler.c:85, logger.c:120
     if (sessionDown(d, rt)) changed = true;
   }
   // Active is the TCP client: SYN every CONNECT_INTERVAL until connected.
@@ -488,6 +490,7 @@ function handleMsgs(d: Device, c: MclagDomainCfg, rt: MclagRt, payload: number[]
           rt.session = true;
           rt.everUp = true;
           rt.role = isActiveRole(c) ? "active" : "standby";
+          logEvent(d, rt.lastRx, "NOTICE", "iccpd#iccpd", `[iccp_csm_transit.NOTICE] csm ${c.id} change state from CAPREC to OPERATIONAL.`); // iccpd/src/iccp_csm.c:377
         }
       } else if (t.type === TLV.AGG_STATE && t.v.length >= 15) {
         const id = (t.v[10] << 8) | t.v[11];

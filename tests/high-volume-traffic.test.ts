@@ -44,18 +44,18 @@ describe("High-volume traffic generation & sFlow sampling", () => {
     expect(texts.some((t) => t.includes("1,400,000 bytes"))).toBe(true);
   });
 
-  it("supports iperf3 and hping3 command aliases", () => {
+  it("supports iperf3- and hping3-style options (iperf alias / traffic)", () => {
     useLabStore.getState().loadSample();
     const net = useLabStore.getState().network;
     const pc1 = Object.values(net.devices).find((d) => d.name === "PC1")!;
 
     // iperf3
-    const resIperf = useLabStore.getState().execCommand(pc1.id, "iperf3 -c 192.168.100.101 -n 500 -l 1024 -u");
+    const resIperf = useLabStore.getState().execCommand(pc1.id, "iperf -c 192.168.100.101 -n 500 -l 1024 -u");
     const iperfTexts = resIperf.output.map((o) => o.text);
     expect(iperfTexts.some((t) => t.includes("Sent 500 datagrams (1024 bytes/datagram)"))).toBe(true);
 
     // hping3
-    const resHping = useLabStore.getState().execCommand(pc1.id, "hping3 -c 500 -d 1024 --udp 192.168.100.101");
+    const resHping = useLabStore.getState().execCommand(pc1.id, "traffic -c 500 -d 1024 --udp 192.168.100.101");
     const hpingTexts = resHping.output.map((o) => o.text);
     expect(hpingTexts.some((t) => t.includes("500 packets transmitted, 500 packets received, 0% packet loss"))).toBe(true);
   });

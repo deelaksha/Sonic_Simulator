@@ -8,11 +8,12 @@ import { EngineDecode } from "./EngineDecode";
 
 export function PacketInspector() {
   const events = useLabStore((s) => s.events);
+  const controlEvents = useLabStore((s) => s.controlEvents);
   const selectedEventId = useLabStore((s) => s.selectedEventId);
 
   const event = useMemo(
-    () => events.find((e) => e.id === selectedEventId),
-    [events, selectedEventId],
+    () => events.find((e) => e.id === selectedEventId) ?? controlEvents.find((e) => e.id === selectedEventId),
+    [events, controlEvents, selectedEventId],
   );
 
   if (!event) {

@@ -1,11 +1,11 @@
 /**
- * QoS SONiC feature module. Config-plane only (simulated CONFIG_DB): commands
- * mutate per-device feature state and `show qos ...` renders SOLELY from that
- * stored state. This is an EDUCATIONAL logical model of the QoS classify ->
- * queue -> schedule/drop pipeline (task §32); it deliberately does NOT fabricate
- * per-queue byte/packet counters, watermarks or any ASIC/hardware state (those
- * appear in qos_click_cli.txt as `show queue counters` / `watermark` and are a
- * SEPARATE counter-poll concern, not modelled here).
+ * QoS SONiC feature module (simulated CONFIG_DB): commands mutate per-device
+ * feature state and `show qos ...` renders SOLELY from that stored state. The
+ * stored maps/policies/bindings are CONSUMED by the flow-level bandwidth model
+ * (lib/protocols/qos-model.ts): DSCP->TC on the ingress port, TC->queue,
+ * scheduler-policy and wred-policy on the egress port. Per-queue counters,
+ * watermarks and PFC counters are produced by that model and rendered by
+ * `show queue counters|watermark` / `show pfc counters` (./qos-rate.ts), not here.
  *
  * A FOCUSED subset of qos.txt is modelled — the four things it actually
  * configures — reduced to click-friendly `config qos ...` forms (path
@@ -23,6 +23,7 @@
  *                                                   <- qos wred-policy <name> ; <color> minimum-threshold .. maximum-threshold .. drop-probability ..
  *   config qos wred-policy del <name>               <- no qos wred-policy <name>
  *   config qos interface bind <port> <kind> <name>  <- interface <port> ; qos-map <kind> <name> | scheduler-policy <name>
+ *                                                   kind wred-policy <name> = QUEUE|<port>|0-7 wred_profile (all queues)
  *   config qos interface unbind <port> <kind>       <- interface <port> ; no qos-map <kind> | no scheduler-policy
  *   show qos map dscp-tc [name]                     <- show qos map dscp-tc [name]
  *   show qos map tc-queue [name]                    <- show qos map tc-queue [name]
@@ -43,46 +44,48 @@ import { featureState, peekFeatureState } from "../../models/feature-state";
 type SchedType = "dwrr" | "wrr" | "strict";
 type WredColor = "green" | "yellow" | "red";
 
-interface MapEntry {
+export interface MapEntry {
   key: number;
   value: number;
 }
 
-interface QosMap {
+export interface QosMap {
   name: string;
   entries: MapEntry[];
 }
 
-interface SchedulerQueue {
+export interface SchedulerQueue {
   queue: number;
   type: SchedType;
   weight?: number;
 }
 
-interface SchedulerPolicy {
+export interface SchedulerPolicy {
   name: string;
   queues: SchedulerQueue[];
 }
 
-interface WredColorThreshold {
+export interface WredColorThreshold {
   color: WredColor;
   min: number;
   max: number;
   prob: number;
 }
 
-interface WredPolicy {
+export interface WredPolicy {
   name: string;
   colors: WredColorThreshold[];
 }
 
-interface IfaceBinding {
+export interface IfaceBinding {
   dscpTc?: string;
   tcQueue?: string;
   schedulerPolicy?: string;
+  /** WRED profile applied to every queue of the port (QUEUE|<port>|<q>.wred_profile). */
+  wredPolicy?: string;
 }
 
-interface QosState {
+export interface QosState {
   dscpTcMaps: QosMap[];
   tcQueueMaps: QosMap[];
   schedulers: SchedulerPolicy[];
@@ -90,7 +93,8 @@ interface QosState {
   interfaces: Record<string, IfaceBinding>;
 }
 
-type BindKind = "dscp-tc" | "tc-queue" | "scheduler-policy";
+type BindKind = "dscp-tc" | "tc-queue" | "scheduler-policy" | "wred-policy";
+const BIND_KINDS = "dscp-tc, tc-queue, scheduler-policy or wred-policy";
 
 function state(ctx: CommandContext): QosState {
   return featureState<QosState>(ctx.device, "qos", () => ({
@@ -120,7 +124,7 @@ function parseColor(tok: string | undefined): WredColor | null {
 }
 
 function parseBindKind(tok: string | undefined): BindKind | null {
-  if (tok === "dscp-tc" || tok === "tc-queue" || tok === "scheduler-policy") return tok;
+  if (tok === "dscp-tc" || tok === "tc-queue" || tok === "scheduler-policy" || tok === "wred-policy") return tok;
   return null;
 }
 
@@ -143,7 +147,13 @@ function setEntry(map: QosMap, key: number, value: number): void {
 function boundBy(st: QosState, kind: BindKind, name: string): string[] {
   return Object.entries(st.interfaces)
     .filter(([, b]) =>
-      kind === "dscp-tc" ? b.dscpTc === name : kind === "tc-queue" ? b.tcQueue === name : b.schedulerPolicy === name,
+      kind === "dscp-tc"
+        ? b.dscpTc === name
+        : kind === "tc-queue"
+          ? b.tcQueue === name
+          : kind === "wred-policy"
+            ? b.wredPolicy === name
+            : b.schedulerPolicy === name,
     )
     .map(([port]) => port);
 }
@@ -303,6 +313,8 @@ const config: SonicCmd[] = [
       const name = positional(args)[0];
       if (!name) return { output: [err("Usage: config qos wred-policy del <name>")] };
       const st = state(ctx);
+      const users = boundBy(st, "wred-policy", name);
+      if (users.length) return { output: [err(`config qos wred-policy del: ${name} is in use by ${users.join(", ")}`)] };
       const before = st.wredPolicies.length;
       st.wredPolicies = st.wredPolicies.filter((p) => p.name !== name);
       return { output: [muted(st.wredPolicies.length < before ? `WRED policy ${name} deleted` : `WRED policy ${name} not configured (no-op)`)] };
@@ -310,14 +322,14 @@ const config: SonicCmd[] = [
   },
   {
     path: ["qos", "interface", "bind"],
-    summary: "Bind a qos map/policy to an interface (kind: dscp-tc|tc-queue|scheduler-policy)",
+    summary: "Bind a qos map/policy to an interface (kind: dscp-tc|tc-queue|scheduler-policy|wred-policy)",
     run(args, ctx): CommandResult {
       const [port, kindTok, name] = positional(args);
       if (!port || kindTok === undefined || !name) {
-        return { output: [err("Usage: config qos interface bind <port> <dscp-tc|tc-queue|scheduler-policy> <name>")] };
+        return { output: [err("Usage: config qos interface bind <port> <dscp-tc|tc-queue|scheduler-policy|wred-policy> <name>")] };
       }
       const kind = parseBindKind(kindTok);
-      if (kind === null) return { output: [err(`config qos interface bind: kind must be dscp-tc, tc-queue or scheduler-policy (got '${kindTok}')`)] };
+      if (kind === null) return { output: [err(`config qos interface bind: kind must be ${BIND_KINDS} (got '${kindTok}')`)] };
       const st = state(ctx);
       if (kind === "dscp-tc" && !st.dscpTcMaps.some((m) => m.name === name)) {
         return { output: [err(`config qos interface bind: dscp-tc map ${name} does not exist`)] };
@@ -328,9 +340,13 @@ const config: SonicCmd[] = [
       if (kind === "scheduler-policy" && !st.schedulers.some((p) => p.name === name)) {
         return { output: [err(`config qos interface bind: scheduler-policy ${name} does not exist`)] };
       }
+      if (kind === "wred-policy" && !st.wredPolicies.some((p) => p.name === name)) {
+        return { output: [err(`config qos interface bind: wred-policy ${name} does not exist`)] };
+      }
       const b = binding(st, port);
       if (kind === "dscp-tc") b.dscpTc = name;
       else if (kind === "tc-queue") b.tcQueue = name;
+      else if (kind === "wred-policy") b.wredPolicy = name;
       else b.schedulerPolicy = name;
       return { output: [muted(`${port}: bound ${kind} ${name}`)] };
     },
@@ -341,17 +357,18 @@ const config: SonicCmd[] = [
     run(args, ctx): CommandResult {
       const [port, kindTok] = positional(args);
       if (!port || kindTok === undefined) {
-        return { output: [err("Usage: config qos interface unbind <port> <dscp-tc|tc-queue|scheduler-policy>")] };
+        return { output: [err("Usage: config qos interface unbind <port> <dscp-tc|tc-queue|scheduler-policy|wred-policy>")] };
       }
       const kind = parseBindKind(kindTok);
-      if (kind === null) return { output: [err(`config qos interface unbind: kind must be dscp-tc, tc-queue or scheduler-policy (got '${kindTok}')`)] };
+      if (kind === null) return { output: [err(`config qos interface unbind: kind must be ${BIND_KINDS} (got '${kindTok}')`)] };
       const st = state(ctx);
       const b = st.interfaces[port];
       if (!b) return { output: [muted(`${port}: no qos bindings (no-op)`)] };
       if (kind === "dscp-tc") b.dscpTc = undefined;
       else if (kind === "tc-queue") b.tcQueue = undefined;
+      else if (kind === "wred-policy") b.wredPolicy = undefined;
       else b.schedulerPolicy = undefined;
-      if (b.dscpTc === undefined && b.tcQueue === undefined && b.schedulerPolicy === undefined) delete st.interfaces[port];
+      if (b.dscpTc === undefined && b.tcQueue === undefined && b.schedulerPolicy === undefined && b.wredPolicy === undefined) delete st.interfaces[port];
       return { output: [muted(`${port}: unbound ${kind}`)] };
     },
   },
@@ -408,7 +425,7 @@ function renderWred(ctx: CommandContext, name?: string): OutputLine[] {
 function renderInterface(ctx: CommandContext, port: string): OutputLine[] {
   const st = peekFeatureState<QosState>(ctx.device, "qos");
   const b = st?.interfaces[port];
-  if (!b || (b.dscpTc === undefined && b.tcQueue === undefined && b.schedulerPolicy === undefined)) {
+  if (!b || (b.dscpTc === undefined && b.tcQueue === undefined && b.schedulerPolicy === undefined && b.wredPolicy === undefined)) {
     return [muted(`No qos bindings on ${port}`)];
   }
   const out: OutputLine[] = [];
@@ -419,6 +436,7 @@ function renderInterface(ctx: CommandContext, port: string): OutputLine[] {
   }
   if (b.dscpTc !== undefined) out.push(line(`dscp-tc-map: ${b.dscpTc}`));
   if (b.tcQueue !== undefined) out.push(line(`tc-queue-map: ${b.tcQueue}`));
+  if (b.wredPolicy !== undefined) out.push(line(`wred-policy: ${b.wredPolicy}`));
   return out;
 }
 
@@ -426,7 +444,7 @@ function renderSummary(ctx: CommandContext): OutputLine[] {
   const st = peekFeatureState<QosState>(ctx.device, "qos");
   const bound = st ? Object.keys(st.interfaces).length : 0;
   return [
-    muted("QoS configuration (simulated config-plane; no ASIC/queue counters)"),
+    muted("QoS configuration (simulated CONFIG_DB; queue counters: show queue counters)"),
     line(`  DSCP-TC maps       : ${st?.dscpTcMaps.length ?? 0}`),
     line(`  TC-Queue maps      : ${st?.tcQueueMaps.length ?? 0}`),
     line(`  Scheduler policies : ${st?.schedulers.length ?? 0}`),

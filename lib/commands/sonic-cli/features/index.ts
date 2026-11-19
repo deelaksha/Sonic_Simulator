@@ -17,6 +17,7 @@ import "./vrf";
 import "./lldp";
 import "./dns";
 import "./sflow";
+import "./counters-show";
 import "./dhcp";
 import "./prefixlist";
 import "./ipv6";

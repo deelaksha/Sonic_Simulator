@@ -39,7 +39,17 @@ import { pboModule } from "./pbo";
 import { ipv6Module } from "./ipv6";
 import { stpModule } from "./stp";
 
+import { countersModule } from "./counters";
+import { syslogModule } from "./syslog";
+import { servicesModule } from "./services";
+import { sonicdbModule } from "./sonicdb";
+import { qosrateModule } from "./qos-rate";
 const MODULES: SonicFeatureModule[] = [
+  countersModule,
+  syslogModule,
+  servicesModule,
+  sonicdbModule,
+  qosrateModule,
   commonModule,
   vlanModule,
   staticRouteModule,

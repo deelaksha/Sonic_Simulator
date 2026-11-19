@@ -5,7 +5,7 @@
  */
 import { Device, findInterface } from "../models/device";
 import { IcmpPayload, IpProtocol, Ipv4Header, UdpHeader, NtpPayload, DhcpPayload, DnsPayload, TcpHeader, BgpPayload } from "../models/packet";
-import { longestPrefixMatch, Route } from "../models/route";
+import { longestPrefixMatch, flowHash5, Route } from "../models/route";
 import { cidrContains } from "../models/ip";
 import { SimContext } from "../engine/context";
 import { RouteTableRow } from "../engine/events";
@@ -51,6 +51,8 @@ export interface IpOutputOpts {
   protocolNumber?: number;
   /** VRF whose routing table is used (default "default"). */
   vrf?: string;
+  /** Set when a router/switch forwards a transit packet (not CPU-originated). */
+  forwarded?: boolean;
   upperBytes: number; // bytes above the IP header (L4 + data)
   summary: string;
 }
@@ -62,7 +64,9 @@ export interface IpOutputResult {
 }
 
 export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): IpOutputResult {
-  const match = longestPrefixMatch(device.routingTable, opts.dstIp, opts.vrf);
+  const l4 = opts.udp ? [opts.udp.srcPort, opts.udp.dstPort] : opts.tcp ? [opts.tcp.srcPort, opts.tcp.dstPort] : [0, 0];
+  const flow = flowHash5(opts.srcIp, opts.dstIp, opts.protocolNumber ?? opts.protocol, l4[0], l4[1]);
+  const match = longestPrefixMatch(device.routingTable, opts.dstIp, opts.vrf, flow);
   const egress = match ? findInterface(device, match.route.interfaceId) : undefined;
 
   ctx.emit({
@@ -119,6 +123,7 @@ export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): I
     { ipv4, icmp: opts.icmp, udp: opts.udp, ntp: opts.ntp, dhcp: opts.dhcp, dns: opts.dns, tcp: opts.tcp, bgp: opts.bgp },
   );
   if (opts.rawL3) frame.rawL3 = opts.rawL3;
+  if (opts.forwarded) frame.meta.forwarded = true;
 
   ctx.emit({
     type: "IP_PACKET_CREATED",

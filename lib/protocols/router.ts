@@ -7,13 +7,14 @@
 import { Device } from "../models/device";
 import { NetInterface, ownsIp, primaryIpv4 } from "../models/interface";
 import { Frame, IcmpPayload } from "../models/packet";
-import { isBroadcast, normalizeMac } from "../models/mac";
+import { isBroadcast, isMulticast, normalizeMac } from "../models/mac";
 import { SimContext } from "../engine/context";
 import { handleArpFrame } from "./arp";
 import { handleIcmpLocal } from "./icmp";
 import { routerReceiveV6 } from "./ipv6";
 import { handleOspfFrame } from "./ospf";
 import { dispatchL3 } from "../control/daemon";
+import { trapToCpu } from "../control/hooks";
 import { vrfOf, ownsIpInVrf } from "../models/vrf";
 import { receiveTrafficTcp } from "./traffic";
 import { handleBgpFrame } from "./bgp";
@@ -59,6 +60,17 @@ export function routerReceive(
   ingress: NetInterface,
   frame: Frame,
 ): void {
+  // Host-interface traps: ARP, multicast/broadcast control, IP-to-me and TTL
+  // expiry go from the ASIC to the CPU (where CoPP may police them); transit
+  // traffic is forwarded in hardware and never reaches the CPU.
+  const toMe =
+    !!frame.arp ||
+    (frame.ipv4 !== undefined &&
+      (isBroadcast(frame.ethernet.dstMac) ||
+        isMulticast(frame.ethernet.dstMac) ||
+        ownsIpInVrf(device, frame.ipv4.dstIp, vrfOf(device, ingress)) ||
+        frame.ipv4.ttl <= 1));
+  if (toMe && !trapToCpu(ctx, device, ingress, frame)) return;
   if (frame.arp) {
     handleArpFrame(ctx, device, ingress, frame);
     return;
@@ -183,6 +195,7 @@ export function routerReceive(
     // Engine-built packets keep their bytes across the hop (TTL is re-applied on the wire).
     rawL3: frame.rawL3,
     vrf,
+    forwarded: true,
     protocolNumber: ip.protocolNumber,
   });
 

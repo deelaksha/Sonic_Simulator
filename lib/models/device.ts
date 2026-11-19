@@ -38,6 +38,10 @@ export interface MacEntry {
   mac: string;
   interfaceId: string;
   vlan: number;
+  /** Wall-clock ms the source MAC was last seen (FDB aging). */
+  lastSeenMs?: number;
+  /** Static entries never age. */
+  static?: boolean;
 }
 
 export interface DeviceConfig {

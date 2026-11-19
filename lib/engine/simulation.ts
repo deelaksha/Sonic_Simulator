@@ -20,8 +20,9 @@ import { SimEvent, EmitInput } from "./events";
 import { nextEventId } from "./ids";
 import { switchForward, switchInject, sviVlanId } from "../protocols/switch";
 import { sflowSample, countCast } from "../sflow/agent";
+import { classifyDrop, recordDrop } from "../control/drops";
 import { dispatchL2, isLinkLocalControl } from "../control";
-import { egressMember, lagOf, rejectingEgress, rejectingIngress } from "../control/hooks";
+import { egressMember, lagOf, rejectingEgress, rejectingIngress, trapToCpu } from "../control/hooks";
 import { hostReceive } from "../protocols/host";
 import { routerReceive } from "../protocols/router";
 import { echoPayload, ICMP_ECHO_TOTAL, ICMP_ECHO_DATA_BYTES, ICMP_HEADER_BYTES } from "../protocols/icmp";
@@ -115,6 +116,8 @@ export interface CaptureRecord {
   dir: CaptureDir;
   timeMs: number;
   frame: Frame;
+  /** rx frame that was trapped to the switch CPU (hardware-mode tcpdump shows only these + CPU tx). */
+  trapped?: boolean;
 }
 
 export class Simulation implements SimContext {
@@ -160,6 +163,10 @@ export class Simulation implements SimContext {
   }
 
   emit(e: EmitInput): void {
+    if (e.type === "FRAME_DROPPED" || e.type === "ICMP_UNREACHABLE" || e.type === "ICMP_TIME_EXCEEDED") {
+      const dev = this.state.devices[e.deviceId];
+      if (dev && (isSwitch(dev.type) || isRouter(dev.type))) recordDrop(dev, e.interfaceName ?? "CPU", classifyDrop(e.message));
+    }
     this.seq += 1;
     if (this.events.length >= 2500) return;
     this.events.push({
@@ -174,6 +181,13 @@ export class Simulation implements SimContext {
   capture(deviceId: string, interfaceId: string, dir: CaptureDir, frame: Frame): void {
     if (this.captures.length >= 1000) return;
     this.captures.push({ deviceId, interfaceId, dir, timeMs: this.wallNow(), frame: cloneFrame(frame) });
+  }
+
+  markTrapped(deviceId: string, frameId: string): void {
+    for (let i = this.captures.length - 1; i >= 0 && i >= this.captures.length - 50; i--) {
+      const c = this.captures[i];
+      if (c.deviceId === deviceId && c.frame.id === frameId && c.dir === "rx") c.trapped = true;
+    }
   }
 
   recordEchoReply(deviceId: string, frame: Frame): void {
@@ -587,6 +601,8 @@ export class Simulation implements SimContext {
     // IEEE 802.1D link-local control (LLDP, LACP, STP…): consumed by the
     // receiving device's daemons; a bridge never forwards these.
     if (isLinkLocalControl(frame.ethernet.dstMac)) {
+      // LACP/LLDP/STP are trapped from the ASIC to the CPU (CoPP may police them).
+      if ((isSwitch(device.type) || isRouter(device.type)) && !trapToCpu(this, device, iface, frame)) return;
       if (!dispatchL2(this, device, iface, frame) && isSwitch(device.type)) {
         this.emit({
           type: "FRAME_DROPPED",

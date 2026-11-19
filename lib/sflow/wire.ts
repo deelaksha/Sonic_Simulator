@@ -80,7 +80,7 @@ export function frameToBytes(frame: Frame): Uint8Array {
     const ip = frame.ipv4;
     const ipTotal = frame.udp ? 20 + frame.udp.length : total - l2;
     const hdr = [
-      0x45, 0, ...u16(ipTotal), ...u16(ip.identification & 0xffff), 0x40, 0x00,
+      0x45, ((ip.dscp ?? 0) << 2) & 0xfc, ...u16(ipTotal), ...u16(ip.identification & 0xffff), 0x40, 0x00,
       ip.ttl & 0xff, IPPROTO[ip.protocol] ?? 0, 0, 0, ...ipBytes(ip.srcIp), ...ipBytes(ip.dstIp),
     ];
     const ck = inetChecksum(hdr);

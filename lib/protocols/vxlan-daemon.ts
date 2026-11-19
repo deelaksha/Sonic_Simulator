@@ -45,6 +45,7 @@
  *           (SONiC default fdb_aging_time) and their type-2 is withdrawn. Aging is
  *           modelled only for VNI-mapped VLANs on a VTEP (the base bridge has none).
  */
+import { fdbAgingTime } from "./macaging-daemon";
 import { Device, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame, cloneFrame } from "../models/packet";
@@ -68,7 +69,6 @@ import { VxlanConfig, vlanForVni, vniForVlan, vxlanConfig } from "./vxlan";
 export const VXLAN_PORT = 4789;
 export const VXLAN_OVERHEAD = 50;
 export const UNDERLAY_MTU = 9100;
-export const FDB_AGING_MS = 600_000;
 const TTL = 64;
 
 export interface RemoteMac {
@@ -349,7 +349,9 @@ function nextAging(device: Device, cfg: VxlanConfig, rt: VxlanRt): number | unde
   for (const l of localMacs(device, cfg)) {
     const seen = rt.lastSeen[mkey(l.vid, l.mac)];
     if (seen === undefined) return 0; // first sight: stamp it now
-    const t = seen + FDB_AGING_MS;
+    const aging = fdbAgingTime(device) * 1000;
+    if (!aging) continue;
+    const t = seen + aging;
     if (due === undefined || t < due) due = t;
   }
   return due;
@@ -385,7 +387,7 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
     const k = mkey(l.vid, l.mac);
     live.add(k);
     if (rt.lastSeen[k] === undefined) rt.lastSeen[k] = now;
-    else if (now - rt.lastSeen[k] >= FDB_AGING_MS) {
+    else if (fdbAgingTime(device) > 0 && now - rt.lastSeen[k] >= fdbAgingTime(device) * 1000) {
       device.macTable = device.macTable.filter((e) => !(e.vlan === l.vid && normalizeMac(e.mac) === l.mac && !isVirtual(e.interfaceId)));
       delete rt.lastSeen[k];
       live.delete(k);

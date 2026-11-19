@@ -39,6 +39,7 @@
 import { registerDaemon } from "../control/daemon";
 import { transmitIpv4, multicastMac, ipPayload } from "../control/packet";
 import { bfd } from "../control/bfd-api";
+import { logEvent } from "../control/syslog";
 import { Device, findInterface } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame } from "../models/packet";
@@ -402,6 +403,17 @@ function setNbrState(d: D, oif: OspfIf, n: OspfNbr, state: NsmState): void {
   if (state === "Full" || old === "Full") {
     emit(d, oif, "OSPF_NEIGHBOR", `OSPF neighbor ${n.rid} (${n.ip}) on ${oif.name}: ${old} → ${state}`);
   }
+  // ospf_nsm.c:626-636 AdjChg: with log-adjacency-changes only Full or a downward change, "detail" every change.
+  // (Down is logged by nbrDown, which knows the event.) FRR's traditional default is off (ospf_vty.c:47-50); the
+  // OSPF config model has no log-adjacency-changes field yet, so the simulator defaults to on.
+  const lac = (d.cfg as { logAdjacencyChanges?: boolean | "detail" }).logAdjacencyChanges ?? true;
+  if (state !== "Down" && lac && (lac === "detail" || state === "Full" || NSM[state] < NSM[old]))
+    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (default) on ${oif.name}:${oif.ip}: ${old} -> ${state} (${
+      state === "Full" ? (old === "Loading" ? "LoadingDone" : "ExchangeDone")
+      : state === "Init" ? (NSM[old] > NSM.Init ? "1-WayReceived" : "HelloReceived")
+      : state === "2-Way" ? (old === "Init" ? "2-WayReceived" : "AdjOK?")
+      : state === "ExStart" ? (old === "Init" ? "2-WayReceived" : old === "2-Way" ? "AdjOK?" : "SeqNumberMismatch")
+      : state === "Exchange" ? "NegotiationDone" : "ExchangeDone"})`);
 }
 
 function bfdRegister(d: D, oif: OspfIf, n: OspfNbr): void {
@@ -418,7 +430,11 @@ function bfdUnregister(d: D, _oif: OspfIf, n: OspfNbr): void {
 }
 
 function nbrDown(d: D, oif: OspfIf, n: OspfNbr, why: string): void {
+  const was = n.state;
   setNbrState(d, oif, n, "Down");
+  // ospf_nsm.c:631 — interface down = KillNbr (ospf_interface.c:355); dead timer and BFD down = InactivityTimer (ospf_bfd.c:60).
+  if (was !== "Down" && ((d.cfg as { logAdjacencyChanges?: boolean | "detail" }).logAdjacencyChanges ?? true))
+    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (default) on ${oif.name}:${oif.ip}: ${was} -> Down (${why === "interface down" ? "KillNbr" : "InactivityTimer"})`);
   oif.nbrs = oif.nbrs.filter((x) => x !== n);
   emit(d, oif, "OSPF_NEIGHBOR", `OSPF neighbor ${n.rid} (${n.ip}) on ${oif.name} Down: ${why}`);
 }
