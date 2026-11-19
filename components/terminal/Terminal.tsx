@@ -10,6 +10,7 @@ import { useLabStore, TerminalLine } from "@/lib/store/lab-store";
 import { commandNames, resolveCommand, LineKind } from "@/lib/commands";
 import { cliModeFor, cliPrompt } from "@/lib/commands/sonic-cli";
 import { loadGrammarBrowser, completeFor, helpFor, viewForStackTop, splitTyped } from "@/lib/sonic/grammar";
+import { shellHelp } from "@/lib/commands/shell-help";
 import { isSwitch } from "@/lib/models/device";
 
 type Entry = { text: string; kind: "input" | "output"; lineKind?: LineKind };
@@ -20,6 +21,12 @@ type Entry = { text: string; kind: "input" | "output"; lineKind?: LineKind };
 const STREAM_CMDS = new Set(["ping", "ping6", "traceroute", "tracepath", "ntpdate", "dhclient", "ospf", "bgp"]);
 const STREAM_MS = 240;
 const IP_SUBS = ["addr", "link", "route", "neigh"];
+
+/** In the shell `?` is help, except inside quotes or a URL / key=value word (`curl http://h/?q=1`). */
+function literalQuestionMark(input: string): boolean {
+  if (((input.match(/"/g) ?? []).length % 2) + ((input.match(/'/g) ?? []).length % 2) > 0) return true;
+  return /[/=]/.test(input.split(/\s+/).pop() ?? "");
+}
 
 const OUT_CLASS: Record<string, string> = {
   error: "text-red-400",
@@ -266,16 +273,16 @@ export function Terminal() {
     else if (parts[0] === "ip" && parts.length === 2) apply(parts[1], IP_SUBS, "ip ");
   }, [input, selectedDeviceId, completions, appendTerminal, promptText, modal, cliStack]);
 
-  // `?` context help (KLISH): list the commands/args valid at the cursor.
+  // `?` context help: list the commands/args valid at the cursor — KLISH from the
+  // device grammar, the Linux/Click shell from the command registry (shell-help.ts).
   const showHelp = useCallback(() => {
     if (!selectedDeviceId) return;
-    const view = viewForStackTop(cliStack[cliStack.length - 1]);
-    const cands = helpFor(view, input);
+    const cands = modal ? helpFor(viewForStackTop(cliStack[cliStack.length - 1]), input) : shellHelp(input);
     const body = cands.length
       ? cands.map((c) => ({ text: `  ${c.token.padEnd(24)} ${c.help}`, kind: "output" as const, lineKind: "muted" as const }))
       : [{ text: "  % No matching commands", kind: "output" as const, lineKind: "muted" as const }];
     appendTerminal(selectedDeviceId, [{ text: `${promptText} ${input}?`, kind: "input" }, ...body]);
-  }, [input, selectedDeviceId, appendTerminal, promptText, cliStack]);
+  }, [input, selectedDeviceId, appendTerminal, promptText, cliStack, modal]);
 
   const recallHistory = useCallback(
     (dir: -1 | 1) => {
@@ -386,7 +393,7 @@ export function Terminal() {
       } else if (e.key === "Tab") {
         e.preventDefault();
         complete();
-      } else if (modal && e.key === "?") {
+      } else if (e.key === "?" && (modal || (cursor === input.length && !literalQuestionMark(input)))) {
         e.preventDefault();
         showHelp();
       } else if (e.key.length === 1 && !ctrl && !e.altKey) {

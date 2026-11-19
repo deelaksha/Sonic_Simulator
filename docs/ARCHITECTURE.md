@@ -218,3 +218,16 @@ changes the learner's network. Each mission carries a reference `solution`
 in browser storage. `tests/missions-all.test.ts` proves every mission starts
 unsolved and is solved by its own solution.
 
+## 3D switch view
+
+`components/switch3d/SwitchView.tsx` (open by double-clicking a switch, or from the
+Device panel) draws the switch as a CSS 3D 1U box over the canvas/inspector area,
+leaving the terminal usable. Front face: faceplate with the real front-panel ports
+(SFP cages ≥10G, RJ45 below), link LEDs from oper state, activity blinks when a
+port's frame counters change, cables to the real peers, MGMT (eth0) and console
+ports, status OLED. Top face ("lid off"): ports traced to the switching ASIC, ASIC
+↔ CPU over PCIe for hostif traps, eth0 wired to the CPU; dots run along a trace when
+its counters move. Below: port inspector (counters, rates, drops by reason, VLAN,
+LAG, LLDP, last frames; shutdown via KLISH, unplug) and the CPU / control plane
+(CoPP trap groups and queues, containers). All data: `lib/switch3d/model.ts`.
+

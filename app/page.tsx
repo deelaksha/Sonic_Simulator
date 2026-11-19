@@ -7,6 +7,7 @@ import { Inspector } from "@/components/inspector/Inspector";
 import { Terminal } from "@/components/terminal/Terminal";
 import { PacketTimeline } from "@/components/timeline/PacketTimeline";
 import { SessionManagerModal } from "@/components/cloud/SessionManagerModal";
+import { SwitchView } from "@/components/switch3d/SwitchView";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 
 function PanelHeader({ title, hint }: { title: string; hint?: string }) {
@@ -154,13 +155,15 @@ export default function LabPage() {
 
         {/* center + right + bottom */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1">
             <section className="min-w-0 flex-1">
               <TopologyCanvas />
             </section>
             <aside className="shrink-0 border-l border-edge bg-panel">
               <Inspector />
             </aside>
+            {/* 3D switch view: covers canvas + inspector, keeps the terminal usable below */}
+            <SwitchView />
           </div>
 
           {/* bottom: terminal + packet timeline */}

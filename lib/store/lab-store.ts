@@ -155,6 +155,10 @@ interface LabState {
   loadVlanLab(): void;
   /** Load a ready-to-use topology for a SONiC feature (bgp/ospf/ipvx/...). */
   loadFeatureLab(featureId: string): void;
+  /** Switch shown in the 3D switch view (components/switch3d), if open. */
+  switchViewId: string | null;
+  openSwitchView(deviceId: string): void;
+  closeSwitchView(): void;
   /** Running lab mission / troubleshooting lab (lib/missions), if any. */
   mission: ActiveMission | null;
   /** Solved missions for this viewer: id → completion time (kept in browser storage). */
@@ -630,6 +634,7 @@ export const useLabStore = create<LabState>((set, get) => {
   labName: "Untitled Lab",
   mission: null,
   missionProgress: loadProgress(),
+  switchViewId: null,
   events: [],
   captures: [],
   terminals: {},
@@ -1097,6 +1102,7 @@ export const useLabStore = create<LabState>((set, get) => {
       sflowErrors: {},
       controlEvents: [],
       mission: null,
+      switchViewId: null,
       network: { devices: {}, connections: [] },
       labName: "Untitled Lab",
       events: [],
@@ -1179,6 +1185,14 @@ export const useLabStore = create<LabState>((set, get) => {
     m.inject?.(labApi(true));
     set({ mission: { id, startedAtMs: Date.now(), done: {}, hints: {}, solutionShown: false } });
     get().missionTick();
+  },
+
+  openSwitchView(deviceId) {
+    set({ switchViewId: deviceId, selectedDeviceId: deviceId });
+  },
+
+  closeSwitchView() {
+    set({ switchViewId: null });
   },
 
   stopMission() {

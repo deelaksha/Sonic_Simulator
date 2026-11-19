@@ -166,13 +166,20 @@ const startsCi = (tok: string, pfx: string): boolean => tok.toLowerCase().starts
 export function candidatesFor(view: string, typed: string[]): Candidate[] {
   const cmds = commandsForView(view);
   const out = new Map<string, Candidate>();
+  const ownHelp = new Set<string>();
   for (const c of cmds) {
     const kw = c.name.split(/\s+/);
     // Case 1: still inside the keyword path → suggest the next keyword.
     if (typed.length < kw.length) {
       if (kw.slice(0, typed.length).every((k, i) => eqi(k, typed[i]))) {
         const tok = kw[typed.length];
-        if (!out.has(tok)) out.set(tok, { token: tok, help: c.help, placeholder: false });
+        // Help text: the command that IS this keyword ("show" → "Display running
+        // system information"), not the first longer command through it ("show aaa").
+        const own = kw.length === typed.length + 1;
+        if (!out.has(tok) || (own && !ownHelp.has(tok))) {
+          out.set(tok, { token: tok, help: c.help, placeholder: false });
+          if (own) ownHelp.add(tok);
+        }
       }
       continue;
     }

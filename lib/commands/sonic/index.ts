@@ -97,6 +97,11 @@ const MODULES: SonicFeatureModule[] = [
 const CONFIG_CMDS: SonicCmd[] = MODULES.flatMap((m) => m.config);
 const SHOW_CMDS: SonicCmd[] = MODULES.flatMap((m) => m.show);
 
+/** The `show` / `config` sub-command trees (terminal `?` help). */
+export function sonicCommandTree(verb: "show" | "config"): readonly SonicCmd[] {
+  return verb === "show" ? SHOW_CMDS : CONFIG_CMDS;
+}
+
 /** Feature ids that contributed commands (for the feature panel / status). */
 export function implementedSonicFeatures(): string[] {
   return MODULES.filter((m) => m.id !== "common").map((m) => m.id);
