@@ -32,6 +32,14 @@ function upperBytesOf(frame: Frame): number {
   return Math.max(0, frame.meta.sizeBytes - overhead);
 }
 
+/** The IP + L4 header an ICMP error embeds (RFC 792); NAT reverse-translates it (RFC 5508). */
+function embeddedHeader(f: Frame): IcmpPayload["original"] {
+  const ip = f.ipv4!;
+  const l4 = f.tcp ?? f.udp;
+  const id = f.icmp?.identifier ?? 0;
+  return { srcIp: ip.srcIp, dstIp: ip.dstIp, protocol: ip.protocol, srcPort: l4?.srcPort ?? id, dstPort: l4?.dstPort ?? id };
+}
+
 function sendIcmpError(
   ctx: SimContext,
   device: Device,
@@ -179,7 +187,7 @@ export function routerReceive(
       device,
       ingress,
       ip.srcIp,
-      { type: "time-exceeded", code: 0, identifier: frame.icmp?.identifier ?? 0, sequence: frame.icmp?.sequence ?? 0 },
+      { type: "time-exceeded", code: 0, identifier: frame.icmp?.identifier ?? 0, sequence: frame.icmp?.sequence ?? 0, original: embeddedHeader(frame) },
       `IP ${ip.srcIp} → ${ip.dstIp}`,
     );
     return;
@@ -225,7 +233,7 @@ export function routerReceive(
         device,
         ingress,
         ip.srcIp,
-        { type: "dest-unreachable", code: 0, identifier: frame.icmp?.identifier ?? 0, sequence: frame.icmp?.sequence ?? 0 },
+        { type: "dest-unreachable", code: 0, identifier: frame.icmp?.identifier ?? 0, sequence: frame.icmp?.sequence ?? 0, original: embeddedHeader(frame) },
         `IP ${ip.srcIp} → ${ip.dstIp}`,
       );
     } else {

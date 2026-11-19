@@ -8,6 +8,8 @@
  *   config vxlan map_range add|del <vtep> <vlan_start> <vlan_end> <vni_start>
  *   show vxlan interface | vlanvnimap [count] | vrfvnimap | tunnel | name <vtep>
  *   show vxlan remotevtep [count] | remotevni <ip|all> [count] | remotemac <ip|all> [count]
+ *   show vxlan counters [<tunnel>]  -> tunnelstat -T vxlan [-i <tunnel>] (show/vxlan.py:322-335,
+ *                                   scripts/tunnelstat cnstat_print / cnstat_single_tunnel)
  *   Output formats: python tabulate as show/vxlan.py calls it ("simple" for
  *   tunnel/name, "grid" for the rest — min padding 2 per header, numbers right
  *   aligned, rstrip), checked against sonic-utilities tests/vxlan_test.py.
@@ -178,6 +180,39 @@ export function showRemoteMac(device: Device, ip: string, count: boolean): strin
   const rows = remoteMacs(device, ip).map((r) => [r.vlan, r.mac, r.vtep, String(r.vni), r.type]);
   if (count) return total(rows.length);
   return [...tabGrid(["VLAN", "MAC", "RemoteVTEP", "VNI", "Type"], rows), ...total(rows.length)];
+}
+
+/**
+ * tunnelstat rows. COUNTERS_TUNNEL_NAME_MAP holds every tunnel vxlanorch created
+ * (vxlanorch.cpp:851-856): the VTEP's P2MP tunnel and one EVPN_<dip> per remote VTEP;
+ * the simulator counts encap/decap per remote VTEP. Rates are not modelled (N/A).
+ */
+function tunnelCounters(device: Device): { name: string; rxP: number; rxB: number; txP: number; txB: number }[] {
+  const cfg = vxlanConfig(device);
+  if (!cfg) return [];
+  const st = peekVxlanRuntime(device)?.tunnels ?? {};
+  const rows = [{ name: cfg.vtep, rxP: 0, rxB: 0, txP: 0, txB: 0 }];
+  for (const t of remoteVteps(device)) {
+    const c = st[t.dip];
+    rows.push({ name: t.name, rxP: c?.rxPkts ?? 0, rxB: c?.rxBytes ?? 0, txP: c?.txPkts ?? 0, txB: c?.txBytes ?? 0 });
+  }
+  return rows.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : natural(a.name, b.name)));
+}
+
+export function showVxlanCounters(device: Device, tunnel?: string): string[] {
+  const rows = tunnelCounters(device);
+  if (tunnel) {
+    const r = rows.find((x) => x.name === tunnel);
+    if (!r) return [`Interface ${tunnel} missing from COUNTERS_TUNNEL_NAME_MAP! Make sure it exists`];
+    const n = (v: number) => String(v).padStart(10);
+    return [tunnel, "-".repeat(tunnel.length), "", "        RX:", `        ${n(r.rxP)} packets`, `        ${n(r.rxB)} bytes`, "        TX:", `        ${n(r.txP)} packets`, `        ${n(r.txB)} bytes`];
+  }
+  // tabulate(table, header, tablefmt='simple', stralign='right')
+  const header = ["IFACE", "RX_PKTS", "RX_BYTES", "RX_PPS", "TX_PKTS", "TX_BYTES", "TX_PPS"];
+  const cells = rows.map((r) => [r.name, String(r.rxP), String(r.rxB), "N/A", String(r.txP), String(r.txB), "N/A"]);
+  const w = header.map((h, i) => Math.max(h.length + 2, ...cells.map((c) => c[i].length)));
+  const fmt = (c: string[]) => c.map((x, i) => x.padStart(w[i])).join("  ");
+  return [fmt(header), w.map((n) => "-".repeat(n)).join("  "), ...cells.map(fmt)];
 }
 
 // ---------------------------------------------------------------------------
@@ -547,6 +582,7 @@ export const vxlanClickShow: SonicCmd[] = [
       return { output: toLines(a[1] !== undefined && a[0] !== "all" ? total(remoteMacs(ctx.device, a[0]).length) : lines) };
     },
   },
+  showCmd(["vxlan", "counters"], "Show VxLAN counters", (a, d) => showVxlanCounters(d, a.find((x) => !x.startsWith("-")))),
   showCmd(["evpn", "vni"], "Show EVPN VNIs (FRR zebra)", (a, d) => renderEvpnVni(d, a[0])),
   {
     path: ["evpn", "mac", "vni"],

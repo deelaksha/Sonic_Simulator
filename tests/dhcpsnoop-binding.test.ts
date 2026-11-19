@@ -29,8 +29,9 @@ describe("DHCP snooping", () => {
     expect(sh("Client", "dhclient")).toContain("DHCPACK of 192.168.10.100 from 192.168.10.1");
     expect(clientIp()).toBe("192.168.10.100");
     const drops = peekSnoopState(byName("SW1"))!.drops;
-    expect(drops.Ethernet1).toBe(2); // rogue OFFER + ACK
-    expect(peekDrops(byName("SW1"))!.Ethernet1.DHCP_SNOOPING).toBe(2);
+    // Only the rogue OFFER: the REQUEST names server 192.168.10.1, so the rogue stays silent (RFC 2131 4.3.2).
+    expect(drops.Ethernet1).toBe(1);
+    expect(peekDrops(byName("SW1"))!.Ethernet1.DHCP_SNOOPING).toBe(1);
     const rogueOffers = S().captures.filter((c) => c.deviceId === id("Client") && c.frame.dhcp?.serverIp === "10.66.66.1");
     expect(rogueOffers).toHaveLength(0);
   });

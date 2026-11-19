@@ -12,12 +12,27 @@ import { networkAddress } from "./ip";
 import { networkAddress6, isLinkLocal6, sameSubnet6 } from "./ipv6";
 import { Route, carryInstallTime } from "./route";
 import { vrfOf, DEFAULT_VRF } from "./vrf";
+import { resolveStatics } from "./static-routes";
 
 let macCounter = 1;
 
 /** Reset the global MAC counter (used by tests for determinism). */
 export function resetMacCounter(start = 1): void {
   macCounter = start;
+}
+
+/**
+ * Keep the counter past every factory-assigned MAC already in the lab (an
+ * imported / restored lab, or devices added before a reset), so later devices
+ * never collide. Only factory ports (`<id>-if<n>`, `<id>-mgmt`) count.
+ */
+export function reserveMacsOf(devices: Device[]): void {
+  for (const d of devices) {
+    for (const i of d.interfaces) {
+      const m = /^02:00:00:([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2})$/i.exec(i.mac);
+      if (m && /-(if\d+|mgmt)$/.test(i.id)) macCounter = Math.max(macCounter, parseInt(m[1] + m[2] + m[3], 16) + 1);
+    }
+  }
 }
 
 function nextMac(): string {
@@ -131,6 +146,8 @@ export function rebuildConnectedRoutes(device: Device): void {
   const prev = device.routingTable;
   device.routingTable = [...derived, ...statics];
   carryInstallTime(prev, device.routingTable, Date.now());
+  // zebra re-resolves static next hops when connected routes change.
+  resolveStatics(device);
 }
 
 /**

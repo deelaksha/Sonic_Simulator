@@ -58,6 +58,8 @@ export interface IcmpPayload {
   sequence: number;
   /** For error messages: a short description of the packet that triggered it. */
   errorInfo?: string;
+  /** For error messages: the embedded IP/L4 header of the packet that triggered it (RFC 792). */
+  original?: { srcIp: string; dstIp: string; protocol: IpProtocol; srcPort: number; dstPort: number };
 }
 
 export type Ipv6NextHeader = "ICMPv6" | "UDP" | "TCP" | "OTHER";
@@ -107,7 +109,7 @@ export interface NtpPayload {
   receiveTs?: number;
 }
 
-export type DhcpMessageType = "discover" | "offer" | "request" | "ack" | "nak";
+export type DhcpMessageType = "discover" | "offer" | "request" | "ack" | "nak" | "release";
 
 /** DHCP application payload (spec §22) — carried over UDP/67-68. */
 export interface DhcpPayload {
@@ -119,6 +121,7 @@ export interface DhcpPayload {
   dns?: string;
   prefix?: number;
   requestedIp?: string; // REQUEST
+  ciaddr?: string; // client's current address (RELEASE)
   leaseSeconds?: number;
   giaddr?: string; // relay agent (gateway) IP — set by a DHCP relay, selects the server's pool
 }

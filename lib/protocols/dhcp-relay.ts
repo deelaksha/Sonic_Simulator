@@ -47,14 +47,14 @@ export function handleDhcpRelay(ctx: SimContext, device: Device, ingress: NetInt
     return true;
   }
 
-  // Server -> client: OFFER/ACK unicast to giaddr (a relay interface) → broadcast to the client.
-  if (d.messageType === "offer" || d.messageType === "ack") {
+  // Server -> client: OFFER/ACK/NAK unicast to giaddr (a relay interface) → broadcast to the client.
+  if (d.messageType === "offer" || d.messageType === "ack" || d.messageType === "nak") {
     if (!d.giaddr) return false;
     const relayIf = device.interfaces.find((i) => primaryIpv4(i)?.address === d.giaddr);
     if (!relayIf || !relayServersFor(device, relayIf.name).length) return false;
     ctx.emit({
       type: "DHCP_RELAY", deviceId: device.id, deviceName: device.name, interfaceId: relayIf.id, interfaceName: relayIf.name,
-      message: `${device.name}: relay DHCP ${d.messageType.toUpperCase()} ${d.yourIp} → client ${d.clientMac}`, osiLayers: [7],
+      message: `${device.name}: relay DHCP ${d.messageType.toUpperCase()}${d.yourIp ? ` ${d.yourIp}` : ""} → client ${d.clientMac}`, osiLayers: [7],
     });
     ctx.transmit(device.id, relayIf.id, dhcpFrame(relayIf, BROADCAST_MAC, d.giaddr, "255.255.255.255", DHCP_SERVER_PORT, DHCP_CLIENT_PORT, d));
     return true;

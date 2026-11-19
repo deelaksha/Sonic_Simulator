@@ -23,6 +23,7 @@
  * 5 s, threshold 5, request-data-size 28; syslog tag "ipsla#ipslad".
  */
 import { registerDaemon } from "../control/daemon";
+import { inactiveStatics, setInactiveStatics } from "../models/static-routes";
 import { logEvent } from "../control/syslog";
 import { Device, interfaceByName } from "../models/device";
 import { primaryIpv4 } from "../models/interface";
@@ -193,6 +194,7 @@ export function installStatic(device: Device, r: Omit<TrackedRoute, "track">, no
 
 export function removeStatic(device: Device, r: Omit<TrackedRoute, "track">): void {
   device.routingTable = device.routingTable.filter((x) => !sameRoute(x, { ...r, track: 0 }));
+  setInactiveStatics(device, inactiveStatics(device).filter((x) => !sameRoute(x, { ...r, track: 0 })));
 }
 
 /** Tracked routes follow their SLA: installed while Up, withdrawn otherwise. Returns true on change. */

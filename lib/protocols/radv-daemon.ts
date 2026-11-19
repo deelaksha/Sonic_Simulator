@@ -138,6 +138,32 @@ function sig(d: Device): string {
   return JSON.stringify([ifs, conn, isRouterLike(d) ? ndConfig(d) : null]);
 }
 
+/**
+ * KLISH `show ipv6 nd ra-interfaces [<if>]` (data/device-capture/klish-xml/ipv6-neighbors.xml:1229-1262;
+ * the per-interface lines are FRR zebra rtadv.c:1736-1803 nd_dump_vty). Lists the interfaces
+ * that send RAs — an `ipv6 nd suppress-ra` interface is absent. Values are radvd's
+ * (reachable/retrans 0, hop limit 64, lifetime 3 x interval, MTU 9100).
+ */
+export function renderRaInterfaces(d: Device, ifname?: string): string[] {
+  const out = ["Interfaces:"];
+  for (const i of raInterfaces(d).filter((x) => !ifname || x.name === ifname)) {
+    const cfg = ndConfig(d)[i.name] ?? {};
+    out.push(
+      `    ${i.name}`,
+      "  ND advertised reachable time is 0 milliseconds",
+      "  ND advertised retransmit interval is 0 milliseconds",
+      "  ND advertised hop-count limit is 64 hops",
+      `  ND router advertisements sent: ${radvdRuntime(d)?.ifs[i.name]?.sent ?? 0} rcvd: 0`,
+      `  ND router advertisements are sent every ${maxInterval(d, i.name)} seconds`,
+      "  ND router advertisements lifetime tracks ra-interval",
+      "  ND router advertisement default router preference is MEDIUM",
+      cfg.managed ? "  Hosts use DHCP to obtain routable addresses." : "  Hosts use stateless autoconfig for addresses.",
+      `  Advertised Link MTU is ${ADV_LINK_MTU}`,
+    );
+  }
+  return out;
+}
+
 const maxInterval = (d: Device, name: string) => ndConfig(d)[name]?.raInterval ?? MAX_RTR_ADV_INTERVAL;
 
 // --- router side ---------------------------------------------------------------

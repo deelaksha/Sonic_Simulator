@@ -247,7 +247,7 @@ function showCounters(ctx: CommandContext): OutputLine[] {
 
 const q = (s: string) => (/\s/.test(s) ? `"${s}"` : s);
 
-function showRunning(st: SnmpState | undefined): OutputLine[] {
+export function showRunning(st: SnmpState | undefined): OutputLine[] {
   // Command order of the snmp.xml:308-337 DOCGEN example.
   const out = ["!"];
   if (st?.contact) out.push(`snmp-server contact ${q(st.contact)}`);

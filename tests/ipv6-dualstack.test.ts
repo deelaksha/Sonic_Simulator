@@ -68,10 +68,15 @@ describe("radvd + SLAAC", () => {
   });
 
   it("advertises on the host-facing port only, at once then 3 initial RAs 16 s apart, then every MaxRtrAdvInterval (180 s)", () => {
-    advance(250_000);
-    expect(rasOut("S1", "Ethernet0")).toHaveLength(0); // `ipv6 nd suppress-ra` on the fabric links
-    expect(rasOut("S2", "Ethernet0")).toHaveLength(0);
-    const t = rasOut("S1", "Ethernet2").map((c) => c.timeMs);
+    // Sample as time runs: the lab's OSPFv2 + OSPFv3 traffic rolls the 800-frame capture ring over.
+    const seen = new Set<number>();
+    for (let i = 0; i < 250; i++) {
+      advance(1000);
+      rasOut("S1", "Ethernet2").forEach((c) => seen.add(c.timeMs));
+      expect(rasOut("S1", "Ethernet0")).toHaveLength(0); // `ipv6 nd suppress-ra` on the fabric links
+      expect(rasOut("S2", "Ethernet0")).toHaveLength(0);
+    }
+    const t = [...seen].sort((a, b) => a - b);
     expect(t).toHaveLength(4);
     expect(t.slice(1).map((x, i) => Math.round((x - t[i]) / 1000))).toEqual([16, 16, 180]);
     const ra = decodeRa(rasOut("S1", "Ethernet2")[0].frame.rawL3!.slice(40))!;

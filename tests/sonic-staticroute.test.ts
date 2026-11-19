@@ -4,6 +4,7 @@ import { NetworkState, linkInterfaces } from "../lib/models/topology";
 import { Simulation, SimEvent, CaptureRecord, resetIds } from "../lib/engine";
 import { execute, CommandContext } from "../lib/commands";
 import { Device } from "../lib/models/device";
+import { inactiveStatics } from "../lib/models/static-routes";
 
 /**
  * R1 ── R2, transit subnet 10.0.0.0/24. R2 also owns the remote subnet
@@ -89,12 +90,13 @@ describe("SONiC static route feature (staticroute.txt)", () => {
     expect(res.output.some((o) => o.kind === "error")).toBe(false);
   });
 
-  it("rejects a next hop that is not on any connected subnet", () => {
+  it("keeps a next hop that is not on any connected subnet configured but not installed (FRR inactive)", () => {
     const state = build();
     const r1 = state.devices.r1;
     const res = execute("config route add prefix 192.168.9.0/24 nexthop 172.16.5.5", ctxFor(state, r1));
-    expect(res.output.some((o) => o.kind === "error")).toBe(true);
+    expect(res.output.some((o) => o.kind === "error")).toBe(false);
     expect(r1.routingTable.some((r) => r.type === "static")).toBe(false);
+    expect(inactiveStatics(r1).length).toBe(1);
   });
 
   it("rejects malformed input (bad prefix / bad next hop)", () => {

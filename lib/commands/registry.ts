@@ -31,6 +31,7 @@ import { curlCommand } from "./curl";
 import { trafficCommand } from "./traffic";
 import { mcastCommand } from "./mcast";
 import { mclagdctlCommand } from "./mclagdctl";
+import { simctlCommand } from "./simctl";
 
 const sudoCommand: CommandHandler = {
   name: "sudo",
@@ -102,6 +103,7 @@ export const COMMANDS: CommandHandler[] = [
   trafficCommand,
   mcastCommand,
   mclagdctlCommand,
+  simctlCommand,
   hostnameCommand,
   clearCommand,
   helpCommand,

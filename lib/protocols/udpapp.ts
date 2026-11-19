@@ -226,8 +226,8 @@ function handleDns(ctx: SimContext, device: Device, ingress: NetInterface, frame
 function handleDhcp(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): void {
   const d = frame.dhcp!;
 
-  // OFFER / ACK arriving at the requesting client.
-  if (d.messageType === "offer" || d.messageType === "ack") {
+  // OFFER / ACK / NAK arriving at the requesting client.
+  if (d.messageType === "offer" || d.messageType === "ack" || d.messageType === "nak") {
     const mine = device.interfaces.some((i) => i.mac === d.clientMac);
     if (mine) ctx.recordUdp(device.id, frame);
     return;
@@ -265,9 +265,37 @@ function handleDhcp(ctx: SimContext, device: Device, ingress: NetInterface, fram
     return;
   }
 
+  if (d.messageType === "release") {
+    // RFC 2131 4.3.4: the server marks the client's lease unallocated.
+    const root = device.config.features?.dhcpServer as DhcpServerConfig;
+    for (const p of [root, ...(root.pools ?? [])]) if (p.leases[d.clientMac] === d.ciaddr) delete p.leases[d.clientMac];
+    ctx.emit({
+      type: "DHCP_RELEASE", deviceId: device.id, deviceName: device.name, interfaceId: ingress.id, interfaceName: ingress.name,
+      message: `${device.name}: DHCP RELEASE of ${d.ciaddr} from ${d.clientMac}`, osiLayers: [7],
+    });
+    return;
+  }
+
   if (d.messageType === "request") {
+    // RFC 2131 4.3.2: a REQUEST carrying another server's identifier (SELECTING)
+    // means the client took that server's offer — stay silent.
+    const ownIps = device.interfaces.flatMap((i) => i.ipv4.map((a) => a.address));
+    if (d.serverIp && !ownIps.includes(d.serverIp)) return;
     const assigned = d.requestedIp ?? cfg.leases[d.clientMac];
     if (!assigned) return;
+    // INIT-REBOOT / SELECTING for an address that is not on the client's network,
+    // or that is leased to another client: DHCPNAK (RFC 2131 4.3.2; ISC dhcpd
+    // dhcprequest() NAKs "wrong network" / lease owned by another client).
+    const wrongNet = networkInt(assigned, cfg.prefix) !== networkInt(subnetBase, cfg.prefix);
+    const taken = assigned === cfg.gateway || Object.entries(cfg.leases).some(([mac, ip]) => ip === assigned && mac !== d.clientMac);
+    if (wrongNet || taken) {
+      ctx.emit({
+        type: "DHCP_NAK", deviceId: device.id, deviceName: device.name, interfaceId: ingress.id, interfaceName: ingress.name,
+        message: `${device.name}: DHCP NAK ${assigned} → ${d.clientMac} (${wrongNet ? "wrong network" : "address in use"})`, osiLayers: [7],
+      });
+      reply({ messageType: "nak", clientMac: d.clientMac, serverIp, giaddr: d.giaddr });
+      return;
+    }
     cfg.leases[d.clientMac] = assigned;
     ctx.emit({
       type: "DHCP_ACK", deviceId: device.id, deviceName: device.name, interfaceId: ingress.id, interfaceName: ingress.name,

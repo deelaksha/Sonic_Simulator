@@ -92,7 +92,7 @@ registerMission({
       title: "EF traffic entering on H2's port (Ethernet1) is queued in UC5 of Ethernet2",
       hints: [
         "Reproduce it: on H2, `iperf3 -c 192.168.3.10 -u -b 10M -S 184 -t 2`, then on S1 `show queue counters Ethernet2`. Which queue counted it? Do the same from H1.",
-        "Classification happens on the ingress port. Compare `show qos interface Ethernet0` with `show qos interface Ethernet1`.",
+        "Classification happens on the ingress port. Compare `show qos interface Ethernet0` with `show qos interface Ethernet1`, or the rows qosorch reads: `sonic-db-cli CONFIG_DB hgetall 'PORT_QOS_MAP|Ethernet1'`.",
         "Without a DSCP→TC map, the HwSKU default puts every DSCP in TC 0. Run config qos interface bind Ethernet1 dscp-tc LAB-DSCP",
       ],
       check: (c) => classify(c.dev("S1"), "Ethernet1", "Ethernet2", 46).queue === 5,

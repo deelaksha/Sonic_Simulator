@@ -8,7 +8,7 @@
  *   ip arp timeout <25-65535>    per-interface ARP aging = base_reachable_time
  *   no ip arp timeout            back to the system default (interface.xml:1123-1146,
  *                                sonic-swss cfgmgr/intfmgr.cpp:678-720)
- *   no ip arp <ip> <mac>         not wired: the Click module has no per-entry delete.
+ *   no ip arp <ip> <mac>         delete that static entry (ipv4.xml:304-307)
  * enable-view:
  *   show ip arp [<ip> | mac-address <mac>]       show_arp.j2 over the live table
  *   show ip arp interface <type> <id>            (eth0 is shown as Management0,
@@ -48,11 +48,18 @@ registerModal({
       rt.timeouts[ifname] = n;
       return { output: [] };
     }
-    // No per-entry ARP delete exists in the Click arpnd module — don't fake it.
-    if (isNo) return null;
     const ip = args[1];
     const mac = args[2];
-    if (!ip || !mac) return { output: [err("% Usage: ip arp <ip-address> <mac-address>")] };
+    if (!ip || !mac) return { output: [err(`% Usage: ${isNo ? "no " : ""}ip arp <ip-address> <mac-address>`)] };
+    if (isNo) {
+      // `no ip arp <ip> <mac>` (ipv4.xml:304-307): DELETE of the NEIGH|<if>|<ip> row; the
+      // kernel PERMANENT neighbour goes with it (nbrmgrd).
+      const iface = ctx.device.interfaces.find((i) => i.name === ifname);
+      const e = ctx.device.arpTable.find((x) => x.ip === ip && x.interfaceId === iface?.id);
+      if (!e || !isPermanent(ctx.device, ip) || e.mac.toLowerCase() !== mac.toLowerCase()) return { output: [err("%Error: Resource not found")] };
+      deleteArp(ctx.device, ip);
+      return { output: [] };
+    }
     return { output: delegate(`config arp add ${ip} ${mac} ${ifname ?? ""}`) };
   },
 });

@@ -18,7 +18,8 @@
  *     sonic-lldp.yang:63-193, sonic-ntp.yang:177, sonic-dns.yang:122-137,
  *     sonic-bfd.yang:252-272 (key "remote-address|interface|vrf|local-address"),
  *     (BGP/OSPF and the newer feature tables: ./config-db-features.ts)
- *     sonic-device_metadata.yang:38-105.
+ *     sonic-device_metadata.yang:38-105,
+ *     QoS / CoPP tables: ./qos-copp-db.ts.
  * Live capture: data/device-capture/sflow-live/configdb-and-click-show.txt.
  *
  * Read-only: never creates feature state (peek accessors only).
@@ -28,6 +29,7 @@ import { NetInterface } from "../models/interface";
 import { peekFeatureState } from "../models/feature-state";
 import { isLinkLocal6 } from "../models/ipv6";
 import { vrfOf, DEFAULT_VRF } from "../models/vrf";
+import { inactiveStatics } from "../models/static-routes";
 import { listVlans, vlanMembers } from "../models/vlan-ops";
 import { peekSflowState } from "../sflow/agent";
 import { getBgpConfig } from "../protocols/bgp";
@@ -39,6 +41,7 @@ import { BfdPeerConfig } from "../protocols/bfd-daemon";
 import { cpList } from "../commands/sonic-cli/config-plane";
 import { Tables, put, Row } from "./schema";
 import { projectBgp, projectPolicy, projectOspf, projectNd, projectEvpn, projectL2Protect, projectMulticast, projectL3Services } from "./config-db-features";
+import { projectQosConfig, projectCoppConfig } from "./qos-copp-db";
 
 /** Front-panel ports (PORT table): not mgmt, not logical. */
 export function frontPorts(d: Device): NetInterface[] {
@@ -70,6 +73,18 @@ const str = (v: unknown) => String(v);
 
 function bool(v: boolean | undefined): string {
   return v ? "true" : "false";
+}
+
+/** ACL_TABLE / ACL_RULE (sonic-acl.yang; rule fields from acl-rules.ts ruleFields, xfmr_acl.go). */
+export function projectAcl(d: Device, t: Tables): void {
+  const acl = peekFeatureState<AclState>(d, "acl");
+  for (const tb of acl?.tables ?? []) {
+    const row: Row = { type: sonicTableType(tb.type), stage: (tb.stage ?? "ingress").toUpperCase() };
+    if (tb.ports.length) row.ports = [...tb.ports];
+    if (tb.description) row.policy_desc = tb.description;
+    put(t, "ACL_TABLE", tb.name, row);
+    for (const r of acl?.rules[tb.name] ?? []) put(t, "ACL_RULE", `${tb.name}|RULE_${r.seq}`, ruleFields((tb.type ?? "ip") as AclType, r));
+  }
 }
 
 export function projectConfigDb(d: Device): Tables {
@@ -144,7 +159,8 @@ export function projectConfigDb(d: Device): Tables {
   }
 
   // STATIC_ROUTE (sonic-static-route.yang:69-150): key "prefix" or "vrf|prefix"
-  for (const r of d.routingTable.filter((x) => x.type === "static")) {
+  // Unresolved (inactive) statics are still configured.
+  for (const r of [...d.routingTable.filter((x) => x.type === "static"), ...inactiveStatics(d)]) {
     const vrf = r.vrf ?? DEFAULT_VRF;
     const key = `${vrf === DEFAULT_VRF ? "" : vrf + "|"}${r.destination}/${r.prefix}`;
     const ifname = d.interfaces.find((i) => i.id === r.interfaceId)?.name ?? "";
@@ -199,15 +215,7 @@ export function projectConfigDb(d: Device): Tables {
     }
   }
 
-  // ACL_TABLE / ACL_RULE (sonic-acl.yang; rule fields from acl-rules.ts ruleFields, xfmr_acl.go)
-  const acl = peekFeatureState<AclState>(d, "acl");
-  for (const tb of acl?.tables ?? []) {
-    const row: Row = { type: sonicTableType(tb.type), stage: (tb.stage ?? "ingress").toUpperCase() };
-    if (tb.ports.length) row.ports = [...tb.ports];
-    if (tb.description) row.policy_desc = tb.description;
-    put(t, "ACL_TABLE", tb.name, row);
-    for (const r of acl?.rules[tb.name] ?? []) put(t, "ACL_RULE", `${tb.name}|RULE_${r.seq}`, ruleFields((tb.type ?? "ip") as AclType, r));
-  }
+  projectAcl(d, t);
 
   // MCLAG_DOMAIN / MCLAG_INTERFACE (sonic-mclag.yang:48-128; stored by KLISH as CONFIG_DB-shaped rows)
   for (const dom of cpList(d, "mclag", "domains")) {
@@ -289,6 +297,8 @@ export function projectConfigDb(d: Device): Tables {
   projectL2Protect(d, t);
   projectMulticast(d, t);
   projectL3Services(d, t);
+  projectQosConfig(d, t);
+  projectCoppConfig(d, t);
 
   // Generic KLISH config-plane stores (cp_banner, cp_logging, ...) are not projected:
   // their keys are KLISH command names, not CONFIG_DB fields.

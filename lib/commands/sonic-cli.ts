@@ -230,11 +230,23 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
     const poOpts = optAt > 0 ? args.slice(optAt).map((t) => t.toLowerCase()) : [];
     const name = ifName(optAt > 0 ? args.slice(0, optAt) : args);
     if (!name || (poOpts.length && !name.startsWith("PortChannel"))) return stay([err(`% Invalid interface "${args.join(" ")}".`)]);
+    // `interface Management 0` (interface.xml Management) configures the management port, eth0 here.
+    const mgmt = name === "Management0" && !isNo ? ctx.device.interfaces.find((i) => i.management) : undefined;
+    if (mgmt) return { output: [], stack: [...stack, `if-${mgmt.name}`] };
     if (isNo) {
       // `no interface Vlan/Loopback/PortChannel <n>` deletes the logical interface.
       const iface = ctx.device.interfaces.find((i) => i.name === name);
       if (!iface) return stay([err(`% Interface ${name} does not exist.`)]);
       if (!iface.logical) return stay([err(`% Cannot delete physical interface ${name}.`)]);
+      if (name.startsWith("PortChannel")) {
+        // The transformer refuses while PORTCHANNEL_MEMBER rows exist (sonic-mgmt-common
+        // sw_portchannel.go:1050-1060); delete_if_range then adds "%Error: Interface: <if>"
+        // (sonic_cli_if_range.py:1683-1687). Otherwise the PORTCHANNEL row goes too.
+        if (lagEntry(ctx.device, name)?.members.length) {
+          return stay([err("%Error: Cannot delete PortChannel with member interfaces. Remove members first"), err(`%Error: Interface: ${name}`)]);
+        }
+        return stay(delegate(`config portchannel del ${name}`).filter((o) => o.kind === "error"));
+      }
       ctx.device.interfaces = ctx.device.interfaces.filter((i) => i.name !== name);
       return stay();
     }

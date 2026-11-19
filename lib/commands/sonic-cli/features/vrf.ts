@@ -18,16 +18,15 @@
  *
  * Skipped (Click has no equivalent): the `nht resolve-via-default` sub-option on
  * `ip vrf` / `no ip vrf`, and the entire `ipv6 vrf` / `no ipv6 vrf` family (those
- * exist only to toggle nht). Loopback / sub-interface / range if-views are not
- * reachable through this engine's interface modes, so only the physical, SVI and
- * LAG if-views are served.
+ * exist only to toggle nht). The physical, SVI, LAG and Loopback (vrf.xml:492-499)
+ * if-views are served; sub-interface / range views are not.
  */
 import { err, muted } from "../../types";
 import { registerModal } from "../registry";
 
 registerModal({
   id: "vrf",
-  views: ["configure-view", "configure-if-view", "configure-vlan-view", "configure-lag-view"],
+  views: ["configure-view", "configure-if-view", "configure-vlan-view", "configure-lag-view", "configure-lo-view"],
   keywords: ["ip"],
   run({ view, isNo, args, ifname, delegate }) {
     // Only handle `ip vrf ...`; let `ip address`/`ip route`/etc fall through.

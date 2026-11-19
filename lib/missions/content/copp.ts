@@ -134,7 +134,7 @@ registerMission({
       title: "H1 can ping S1's address 192.168.1.1",
       hints: [
         "Transit works and the ping is addressed to the switch itself, so look at the CPU path: `show copp counters` and `show queue counters CPU` while H1 pings 192.168.1.1.",
-        "Every ip2me packet is counted in queue 7's Drop/pkts. Read the policer: `show copp configuration detailed --trapid ip2me` and compare it with `show copp actions`.",
+        "Every ip2me packet is counted in queue 7's Drop/pkts. Read the policer: `show copp configuration detailed --trapid ip2me` and compare it with `show copp actions` (or coppmgrd's view: `sonic-db-cli APPL_DB hgetall COPP_TABLE:copp-lab-ip2me`).",
         "CIR/CBS 50 means 50 packets only when Meter Type is packets. With bytes, the bucket holds 50 bytes and a 98-byte ping never fits. Run config copp action set copp-lab-ip2me meter-type packets",
       ],
       check: (c) => c.ping("H1", "192.168.1.1"),

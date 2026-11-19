@@ -6,6 +6,7 @@
  * Supported:
  *   ip addr [show]                       ip addr add <cidr> dev <if>
  *   ip link [show]                       ip addr del <cidr> dev <if>
+ *                                        ip addr flush dev <if>
  *   ip route [show]                      ip link set <if> up|down
  *   ip neigh [show]                      ip route add <cidr|default> via <gw> [dev <if>]
  *                                        ip route del <cidr|default>
@@ -112,6 +113,26 @@ function addrDel(ctx: CommandContext, args: string[]): CommandResult {
   iface.ipv4 = iface.ipv4.filter((a) => a.address !== parsed.address);
   rebuildConnectedRoutes(ctx.device);
   return { output: [muted(`removed ${parsed.address}/${parsed.prefix} from ${iface.name}`)] };
+}
+
+/**
+ * `ip addr flush dev <if>` (iproute2 ipaddress.c ipaddr_flush, silent on
+ * success): every IPv4 address of the interface goes, and with them the kernel
+ * drops the routes through it — the default route included.
+ */
+function addrFlush(ctx: CommandContext, args: string[]): CommandResult {
+  const name = args[0] === "dev" ? args[1] : args[0];
+  if (!name) return { output: [err("Flush requires arguments.")] };
+  const iface = interfaceByName(ctx.device, name);
+  if (!iface) return { output: [err(`Device "${name}" does not exist.`)] };
+  iface.ipv4 = [];
+  ctx.device.routingTable = ctx.device.routingTable.filter((r) => r.interfaceId !== iface.id);
+  const gw = ctx.device.config.defaultGateway;
+  if (gw && !ctx.device.interfaces.some((i) => i.ipv4.some((a) => networkAddress(a.address, a.prefix) === networkAddress(gw, a.prefix)))) {
+    ctx.device.config.defaultGateway = undefined;
+  }
+  rebuildConnectedRoutes(ctx.device);
+  return { output: [] };
 }
 
 function linkSet(ctx: CommandContext, args: string[]): CommandResult {
@@ -267,6 +288,7 @@ export const ipCommand: CommandHandler = {
     "Usage:",
     "  ip addr [show]                 ip addr add <cidr> dev <if>",
     "  ip link [show]                 ip addr del <cidr> dev <if>",
+    "                                 ip addr flush dev <if>",
     "  ip route [show]                ip link set <if> up|down [address <mac>]",
     "  ip neigh [show]                ip route add <cidr|default> via <gw>",
     "                                 ip route del <cidr|default>",
@@ -303,6 +325,7 @@ export const ipCommand: CommandHandler = {
         if (isShow) return { output: showAddr(ctx.device, true) };
         if (action === "add") return addrAdd(ctx, rest);
         if (action === "del" || action === "delete") return addrDel(ctx, rest);
+        if (action === "flush") return addrFlush(ctx, rest);
         return { output: [err(`ip addr: unknown action "${action}"`)] };
       case "l":
       case "link":

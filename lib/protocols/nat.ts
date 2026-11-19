@@ -200,7 +200,7 @@ function patchRaw(raw: number[], f: Frame): number[] {
       b[l4 + 6] = b[l4 + 7] = 0;
       port(l4 + 6, inetChecksum([...pseudo(17), ...b.slice(l4, end)]) || 0xffff);
     }
-  } else if (b[9] === 1 && f.icmp && end - l4 >= 8) {
+  } else if (b[9] === 1 && (f.icmp?.type === "echo-request" || f.icmp?.type === "echo-reply") && end - l4 >= 8) {
     port(l4 + 4, f.icmp.identifier);
     b[l4 + 2] = b[l4 + 3] = 0;
     port(l4 + 2, inetChecksum(b.slice(l4, end)));
@@ -246,11 +246,65 @@ function count(device: Device, natType: "snat" | "dnat", proto: string, ip: stri
 }
 
 /**
+ * ICMP error (time-exceeded / unreachable) for a translated flow: the embedded
+ * packet carries the translated source, so the error is addressed to the
+ * outside address. Linux conntrack relates it to the flow and
+ * nf_nat_icmp_reply_translation() rewrites the outer destination AND the
+ * embedded source back to the inside host (RFC 5508 §4.2). Kernel slow path:
+ * no ASIC counters.
+ */
+function icmpErrorInbound(device: Device, frame: Frame): NatResult | undefined {
+  const o = frame.icmp?.original;
+  if (!o || (frame.icmp!.type !== "time-exceeded" && frame.icmp!.type !== "dest-unreachable")) return undefined;
+  const proto = o.protocol.toLowerCase() as NatProto;
+  let inside: { ip: string; port: number } | undefined;
+  const e = runtime(device).entries.find((x) => x.proto === proto && x.outIp === o.srcIp && x.outPort === o.srcPort);
+  if (e) inside = { ip: e.inIp, port: e.inPort };
+  else {
+    const s = staticEntries(device).find((x) => x.globalIp === o.srcIp && (x.proto === "all" || (x.proto === proto && x.globalPort === o.srcPort)));
+    if (s) inside = { ip: s.localIp, port: s.proto === "all" ? o.srcPort : s.localPort };
+  }
+  if (!inside) return undefined;
+  const f = rewrite(frame, { dstIp: inside.ip });
+  const ic = f.icmp!;
+  ic.original = { ...o, srcIp: inside.ip, srcPort: inside.port };
+  if (proto === "icmp") ic.identifier = inside.port; // the embedded echo's identifier
+  if (ic.errorInfo) ic.errorInfo = ic.errorInfo.replace(o.srcIp, inside.ip);
+  if (f.rawL3) f.rawL3 = patchIcmpErrorRaw(f.rawL3, ic.original);
+  return {
+    frame: f,
+    text: `DNAT ${frame.ipv4!.dstIp} -> ${inside.ip} (icmp ${ic.type}, embedded ${proto} ${hp(o.srcIp, o.srcPort)} -> ${hp(inside.ip, inside.port)})`,
+  };
+}
+
+/** Engine-built bytes of an ICMP error: rewrite the embedded source (address + port/identifier) and re-checksum. */
+function patchIcmpErrorRaw(raw: number[], inner: NonNullable<Frame["icmp"]>["original"] & object): number[] {
+  const b = [...raw];
+  const l4 = (b[0] & 0x0f) * 4;
+  const end = Math.min(((b[2] << 8) | b[3]) || b.length, b.length);
+  const at = l4 + 8; // embedded IP header
+  if (end - at < 20) return b;
+  const ihl = (b[at] & 0x0f) * 4;
+  b.splice(at + 12, 4, ...ipBytes(inner.srcIp));
+  b[at + 10] = b[at + 11] = 0;
+  const ck = inetChecksum(b.slice(at, at + ihl));
+  [b[at + 10], b[at + 11]] = [ck >> 8, ck & 0xff];
+  const p = at + ihl + (b[at + 9] === 1 ? 4 : 0); // TCP/UDP source port, or the ICMP echo identifier
+  if (end - p >= 2) [b[p], b[p + 1]] = [(inner.srcPort >> 8) & 0xff, inner.srcPort & 0xff];
+  b[l4 + 2] = b[l4 + 3] = 0;
+  const ock = inetChecksum(b.slice(l4, end));
+  [b[l4 + 2], b[l4 + 3]] = [ock >> 8, ock & 0xff];
+  return b;
+}
+
+/**
  * Ingress (PREROUTING): reverse-translate traffic addressed to a translated
  * address — return traffic of a dynamic entry, or a static DNAT entry.
  */
 export function natInbound(device: Device, frame: Frame, ingress: NetInterface, nowMs: number): NatResult | undefined {
   if (!natEnabled(device) || !frame.ipv4) return undefined;
+  const icmpErr = icmpErrorInbound(device, frame);
+  if (icmpErr) return icmpErr;
   const t = tupleOf(frame);
   const dst = frame.ipv4.dstIp;
   if (t.proto) {

@@ -93,6 +93,21 @@ export interface DhcpResult {
   gateway?: string;
   dns?: string;
   reason?: string;
+  /** INIT-REBOOT attempt for a remembered lease (nakFrom set when a server NAKed it). */
+  reboot?: { requestedIp: string; nakFrom?: string; acked?: boolean };
+}
+
+interface DhclientLease {
+  address: string;
+  prefix: number;
+  server: string;
+  gateway?: string;
+}
+
+/** dhclient's lease file (/var/lib/dhcp/dhclient.leases), per interface name. */
+function dhclientLeases(d: Device): Record<string, DhclientLease> {
+  const f = (d.config.features ??= {});
+  return (f.dhclientLeases ??= {}) as Record<string, DhclientLease>;
 }
 
 export interface DnsResult {
@@ -324,6 +339,25 @@ export class Simulation implements SimContext {
     const iface = findInterface(client, interfaceId);
     if (!iface) return { success: false, reason: "no-iface" };
     if (iface.adminState !== "up" || iface.operState !== "up") return { success: false, reason: "iface-down" };
+    const reply = (type: DhcpPayload["messageType"]) => this.udpReplies.find((r) => r.deviceId === clientId && r.frame.dhcp?.messageType === type)?.frame.dhcp;
+    const firstReply = () => this.udpReplies.find((r) => r.deviceId === clientId && (r.frame.dhcp?.messageType === "ack" || r.frame.dhcp?.messageType === "nak"))?.frame.dhcp;
+
+    // INIT-REBOOT (RFC 2131 3.2 / 4.3.2): with a remembered lease, ISC dhclient first
+    // broadcasts a REQUEST for it with no server identifier. ACK → bound again;
+    // NAK (or silence) → back to INIT and a fresh DISCOVER.
+    const prior = dhclientLeases(client)[iface.name];
+    let reboot: DhcpResult["reboot"];
+    if (prior) {
+      this.udpReplies = [];
+      this.emit({
+        type: "DHCP_REQUEST", deviceId: client.id, deviceName: client.name, interfaceId: iface.id, interfaceName: iface.name,
+        message: `${client.name}: DHCP REQUEST ${prior.address} (INIT-REBOOT, broadcast)`, osiLayers: [7],
+      });
+      this.transmit(clientId, interfaceId, this.dhcpClientFrame(iface, "request", { requestedIp: prior.address }));
+      const r = firstReply();
+      reboot = { requestedIp: prior.address, nakFrom: r?.messageType === "nak" ? r.serverIp : undefined };
+      if (r?.messageType === "ack") return { ...this.bindDhcp(client, iface, r), reboot: { ...reboot, acked: true } };
+    }
 
     // DISCOVER (L2 broadcast — the client has no IP yet)
     this.udpReplies = [];
@@ -337,9 +371,8 @@ export class Simulation implements SimContext {
       osiLayers: [7],
     });
     this.transmit(clientId, interfaceId, this.dhcpClientFrame(iface, "discover", {}));
-    const offer = this.udpReplies.find((r) => r.deviceId === clientId && r.frame.dhcp?.messageType === "offer");
-    if (!offer?.frame.dhcp) return { success: false, reason: "no-offer" };
-    const off = offer.frame.dhcp;
+    const off = reply("offer");
+    if (!off) return { success: false, reason: "no-offer", reboot };
 
     // REQUEST (broadcast, echoing the offered address)
     this.udpReplies = [];
@@ -357,16 +390,51 @@ export class Simulation implements SimContext {
       interfaceId,
       this.dhcpClientFrame(iface, "request", { requestedIp: off.yourIp, serverIp: off.serverIp }),
     );
-    const ack = this.udpReplies.find((r) => r.deviceId === clientId && r.frame.dhcp?.messageType === "ack");
-    if (!ack?.frame.dhcp) return { success: false, reason: "no-ack" };
-    const a = ack.frame.dhcp;
+    const a = reply("ack");
+    if (!a) return { success: false, reason: "no-ack", reboot };
+    return { ...this.bindDhcp(client, iface, a), reboot };
+  }
 
+  /** Apply an ACK (dhclient-script BOUND) and remember the lease for INIT-REBOOT / release. */
+  private bindDhcp(client: Device, iface: NetInterface, a: DhcpPayload): DhcpResult {
     if (a.yourIp && a.prefix) {
       iface.ipv4 = [{ address: a.yourIp, prefix: a.prefix }];
       if (a.gateway) client.config.defaultGateway = a.gateway;
       rebuildConnectedRoutes(client);
+      dhclientLeases(client)[iface.name] = { address: a.yourIp, prefix: a.prefix, server: a.serverIp ?? "", gateway: a.gateway };
     }
     return { success: true, assignedIp: a.yourIp, prefix: a.prefix, gateway: a.gateway, dns: a.dns };
+  }
+
+  /**
+   * `dhclient -r`: unicast DHCPRELEASE (ciaddr = the lease) to the server that
+   * granted it (RFC 2131 4.4.6), then dhclient-script RELEASE removes the
+   * address and its routes, the default route included.
+   */
+  runDhcpRelease(clientId: string, interfaceId: string): { released: boolean; address?: string; server?: string } {
+    const client = this.state.devices[clientId];
+    const iface = client && findInterface(client, interfaceId);
+    if (!client || !iface) return { released: false };
+    const leases = dhclientLeases(client);
+    const lease = leases[iface.name];
+    if (!lease) return { released: false };
+    this.emit({
+      type: "DHCP_RELEASE", deviceId: client.id, deviceName: client.name, interfaceId: iface.id, interfaceName: iface.name,
+      message: `${client.name}: DHCP RELEASE ${lease.address} → ${lease.server}`, osiLayers: [7],
+    });
+    if (iface.ipv4.some((a) => a.address === lease.address)) {
+      ipOutput(this, client, {
+        srcIp: lease.address, dstIp: lease.server, ttl: 64, protocol: "UDP", identification: 0,
+        udp: { srcPort: DHCP_CLIENT_PORT, dstPort: DHCP_SERVER_PORT, length: DHCP_UPPER_BYTES },
+        dhcp: { messageType: "release", clientMac: iface.mac, ciaddr: lease.address, serverIp: lease.server },
+        upperBytes: DHCP_UPPER_BYTES, summary: "DHCP RELEASE",
+      });
+    }
+    iface.ipv4 = iface.ipv4.filter((a) => a.address !== lease.address);
+    if (lease.gateway && client.config.defaultGateway === lease.gateway) client.config.defaultGateway = undefined;
+    rebuildConnectedRoutes(client);
+    delete leases[iface.name];
+    return { released: true, address: lease.address, server: lease.server };
   }
 
   private dhcpClientFrame(iface: NetInterface, messageType: DhcpPayload["messageType"], extra: Partial<DhcpPayload>): Frame {

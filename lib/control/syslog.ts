@@ -45,8 +45,8 @@ export interface SyslogState {
   lines: SyslogLine[];
   /** lines at the tail still to be forwarded to remote servers */
   pending?: number;
-  /** last seen port / teamd state (the syslog daemon logs their transitions) */
-  seen?: { ports: Record<string, string>; teamd: Record<string, string> };
+  /** last seen port / teamd state and config rows (the syslog daemon logs their transitions) */
+  seen?: { ports: Record<string, string>; teamd: Record<string, string>; cfg?: Record<string, string> };
 }
 
 const CAP = 2000;

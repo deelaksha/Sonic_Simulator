@@ -69,7 +69,7 @@ describe("sonic-cli arpnd (static ARP)", () => {
     expect(show).toContain("aa:bb:cc:dd:ee:ff");
   });
 
-  it("no ip arp is not wired (Click has no per-entry delete) and leaves the entry intact", () => {
+  it("no ip arp <ip> <mac> deletes the static entry (ipv4.xml:304-307)", () => {
     const { state, device } = sw();
     session(state, device, ["exec"], [
       "configure terminal",
@@ -77,7 +77,6 @@ describe("sonic-cli arpnd (static ARP)", () => {
       "ip arp 10.0.0.5 00:11:22:33:44:55",
       "no ip arp 10.0.0.5 00:11:22:33:44:55",
     ]);
-    // per-entry delete has no Click equivalent, so the entry must still be present
-    expect(device.arpTable.some((e) => e.ip === "10.0.0.5")).toBe(true);
+    expect(device.arpTable.some((e) => e.ip === "10.0.0.5")).toBe(false);
   });
 });

@@ -24,14 +24,26 @@
  * Other `ipv6 ...` forms (enable, address autoconfig, nd dad, nd-proxy, neighbor) return
  * null and fall through to the other handlers / grammar fallback.
  */
-import { err } from "../../types";
+import { err, line } from "../../types";
 import { registerModal } from "../registry";
 import { subViewFrame } from "../../../sonic/grammar";
 import { featureState } from "../../../models/feature-state";
 import { isValidIpv4 } from "../../../models/ip";
 import { normalizeArea } from "../../sonic/ospf";
-import { ND_KEY, NdIfConfig } from "../../../protocols/radv-daemon";
+import { ND_KEY, NdIfConfig, renderRaInterfaces } from "../../../protocols/radv-daemon";
 import { OSPF6_KEY, Ospf6Config, Ospf6IfParams } from "../../../protocols/ospf6-config";
+
+// `show ipv6 nd ra-interfaces [<if>]` (klish-xml/ipv6-neighbors.xml:1229, ifName PHY_PO_VL_SUBINTERFACE).
+registerModal({
+  id: "ipv6-nd-show",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ ctx, args }) {
+    if (args[0]?.toLowerCase() !== "ipv6" || args[1]?.toLowerCase() !== "nd" || args[2]?.toLowerCase() !== "ra-interfaces") return null;
+    const ifname = args.slice(3).join("") || undefined; // "Ethernet 0" -> "Ethernet0"
+    return { output: renderRaInterfaces(ctx.device, ifname).map((t) => line(t)) };
+  },
+});
 
 const IF_VIEWS = ["configure-if-view", "configure-vlan-view", "configure-lag-view"];
 

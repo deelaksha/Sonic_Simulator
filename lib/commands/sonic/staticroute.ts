@@ -17,6 +17,8 @@ import { vrfOf, vrfNames, DEFAULT_VRF } from "../../models/vrf";
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
+import { Route } from "../../models/route";
+import { inactiveStatics, setInactiveStatics } from "../../models/static-routes";
 
 interface Cidr {
   network: string; // normalized network address
@@ -61,7 +63,17 @@ const config: SonicCmd[] = [
         (i) => vrfOf(ctx.device, i) === vrf && i.ipv4.some((a) => networkAddress(a.address, a.prefix) === networkAddress(nh, a.prefix)),
       );
       if (!egress) {
-        return { output: [err(`config route: no interface on the subnet of nexthop ${nh}${vrf !== DEFAULT_VRF ? ` in VRF ${vrf}` : ""}`)] };
+        // FRR keeps a route whose next hop does not resolve, inactive, and installs it later
+        // (lib/models/static-routes.ts).
+        const parked = inactiveStatics(ctx.device);
+        const dup = parked.some((r) => (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh);
+        if (!dup) {
+          setInactiveStatics(ctx.device, [
+            ...parked,
+            { destination: cidr.network, prefix: cidr.prefix, nextHop: nh, interfaceId: "", type: "static", metric: 0, installedAtMs: Date.now(), ...(vrf !== DEFAULT_VRF ? { vrf } : {}) },
+          ]);
+        }
+        return { output: [muted(`route added: ${cidr.network}/${cidr.prefix} nexthop ${nh} (inactive: nexthop not resolved)`)] };
       }
       const exists = ctx.device.routingTable.some(
         (r) => r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh,
@@ -90,12 +102,13 @@ const config: SonicCmd[] = [
       if (!cidr || !nh || !isValidIpv4(nh)) {
         return { output: [err("Usage: config route del prefix [vrf <name>] <ip/prefix> nexthop <ip>")] };
       }
+      const match = (r: Route) =>
+        r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh;
       const before = ctx.device.routingTable.length;
-      ctx.device.routingTable = ctx.device.routingTable.filter(
-        (r) =>
-          !(r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === cidr.network && r.prefix === cidr.prefix && r.nextHop === nh),
-      );
-      const removed = ctx.device.routingTable.length !== before;
+      ctx.device.routingTable = ctx.device.routingTable.filter((r) => !match(r));
+      const parked = inactiveStatics(ctx.device);
+      setInactiveStatics(ctx.device, parked.filter((r) => !match(r)));
+      const removed = ctx.device.routingTable.length !== before || parked.some(match);
       return {
         output: [muted(removed ? `route removed: ${cidr.network}/${cidr.prefix} nexthop ${nh}` : "no matching static route")],
       };

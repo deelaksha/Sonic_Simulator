@@ -45,7 +45,8 @@ describe("generic config-plane fallback (recognized commands are accepted + stor
       "configure terminal", "router bgp 65001", "timers bgp 10 30", "exit", "exit",
       "show running-configuration",
     ]);
-    expect(r.output.map((o) => o.text).join("\n")).toContain("timers bgp 10 30");
+    // rendered from the BGP config in show_bgp_global.j2 syntax (" timers <keepalive> <hold>")
+    expect(r.output.map((o) => o.text)).toContain(" timers 10 30");
   });
 
   it("genuinely unknown input is still rejected", () => {
@@ -61,7 +62,7 @@ describe("generic config-plane fallback (recognized commands are accepted + stor
       "show running-configuration",
     ]);
     // the timers line was removed → not in running-config (or running-config empty)
-    expect(r.output.map((o) => o.text).join("\n")).not.toContain("timers bgp 10 30");
+    expect(r.output.map((o) => o.text).join("\n")).not.toMatch(/timers (bgp )?10 30/);
   });
 });
 

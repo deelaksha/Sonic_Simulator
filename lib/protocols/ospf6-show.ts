@@ -10,9 +10,18 @@
  *                              per payload item: Rtr nbr-rid/nbr-ifid, Net
  *                              attached router, Lnk link-local then prefixes,
  *                              INAP prefix/len — ospf6_intra.c get_prefix_str)
+ *   show ipv6 ospf6 interface [IF]  ospf6_interface.c:1011 ospf6_interface_show,
+ *                              show_ospf6_interface_common (:1348, every
+ *                              interface of the VRF, "No such Interface: %s")
+ *   show ipv6 ospf6            ospf6_top.c:1165 ospf6_show + ospf6_area.c
+ *                              ospf6_area_show (defaults: lib/libospf.h SPF
+ *                              0/50/5000 ms, LS arrival 1000 ms; maximum-paths
+ *                              = MULTIPATH_NUM, debian/rules --enable-multipath=256)
  */
 import { Device } from "../models/device";
-import { ospf6Runtime, nsm6Name, lsa6Age, Ospf6Rt, Lsa6Entry } from "./ospf6-daemon";
+import { vrfOf, DEFAULT_VRF } from "../models/vrf";
+import { ospf6Config } from "./ospf6-config";
+import { ospf6Runtime, nsm6Name, lsa6Age, mtu6Of, Ospf6Rt, Lsa6Entry } from "./ospf6-daemon";
 import {
   LSA6_ROUTER,
   LSA6_NETWORK,
@@ -90,5 +99,80 @@ export function renderOspf6Database(device: Device, nowMs: number): string[] {
     }
   }
   out.push("", "        AS Scoped Link State Database", "", ...lsdbLines({}, nowMs), "");
+  return out;
+}
+
+const isLoopback = (name: string) => /^(Loopback|lo)/.test(name);
+
+/** `show ipv6 ospf6 interface [IF]` (ospf6_interface.c ospf6_interface_show). */
+export function renderOspf6Interface(device: Device, nowMs: number, ifname?: string): string[] {
+  const rt = ospf6Runtime(device);
+  const ifs = device.interfaces.filter((i) => vrfOf(device, i) === DEFAULT_VRF);
+  const pick = ifname ? ifs.filter((i) => i.name === ifname) : ifs;
+  if (ifname && !pick.length) return [`No such Interface: ${ifname}`];
+  const out: string[] = [];
+  for (const iface of pick) {
+    const idx = device.interfaces.indexOf(iface) + 1;
+    const oif = rt?.oifs.find((o) => o.ifId === iface.id);
+    const operative = iface.adminState === "up" && (iface.operState === "up" || isLoopback(iface.name));
+    const deftype = isLoopback(iface.name) ? "LOOPBACK" : "BROADCAST";
+    out.push(`${iface.name} is ${operative ? "up" : "down"}, type ${deftype}`, `  Interface ID: ${oif?.ifIndex ?? idx}`);
+    if (!oif) {
+      out.push("   OSPF not enabled on this interface");
+      continue;
+    }
+    const type = oif.type === "point-to-point" ? "POINTOPOINT" : oif.type === "loopback" ? "LOOPBACK" : "BROADCAST";
+    if (operative && type !== deftype) out.push(`  Operating as type ${type}`);
+    out.push("  Internet Address:");
+    for (const a of iface.ipv4) out.push(`    inet : ${a.address}/${a.prefix}`);
+    for (const a of iface.ipv6) out.push(`    inet6: ${a.address}/${a.prefix}`);
+    const mtu = mtu6Of(device);
+    out.push(`  Instance ID 0, Interface MTU ${mtu} (autodetect: ${mtu})`, "  MTU mismatch detection: enabled", `  Area ID ${oif.area}, Cost ${oif.cost}`);
+    out.push(`  State ${oif.state}, Transmit Delay 1 sec, Priority ${oif.priority}`, "  Timer intervals configured:");
+    // %pTHd: time until the Hello thread fires, seconds with 3 decimals ("-" when not scheduled).
+    const hello = oif.helloDue !== undefined ? (Math.max(0, oif.helloDue - nowMs) / 1000).toFixed(3) : "-";
+    out.push(oif.passive ? "   No Hellos (Passive interface)" : `   Hello ${oif.hello}(${hello}), Dead ${oif.dead}, Retransmit ${oif.rxmt}`);
+    out.push(`  DR: ${oif.dr} BDR: ${oif.bdr}`, `  Number of I/F scoped LSAs is ${Object.keys(rt?.linkDb[oif.name] ?? {}).length}`);
+    // LS updates / acks go out at once in the simulator: nothing is ever pending.
+    out.push("    0 Pending LSAs for LSUpdate in Time 00:00:00 [thread off]", "    0 Pending LSAs for LSAck in Time 00:00:00 [thread off]");
+  }
+  return out;
+}
+
+/** `show ipv6 ospf6` (ospf6_top.c ospf6_show + ospf6_area.c ospf6_area_show). */
+export function renderOspf6Summary(device: Device, nowMs: number): string[] {
+  const rt = ospf6Runtime(device);
+  if (!rt) return [];
+  const cfg = ospf6Config(device);
+  const areas = [...new Set(rt.oifs.map((o) => o.area))].sort((a, b) => ipToInt(a) - ipToInt(b));
+  const out = [
+    ` OSPFv3 Routing Process (0) with Router-ID ${rt.routerId}`,
+    ` Running ${timerstring(nowMs - rt.startedMs)}`,
+    " LSA minimum arrival 1000 msecs",
+    " Maximum-paths 256",
+    " Administrative distance 110",
+    " Initial SPF scheduling delay 0 millisec(s)",
+    " Minimum hold time between consecutive SPFs 50 millsecond(s)",
+    " Maximum hold time between consecutive SPFs 5000 millsecond(s)",
+    " Hold time multiplier is currently 1",
+  ];
+  // The simulator does not record SPF trigger reasons; SPF itself is instantaneous.
+  if (rt.spf.lastMs !== undefined) out.push(` SPF algorithm last executed ${timerstring(nowMs - rt.spf.lastMs)} ago, reason R+`, " Last SPF duration 0 sec 0 usec");
+  else out.push(" SPF algorithm has not been run");
+  out.push(rt.spfDirty ? " SPF timer due in 00:00:00" : " SPF timer is inactive");
+  out.push(" Number of AS scoped LSAs is 0", ` Number of areas in this router is ${areas.length}`);
+  out.push(" Authentication Sequence number info", "  Higher sequence no 0, Lower sequence no 0");
+  const lac = cfg?.logAdjacencyChanges ?? true; // datacenter profile default (ospf6_top.c:50)
+  if (lac) out.push(lac === "detail" ? " All adjacency changes are logged" : " Adjacency changes are logged");
+  out.push("");
+  for (const area of areas) {
+    out.push(` Area ${area}`, `     Number of Area scoped LSAs is ${Object.keys(rt.lsdb[area] ?? {}).length}`);
+    out.push(`     Interface attached to this area:${rt.oifs.filter((o) => o.area === area).map((o) => ` ${o.name}`).join("")}`);
+    if (rt.spf.lastMs !== undefined) {
+      const us = Math.max(0, nowMs - rt.spf.lastMs) * 1000;
+      // "%ld.%lds" — the microseconds are printed unpadded, as ospf6d does.
+      out.push(us >= 1e6 ? `     SPF last executed ${Math.floor(us / 1e6)}.${us % 1e6}s ago` : `     SPF last executed ${us}us ago`);
+    } else out.push("SPF has not been run");
+  }
   return out;
 }

@@ -10,12 +10,15 @@
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { expandVlanSpec } from "../util";
+import { natCompare, tabulateSimple } from "../../sonic/arpnd";
+import { vrfOf, DEFAULT_VRF } from "../../../models/vrf";
+import { linkLocalFromMac } from "../../../models/ipv6";
 
 registerModal({
   id: "interface",
   views: ["configure-if-view", "configure-vlan-view", "configure-lag-view", "configure-lo-view"],
   keywords: ["switchport", "shutdown", "ip", "mtu", "description", "speed", "mac"],
-  run({ head, isNo, args, ifname, delegate }) {
+  run({ ctx, head, isNo, args, ifname, delegate }) {
     const name = ifname ?? "";
     const isVlan = name.startsWith("Vlan");
 
@@ -28,7 +31,11 @@ registerModal({
       if (isVlan) return { output: [err("% switchport is only valid on physical interfaces.")] };
       const sub = args[0]?.toLowerCase();
       if (sub === "access" && args[1]?.toLowerCase() === "vlan") {
-        const id = args[2];
+        // `no switchport access Vlan` takes no id: it DELETEs the port's access-vlan
+        // (interface.xml:1059-1062).
+        const port = ctx.device.interfaces.find((i) => i.name === name);
+        if (isNo && port?.vlan.mode !== "access") return { output: [] };
+        const id = isNo ? String(port?.vlan.accessVlan ?? "") : args[2];
         if (!id) return { output: [err("% VLAN id required.")] };
         return { output: delegate(`config vlan member ${isNo ? `del ${id}` : `add -u ${id}`} ${name}`) };
       }
@@ -87,5 +94,30 @@ registerModal({
       }
     }
     return { output: out };
+  },
+});
+
+// enable-view: `show ipv6 interfaces` (ipv6.xml:593; there is no `show ipv6 interface brief`).
+// Layout of the device capture data/device-capture/show-outputs/show_ipv6_interface.txt:
+// tabulate "simple", one row per address, the kernel's EUI-64 link-local listed after the
+// global address(es), Master = the VRF the interface is bound to.
+registerModal({
+  id: "interface-ipv6-show",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ args, ctx }) {
+    const a1 = args[1]?.toLowerCase();
+    if (args[0]?.toLowerCase() !== "ipv6" || (a1 !== "interface" && a1 !== "interfaces") || args.length > 2) return null;
+    const rows: string[][] = [];
+    const ifs = ctx.device.interfaces.filter((i) => i.ipv6.length > 0).sort((a, b) => natCompare(a.name, b.name));
+    for (const i of ifs) {
+      const addrs = i.ipv6.map((a) => `${a.address}/${a.prefix}`);
+      if (!i.ipv6.some((a) => /^fe80:/i.test(a.address))) addrs.push(`${linkLocalFromMac(i.mac)}/64`);
+      const vrf = vrfOf(ctx.device, i);
+      rows.push([i.name, addrs[0], vrf === DEFAULT_VRF ? "" : vrf, `${i.adminState}/${i.operState}`, "N/A", "N/A", ""]);
+      for (const a of addrs.slice(1)) rows.push(["", a, "", "", "", "", ""]);
+    }
+    const headers = ["Interface", "IPv6 address/mask", "Master", "Admin/Oper", "BGP Neighbor", "Neighbor IP", "Flags"];
+    return { output: tabulateSimple(headers, rows).map((t) => line(t)) };
   },
 });

@@ -26,6 +26,7 @@ import { lagConfigs, lacpRuntime, systemMac } from "../protocols/lacp-daemon";
 import { Tables, put, Row } from "./schema";
 import { frontPorts } from "./config-db";
 import { fibRoutes } from "./appl-state-db";
+import { projectQosCounters } from "./qos-copp-db";
 
 const T = {
   PORT: 0x1,
@@ -253,6 +254,7 @@ export function projectCountersDb(d: Device): Tables {
     });
   }
   if (Object.keys(map).length) put(t, "COUNTERS_PORT_NAME_MAP", "", map);
+  projectQosCounters(d, t); // queue + trap flow counters: ./qos-copp-db.ts
   return t;
 }
 

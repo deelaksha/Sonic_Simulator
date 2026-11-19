@@ -249,7 +249,7 @@ registerModal({
 const MODE_RUNCFG: Record<string, string> = { pvst: "pvst", rpvst: "rapid-pvst", mst: "mst" };
 const MODE_HDR: Record<string, string> = { pvst: "PVST", rpvst: "Rapid-PVST", mst: "MST" };
 
-function renderIntf(it: Record<string, unknown>): string[] {
+export function renderIntf(it: Record<string, unknown>): string[] {
   const out: string[] = [];
   if (it.enable === false) out.push("no spanning-tree enable");
   if (it.portfast === true) out.push("spanning-tree portfast");
@@ -264,7 +264,7 @@ function renderIntf(it: Record<string, unknown>): string[] {
   return out;
 }
 
-function renderRunning(dev: Device): OutputLine[] {
+export function renderRunning(dev: Device): OutputLine[] {
   const st = cpGet(dev, "stp");
   if (!st || Object.keys(st).length === 0) return [muted("% No spanning-tree configuration.")];
   const out: OutputLine[] = [];

@@ -52,6 +52,8 @@ export type SimEventType =
   | "DHCP_OFFER"
   | "DHCP_REQUEST"
   | "DHCP_ACK"
+  | "DHCP_NAK"
+  | "DHCP_RELEASE"
   | "DHCP_RELAY"
   | "DNS_QUERY"
   | "DNS_RESPONSE"

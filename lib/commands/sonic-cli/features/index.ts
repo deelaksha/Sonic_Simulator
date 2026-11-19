@@ -92,6 +92,7 @@ import "./system-crm";
 import "./tpcm";
 import "./usb";
 import "./ssh-vrf";
+import "./vrf-show";
 import "./mgmt_dhcp";
 import "./das";
 import "./dynamic_port_breakout";

@@ -27,7 +27,7 @@
  * Runtime views (`show vxlan tunnel`, `show vxlan remote vni|mac [<ip>] [count]`)
  * render the VTEP's live EVPN state. The KLISH templates are not part of the source
  * tree, so they use the sonic-utilities tables (show/vxlan.py remotevtep/remotevni/
- * remotemac). Per-tunnel counters (tunnelstat) are not modelled.
+ * remotemac); `show vxlan counters` prints the tunnelstat table.
  *
  * Symmetric IRB / ARP suppression (behaviour in lib/protocols/vxlan-daemon.ts):
  *   sonic(conf-if-vxlan-vtep1)# map vni 50000 vrf Vrf-red     L3 VNI of the VRF
@@ -50,7 +50,7 @@ import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { Device } from "../../../models/device";
-import { showRemoteMac, showRemoteVni, showRemoteVtep, showVlanVniMap, showVrfVniMap } from "../../../protocols/vxlan-cli";
+import { showRemoteMac, showRemoteVni, showRemoteVtep, showVlanVniMap, showVrfVniMap, showVxlanCounters } from "../../../protocols/vxlan-cli";
 
 type Row = Record<string, string>;
 
@@ -186,7 +186,6 @@ function showMap(dev: Device, storeKey: string, idField: string, col: string, la
   return [...grid([col, "VNI"], rows, [false, true]), line(`Total count : ${rows.length}`)];
 }
 
-const RUNTIME = "% per-tunnel VXLAN counters (tunnelstat) are not modelled in this lab.";
 const L = (ls: string[]): OutputLine[] => ls.map((x) => line(x));
 
 registerModal({
@@ -216,7 +215,7 @@ registerModal({
       if (what === "mac") return { output: L(showRemoteMac(dev, ip, count)) };
       return { output: [muted("% specify: show vxlan remote vni|mac [<remote-ip>] [count]")] };
     }
-    if (sub === "counters") return { output: [muted(RUNTIME)] };
+    if (sub === "counters") return { output: L(showVxlanCounters(dev, args[2])) };
     if (!sub) return { output: [muted("% specify one of: interface | vlanvnimap | vrfvnimap | tunnel | remote | counters")] };
     return null; // Click-only forms (remotevtep, remotevni, remotemac, name) fall through to the Click show
   },

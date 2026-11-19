@@ -84,7 +84,7 @@ registerMission({
       hints: [
         "PC2's request reaches SW1, but does the reply come back? Compare PC2's MAC (`ip link` on PC2) with what SW1 has for 192.168.10.12 (`show ip arp` / `show arp`).",
         "The entry is of type STATIC, and in `show arp` it has no FDB port. A static entry is never refreshed by ARP replies and survives `clear ip arp`.",
-        "Delete it at SW1's Linux shell: sudo ip neigh del 192.168.10.12 dev Vlan10. SW1 then resolves PC2 dynamically again.",
+        "Delete it: interface Vlan 10 → no ip arp 192.168.10.12 00:11:22:33:44:55. SW1 then resolves PC2 dynamically again.",
       ],
       check: (c) => c.ping("PC2", "192.168.10.1"),
     },
@@ -102,7 +102,7 @@ registerMission({
       check: (c) => c.dev("PC2").interfaces[0].ipv4.some((a) => a.address === "192.168.10.12"),
     },
   ],
-  solution: [{ device: "SW1", shell: ["exit", "show arp", "sudo ip neigh del 192.168.10.12 dev Vlan10"] }],
+  solution: [{ device: "SW1", klish: ["show ip arp", "configure terminal", "interface Vlan 10", "no ip arp 192.168.10.12 00:11:22:33:44:55", "end"] }],
   explanation:
     "Someone had configured a static ARP entry on SW1 mapping 192.168.10.12 to 00:11:22:33:44:55, a MAC that doesn't exist in VLAN 10. PC2's echo requests reached SW1, but SW1 sent every reply to the bogus MAC, and the switch flooded those frames as unknown unicast where PC2 discarded them. PC2 ↔ PC1/PC3 traffic never needs SW1's ARP table, so it kept working. A static (PERMANENT) neighbour overrides ARP: replies never update it and `clear ip arp` keeps it. Deleting it lets SW1 learn PC2's real MAC with a normal request/reply.",
 });

@@ -64,25 +64,41 @@ export const ntpdateCommand: CommandHandler = {
 
 export const dhclientCommand: CommandHandler = {
   name: "dhclient",
-  summary: "Obtain an IP address via DHCP (DORA over UDP 67/68)",
-  usage: "dhclient [interface]",
+  summary: "Obtain (or release, -r) an IP address via DHCP (UDP 67/68)",
+  usage: "dhclient [-r] [interface]",
   help: [
     "DHCLIENT",
     "",
     "Usage:",
     "  dhclient [interface]",
+    "  dhclient -r [interface]",
     "",
     "Runs the DHCP DORA exchange (Discover / Offer / Request / Ack) as real",
     "broadcast frames and applies the assigned address to the interface.",
+    "With a remembered lease it first asks for that address again (INIT-REBOOT);",
+    "a DHCPNAK sends it back to Discover.",
+    "-r sends DHCPRELEASE to the server and removes the address and default route.",
   ],
   run(args, ctx): CommandResult {
     const ifname = firstPositional(args);
     const iface = ifname ? interfaceByName(ctx.device, ifname) : ctx.device.interfaces[0];
     if (!iface) return { output: [err(`dhclient: ${ifname ?? "interface"}: no such interface`)] };
 
+    if (args.includes("-r")) {
+      const { value: rel, events } = ctx.runSim((sim) => sim.runDhcpRelease(ctx.device.id, iface.id));
+      return { output: rel.released ? [muted(`DHCPRELEASE of ${rel.address} on ${iface.name} to ${rel.server} port 67`)] : [], events };
+    }
+
     const { value: r, events } = ctx.runSim((sim) => sim.runDhcp(ctx.device.id, iface.id));
     const out: OutputLine[] = [];
-    if (r.success) {
+    if (r.reboot) {
+      out.push(muted(`DHCPREQUEST for ${r.reboot.requestedIp} on ${iface.name} to 255.255.255.255 port 67`));
+      if (r.reboot.nakFrom) out.push(muted(`DHCPNAK from ${r.reboot.nakFrom}`));
+    }
+    if (r.reboot?.acked) {
+      out.push(muted(`DHCPACK of ${r.assignedIp} from ${r.gateway}`));
+      out.push(line(`bound to ${r.assignedIp}/${r.prefix} -- gateway ${r.gateway}, dns ${r.dns} -- renewal in 43200 seconds.`, "success"));
+    } else if (r.success) {
       out.push(muted(`DHCPDISCOVER on ${iface.name} to 255.255.255.255 port 67`));
       out.push(muted(`DHCPOFFER of ${r.assignedIp} from ${r.gateway}`));
       out.push(muted(`DHCPREQUEST for ${r.assignedIp}`));

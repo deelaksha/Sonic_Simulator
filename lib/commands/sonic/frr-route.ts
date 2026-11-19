@@ -7,6 +7,7 @@
 import { Device, findInterface } from "../../models/device";
 import { RouteType, routeDistance } from "../../models/route";
 import { networkAddress } from "../../models/ip";
+import { inactiveStatics } from "../../models/static-routes";
 
 export const FRR_ROUTE_CODES = [
   "Codes: K - kernel route, C - connected, L - local, S - static,",
@@ -43,6 +44,8 @@ interface Entry {
   onlink?: boolean;
   since: number;
   vrf: string;
+  /** Static route whose next hop does not resolve (configured, not installed). */
+  inactive?: boolean;
 }
 
 function entries(device: Device, nowMs: number): Entry[] {
@@ -70,6 +73,9 @@ function entries(device: Device, nowMs: number): Entry[] {
         }
       }
     }
+  }
+  for (const r of inactiveStatics(device)) {
+    out.push({ type: r.type, dest: r.destination, prefix: r.prefix, distance: routeDistance(r), metric: r.metric, nextHop: r.nextHop, ifName: "", since: r.installedAtMs ?? nowMs, vrf: r.vrf ?? "default", inactive: true });
   }
   return out;
 }
@@ -99,16 +105,26 @@ export function renderFrrRoutes(
   for (const k of keys) {
     const group = byPrefix.get(k)!;
     // Selected = lowest distance, then metric; equal-cost entries are ECMP nexthops.
-    const best = group.reduce((b, e) => (e.distance < b.distance || (e.distance === b.distance && e.metric < b.metric) ? e : b));
+    // Inactive statics are never selected (zebra: no active nexthop).
+    const live = group.filter((e) => !e.inactive);
+    const best = live.length ? live.reduce((b, e) => (e.distance < b.distance || (e.distance === b.distance && e.metric < b.metric) ? e : b)) : undefined;
     const bySource = new Map<string, Entry[]>();
-    for (const e of group) bySource.set(`${e.type}/${e.distance}/${e.metric}`, [...(bySource.get(`${e.type}/${e.distance}/${e.metric}`) ?? []), e]);
+    for (const e of group) {
+      const key = `${e.type}/${e.distance}/${e.metric}${e.inactive ? "/inactive" : ""}`;
+      bySource.set(key, [...(bySource.get(key) ?? []), e]);
+    }
     for (const [, set] of bySource) {
       const head = set[0];
-      const selected = head.type === best.type && head.distance === best.distance && head.metric === best.metric;
+      const selected = !!best && !head.inactive && head.type === best.type && head.distance === best.distance && head.metric === best.metric;
       const showDm = head.type !== "connected" && head.type !== "local";
       const prefixText = `${CODE[head.type]}${selected ? ">" : " "}${selected ? "*" : " "} ${k}${showDm ? ` [${head.distance}/${head.metric}]` : ""}`;
       set.forEach((e, i) => {
-        const nh = e.nextHop ? ` via ${e.nextHop}, ${e.ifName}${e.onlink ? " onlink" : ""}, weight 1` : ` is directly connected, ${e.ifName}`;
+        // lib/nexthop.c nexthop_vty_helper: an unresolved gateway has no ifindex, then " inactive".
+        const nh = e.inactive
+          ? ` via ${e.nextHop} inactive, weight 1`
+          : e.nextHop
+            ? ` via ${e.nextHop}, ${e.ifName}${e.onlink ? " onlink" : ""}, weight 1`
+            : ` is directly connected, ${e.ifName}`;
         const lead = i === 0 ? prefixText : `  ${selected ? "*" : " "}${" ".repeat(Math.max(1, prefixText.length - 3))}`;
         lines.push(`${lead}${nh}, ${frrUptime(nowMs - e.since)}`);
       });

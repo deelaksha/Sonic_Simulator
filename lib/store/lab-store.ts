@@ -10,7 +10,7 @@
 import { create } from "zustand";
 import { NetworkState, Connection, linkInterfaces, unlinkConnection, connectionFor, refreshLink } from "../models/topology";
 import { Device, DeviceType } from "../models/device";
-import { createDevice, rebuildConnectedRoutes, rebuildConnectedRoutes6 } from "../models/factory";
+import { createDevice, rebuildConnectedRoutes, rebuildConnectedRoutes6, resetMacCounter, reserveMacsOf } from "../models/factory";
 import { SONIC_FEATURES } from "../sonic/feature-registry";
 import { addVlan, addMember } from "../models/vlan-ops";
 import { Simulation, SimEvent, CaptureRecord } from "../engine";
@@ -661,6 +661,7 @@ export const useLabStore = create<LabState>((set, get) => {
   addDevice(type, position, ports) {
     const { network, deviceSeq } = get();
     const id = `dev${deviceSeq}`;
+    reserveMacsOf(Object.values(network.devices));
     const pos = position ?? { x: 120 + (deviceSeq % 5) * 160, y: 120 + Math.floor(deviceSeq / 5) * 140 };
     const device = createDevice({ id, type, name: nextName(network, type), x: pos.x, y: pos.y, ports });
     // Give each switch a distinct out-of-band management IP: the smallest unused
@@ -1086,6 +1087,9 @@ export const useLabStore = create<LabState>((set, get) => {
 
   newLab() {
     stopTrafficTimer();
+    // Deterministic MACs per lab load: an empty lab restarts the factory counter
+    // (addDevice keeps it past MACs of anything imported later).
+    resetMacCounter(1);
     capturePredicates.clear();
     set({
       liveCaptures: {},

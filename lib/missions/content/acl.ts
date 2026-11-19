@@ -37,7 +37,7 @@ registerMission({
       hints: [
         "Read the policy first: `show ip access-lists H1-POLICY` in sonic-cli on S1. An ACL does nothing until you bind it to an interface.",
         "Bind it in the interface's configuration mode, in the direction the traffic enters S1 (from H1, that's inbound).",
-        "configure terminal → interface Ethernet 2 → ip access-group H1-POLICY in. Then on H1: ping 192.168.3.10",
+        "configure terminal → interface Ethernet 2 → ip access-group H1-POLICY in. Then on H1: ping 192.168.3.10. In S1's shell, `show logging` shows orchagent updating the ACL table.",
       ],
       check: (c) => boundIn(c) && !c.ping("H1", "192.168.3.10"),
     },

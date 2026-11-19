@@ -47,6 +47,7 @@ import { cpList } from "../commands/sonic-cli/config-plane";
 import { Tables, put, Row } from "./schema";
 import { frontPorts, ifAddrs } from "./config-db";
 import { projectFeatureAppl, projectFeatureState } from "./appl-state-features";
+import { projectCoppAppl } from "./qos-copp-db";
 
 const portNum = (name: string) => Number(/\d+$/.exec(name)?.[0] ?? 0);
 const ifName = (d: Device, id: string) => d.interfaces.find((i) => i.id === id)?.name;
@@ -188,6 +189,7 @@ export function projectApplDb(d: Device): Tables {
     put(t, "LLDP_ENTRY_TABLE", port, row);
   }
   projectFeatureAppl(d, t);
+  projectCoppAppl(d, t);
   return t;
 }
 

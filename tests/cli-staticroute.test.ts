@@ -6,6 +6,7 @@ import { Simulation, CaptureRecord, resetIds, SimEvent } from "../lib/engine";
 import { CommandContext, execute } from "../lib/commands";
 import { runSonicCli, CliStack } from "../lib/commands/sonic-cli";
 import { Device } from "../lib/models/device";
+import { inactiveStatics } from "../lib/models/static-routes";
 
 function sw(): { state: NetworkState; device: Device } {
   resetMacCounter(1);
@@ -67,12 +68,13 @@ describe("sonic-cli static-route modal", () => {
     expect(staticRoutes(device)).toEqual([]);
   });
 
-  it("ip route with an unreachable next hop is rejected by the delegated Click command", () => {
+  it("ip route with an unreachable next hop is kept configured but not installed (FRR: inactive)", () => {
     const { state, device } = sw();
-    // 10.10.10.1 is on no interface's subnet, so config route add refuses it.
+    // 10.10.10.1 is on no interface's subnet: the route is configured, inactive.
     const res = session(state, device, ["exec"], ["configure terminal", "ip route 100.1.1.0/24 10.10.10.1", "exit"]);
-    expect(res.text).toMatch(/no interface on the subnet/i);
+    expect(res.text).toMatch(/inactive/i);
     expect(staticRoutes(device)).toEqual([]);
+    expect(inactiveStatics(device).map((r) => r.nextHop)).toEqual(["10.10.10.1"]);
   });
 
   it("ip route vrf <name> ... is not wired (Click has no VRF support) and adds nothing", () => {

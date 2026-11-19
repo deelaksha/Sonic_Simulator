@@ -9,6 +9,7 @@
  *                                  from route_types.pl SHOW_ROUTE_V6_HEADER
  *   show ipv6 ospf6 neighbor       lib/protocols/ospf6-show.ts
  *   show ipv6 ospf6 database
+ *   show ipv6 ospf6 interface [IF] / show ipv6 ospf6
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
@@ -18,7 +19,7 @@ import { RouteType, routeDistance } from "../../models/route";
 import { rebuildConnectedRoutes6 } from "../../models/factory";
 import { syncConnected6, linkLocalOf } from "../../protocols/ipv6";
 import { frrUptime } from "./frr-route";
-import { renderOspf6Neighbors, renderOspf6Database } from "../../protocols/ospf6-show";
+import { renderOspf6Neighbors, renderOspf6Database, renderOspf6Interface, renderOspf6Summary } from "../../protocols/ospf6-show";
 
 /**
  * Recompute connected/default v6 routes after an address change without
@@ -189,11 +190,16 @@ function showIpv6Route(args: string[], ctx: CommandContext): OutputLine[] {
   return renderFrrRoutes6(ctx.device, Date.now(), filter).map((t) => line(t));
 }
 
+/** Interface argument; the KLISH form splits it ("Ethernet 0"). */
+const ifArg = (p: string[]) => (p[1] && /^\d/.test(p[1]) ? p[0] + p[1] : p[0]);
+
 const show: SonicCmd[] = [
   { path: ["ipv6", "interfaces"], summary: "IPv6 interface addresses", run: (_a, ctx) => ({ output: showIpv6Interfaces(ctx) }) },
   { path: ["ipv6", "route"], summary: "IPv6 routing table (FRR)", run: (a, ctx) => ({ output: showIpv6Route(a, ctx) }) },
   { path: ["ipv6", "ospf6", "neighbor"], summary: "OSPFv3 neighbors", run: (_a, ctx) => ({ output: renderOspf6Neighbors(ctx.device, Date.now()).map((t) => line(t)) }) },
   { path: ["ipv6", "ospf6", "database"], summary: "OSPFv3 link-state database", run: (_a, ctx) => ({ output: renderOspf6Database(ctx.device, Date.now()).map((t) => line(t)) }) },
+  { path: ["ipv6", "ospf6", "interface"], summary: "OSPFv3 interfaces", run: (a, ctx) => ({ output: renderOspf6Interface(ctx.device, Date.now(), ifArg(positional(a))).map((t) => line(t)) }) },
+  { path: ["ipv6", "ospf6"], summary: "OSPFv3 instance summary", run: (_a, ctx) => ({ output: renderOspf6Summary(ctx.device, Date.now()).map((t) => line(t)) }) },
 ];
 
 export const ipv6Module: SonicFeatureModule = { id: "ipvx", config, show };

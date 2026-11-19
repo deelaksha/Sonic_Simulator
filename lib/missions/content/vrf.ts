@@ -114,7 +114,7 @@ registerMission({
       title: "H1 reaches H3 (192.168.3.10)",
       hints: [
         "H1 is attached to Ethernet2. Which VRF is Ethernet2 in (`show vrf` in S1's Linux shell), and which table holds a route to 192.168.3.0/24 (`show ip route vrf Vrf-red`)?",
-        "A plain `ip route …` goes into the default VRF — where 10.0.13.2 is not even a connected next hop (compare `show ip route` and `show ip route vrf all`), so it was never installed.",
+        "A plain `ip route …` goes into the default VRF — where 10.0.13.2 is not even a connected next hop. `show ip route` lists it as `S   192.168.3.0/24 [1/0] via 10.0.13.2 inactive`: configured, but never installed.",
         "Configure the route inside the VRF: `ip route vrf Vrf-red 192.168.3.0/24 10.0.13.2` (and remove the useless global one).",
       ],
       check: (c) => c.ping("H1", "192.168.3.10"),
