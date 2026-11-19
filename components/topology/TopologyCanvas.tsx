@@ -20,8 +20,11 @@ import { DeviceType } from "@/lib/models/device";
 import { chassisKind } from "@/lib/switch3d/model";
 import { connectionFor } from "@/lib/models/topology";
 import { DeviceNode } from "./DeviceNode";
+import { PacketEdge } from "./PacketEdge";
+import { PacketCaption, usePacketPlayer } from "@/components/switch3d/packetPlayer";
 
 const nodeTypes = { device: DeviceNode };
+const edgeTypes = { packet: PacketEdge };
 
 function CanvasInner() {
   const network = useLabStore((s) => s.network);
@@ -41,6 +44,9 @@ function CanvasInner() {
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { screenToFlowPosition } = useReactFlow();
+  // Packet animation of the last command (shared with the realistic view).
+  const player = usePacketPlayer();
+  const hop = player.hop;
 
   // The event currently "reached" by playback drives highlighting.
   const { activeEdgeId, activeDeviceId } = useMemo(() => {
@@ -64,20 +70,25 @@ function CanvasInner() {
         data: { device: d },
         selected: d.id === selectedDeviceId,
         style:
-          d.id === activeDeviceId
-            ? { filter: "drop-shadow(0 0 10px rgba(34,211,238,0.9))" }
-            : undefined,
+          hop?.toDeviceId === d.id
+            ? { filter: `drop-shadow(0 0 10px ${hop.color})` }
+            : d.id === activeDeviceId
+              ? { filter: "drop-shadow(0 0 10px rgba(34,211,238,0.9))" }
+              : undefined,
       })),
     );
-  }, [network, selectedDeviceId, activeDeviceId, setNodes]);
+  }, [network, selectedDeviceId, activeDeviceId, hop, setNodes]);
 
   // Sync edges from the store.
   useEffect(() => {
     setEdges(
       network.connections.map((c) => {
         const up = c.state === "up";
+        const onThis = hop && ([c.a.interfaceId, c.b.interfaceId].includes(hop.fromIfaceId) && [c.a.interfaceId, c.b.interfaceId].includes(hop.toIfaceId));
         return {
           id: c.id,
+          type: "packet",
+          data: onThis ? { hop, forward: c.a.interfaceId === hop.fromIfaceId, ms: player.hopMs, animKey: `${hop.id}-${player.run}` } : {},
           source: c.a.deviceId,
           sourceHandle: c.a.interfaceId,
           target: c.b.deviceId,
@@ -88,7 +99,7 @@ function CanvasInner() {
         } satisfies Edge;
       }),
     );
-  }, [network, activeEdgeId, setEdges]);
+  }, [network, activeEdgeId, hop, player.hopMs, player.run, setEdges]);
 
   const flash = useCallback((msg: string) => {
     setNotice(msg);
@@ -126,6 +137,7 @@ function CanvasInner() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         connectionMode={ConnectionMode.Loose}
         onConnect={onConnect}
         onNodeClick={(_, node) => selectDevice(node.id)}
@@ -159,6 +171,11 @@ function CanvasInner() {
         </div>
       )}
 
+      {player.hops.length > 0 && (
+        <div className="pointer-events-auto absolute left-1/2 top-12 z-20 max-w-[70%] -translate-x-1/2">
+          <PacketCaption p={player} idleHint="" />
+        </div>
+      )}
       {notice && (
         <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-md border border-danger/50 bg-[#2a1215] px-4 py-2 text-sm text-red-200 shadow-lg">
           {notice}

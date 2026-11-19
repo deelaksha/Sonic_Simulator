@@ -10,7 +10,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLabStore } from "@/lib/store/lab-store";
 import { Device } from "@/lib/models/device";
-import { ChassisKind, chassisKind, packetHops, peerOf, portViews, PortView } from "@/lib/switch3d/model";
+import { ChassisKind, chassisKind, peerOf, portViews, PortView } from "@/lib/switch3d/model";
+import { PacketCaption, PacketOnPath, usePacketPlayer } from "./packetPlayer";
 import { CSS } from "./styles";
 import { FaceProps, InternetFace, RouterFace, ServerRear, SwitchFace } from "./faces";
 import { Port, cableColor } from "./parts";
@@ -71,23 +72,9 @@ export function RealisticScene() {
   const open = useLabStore((s) => s.openDeviceView);
   const { active, sent } = useActivity();
 
-  // Packet animation: when a command (ping, traceroute…) runs, replay its frames hop by
-  // hop along the real cables, in the order the simulator sent them.
-  const events = useLabStore((s) => s.events);
-  const firstEvents = useRef(events);
-  const hops = useMemo(() => packetHops(events), [events]);
-  const [hopIdx, setHopIdx] = useState(-1);
-  const [speed, setSpeed] = useState(1);
-  const [run, setRun] = useState(0); // bump to replay
-  // Auto-play new commands; what ran before the scene opened plays on "Replay".
-  useEffect(() => setHopIdx(hops.length && (run > 0 || events !== firstEvents.current) ? 0 : -1), [hops, run, events]);
-  const HOP_MS = 650 / speed;
-  useEffect(() => {
-    if (hopIdx < 0 || hopIdx >= hops.length) return;
-    const t = setTimeout(() => setHopIdx((i) => i + 1), HOP_MS);
-    return () => clearTimeout(t);
-  }, [hopIdx, hops.length, HOP_MS]);
-  const hop = hopIdx >= 0 ? hops[hopIdx] : undefined;
+  // Packet animation (shared with the topology view): replay the last command hop by hop.
+  const player = usePacketPlayer();
+  const hop = player.hop;
   const devices = Object.values(net.devices).filter((d) => chassisKind(d.type));
   const kindOf = (d: Device) => chassisKind(d.type)!;
   const order: ChassisKind[] = ["internet", "router", "switch", "server"];
@@ -165,33 +152,8 @@ export function RealisticScene() {
     <div className="h-full w-full overflow-auto bg-[radial-gradient(circle_at_50%_0%,#1b2433_0%,#0b0e13_60%)]">
       <style>{CSS}</style>
       <div ref={wrap} className="relative mx-auto flex min-w-max flex-col items-center gap-6 px-10 pb-10 pt-14">
-        <div className="sticky top-2 z-20 flex min-h-[30px] items-center gap-2 rounded-md border border-edge bg-panel/90 px-3 py-1 text-[11px] shadow">
-          {hop ? (
-            <>
-              <span className="rounded px-1.5 py-0.5 font-semibold text-black" style={{ background: hop.color }}>
-                {hop.label}
-              </span>
-              <span className="font-mono text-[#c9d3de]">
-                hop {hopIdx + 1}/{hops.length} · {hop.text}
-              </span>
-            </>
-          ) : (
-            <span className="text-[#6b7789]">
-              {hops.length ? `Last command: ${hops.length} hops — press Replay to watch them.` : "Run ping (or traceroute) in the terminal to watch the packets travel. Click a device for its hardware view."}
-            </span>
-          )}
-          <span className="ml-2 flex overflow-hidden rounded border border-edge">
-            {[0.5, 1, 2].map((v) => (
-              <button key={v} onClick={() => setSpeed(v)} className={`px-1.5 ${speed === v ? "bg-accent-2/20 text-accent-2" : "text-[#8b98a5]"}`}>
-                {v}×
-              </button>
-            ))}
-          </span>
-          {hops.length > 0 && (
-            <button onClick={() => setRun((n) => n + 1)} className="rounded border border-edge px-1.5 text-[#8b98a5] hover:text-accent-2">
-              ↻ Replay
-            </button>
-          )}
+        <div className="sticky top-2 z-20">
+          <PacketCaption p={player} idleHint="Run ping (or traceroute) in the terminal to watch the packets travel. Click a device for its hardware view." />
         </div>
         {/* rack */}
         <div ref={rackRef} className="relative flex flex-col items-center rounded-md border border-[#1f2633] bg-[#090b0f] px-7 pb-4 pt-3 shadow-2xl">
@@ -248,16 +210,7 @@ export function RealisticScene() {
             (() => {
               const c = cables.find((x) => (x.a === hop.fromIfaceId && x.b === hop.toIfaceId) || (x.b === hop.fromIfaceId && x.a === hop.toIfaceId));
               if (!c) return null;
-              const forward = c.a === hop.fromIfaceId;
-              return (
-                <g key={`${hop.id}-${run}`} filter="url(#glow)">
-                  <animateMotion dur={`${HOP_MS}ms`} fill="freeze" path={c.d} keyPoints={forward ? "0;1" : "1;0"} keyTimes="0;1" calcMode="linear" />
-                  <rect x={-34} y={-10} width={68} height={20} rx={5} fill={hop.color} stroke="#fff" strokeOpacity={0.7} />
-                  <text textAnchor="middle" y={4} fontSize="9.5" fontFamily="ui-monospace, monospace" fontWeight={700} fill="#06090d">
-                    {hop.label}
-                  </text>
-                </g>
-              );
+              return <PacketOnPath hop={hop} path={c.d} forward={c.a === hop.fromIfaceId} ms={player.hopMs} animKey={`${hop.id}-${player.run}`} />;
             })()}
         </svg>
       </div>

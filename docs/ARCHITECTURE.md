@@ -244,6 +244,10 @@ of the canvas): the whole lab as hardware — network gear in a rack (ONT shelf,
 routers, switches, rack servers), PCs on a desk (monitor + tower with NIC), and patch
 cables drawn port-to-port from each connection (measured from the port elements on
 screen). Dashed = link down; a dot runs along a cable in the direction a port's TX
-counter moved. Clicking a device opens its hardware view. The main area (topology,
+counter moved. Clicking a device opens its hardware view. When a command runs (ping,
+traceroute…), its FRAME_SENT events (`packetHops`, lib/switch3d/model.ts) are replayed
+hop by hop: a labelled packet (ARP amber, request green, reply blue) travels along the
+exact cable in the sent direction, the receiving device is outlined, a caption shows
+the hop; speed 0.5–2× and Replay. The main area (topology,
 realistic scene, hardware view) has a full-screen toggle (⤢ / Esc), like the terminal.
 
