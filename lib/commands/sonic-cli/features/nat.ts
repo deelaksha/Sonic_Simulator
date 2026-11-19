@@ -13,6 +13,8 @@
  *   sonic(config-nat)# no pool p1 / no pools / no binding b1 / no static all
  *   sonic(config-if)# nat-zone 2                         INTERFACE nat_zone
  *   sonic# show nat config [globalvalues|static|pool|bindings|zones]
+ *   sonic# show nat translations [count] | show nat statistics
+ *   sonic# clear nat translations | clear nat statistics
  *
  * `nat` (configure-view) opens a DEDICATED SUB-MODE (grammar view
  * "configure-nat-view"), so we use the sub-mode pattern: the entry handler
@@ -20,16 +22,18 @@
  * into the config-plane store (cp_nat). `nat-zone` is a per-interface attribute
  * configured in the interface sub-views. Everything is rendered back on `show`.
  *
- * NAT is a DATA-PLANE feature (the ASIC rewrites addresses/ports of forwarded
- * traffic). The sim cannot translate live traffic, so we store + show the config
- * honestly and mark dataPlaneNotSimulated. `show nat translations|statistics`
- * are runtime state we never fabricate.
+ * The stored config drives real translation of routed traffic
+ * (lib/protocols/nat.ts via the l3-services hook in nat-daemon.ts):
+ * `show nat translations|statistics` render the live translation table and
+ * counters in sonic-utilities natshow layout.
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal, ModalResult } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpGet, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
 import { Device } from "../../../models/device";
+import { tabulate } from "../../../protocols/acl-rules";
+import { renderNatTranslations, renderNatStatistics, renderNatCount, natClearTranslations, natClearStatistics } from "../../../protocols/nat";
 
 type Row = Record<string, string>;
 const p = (v: string | undefined, w: number): string => String(v ?? "").padEnd(w);
@@ -246,11 +250,12 @@ registerModal({
   run({ args, ctx }): ModalResult {
     if (args[0]?.toLowerCase() !== "nat") return null; // not ours
     const rest = args.slice(1).map((a) => a.toLowerCase());
-    // Live translations / counters are runtime state — never fabricated.
-    if (rest.includes("translations") || rest.includes("statistics")) {
-      const what = rest.includes("statistics") ? "statistics" : "translations";
-      return { output: [muted(`NAT ${what} reflect live traffic (runtime state); not simulated in this lab.`)] };
+    // Live translation table / counters (natshow -t / -c / -s).
+    if (rest[0] === "translations") {
+      const text = rest[1] === "count" ? renderNatCount(ctx.device) : renderNatTranslations(ctx.device, tabulate);
+      return { output: text.map((t) => line(t)) };
     }
+    if (rest[0] === "statistics") return { output: renderNatStatistics(ctx.device, tabulate).map((t) => line(t)) };
     const sel = rest.find((r) => SECTIONS.includes(r));
     const want = sel ? [sel] : SECTIONS;
     const st = cpGet(ctx.device, "nat") ?? {};
@@ -265,5 +270,21 @@ registerModal({
       else if (sec === "zones") out.push(...renderZones(cpList(dev, "nat", "zones") as Row[]));
     }
     return { output: out };
+  },
+});
+
+// enable-view: `clear nat translations|statistics` (sonic-utilities natclear -t / -s).
+registerModal({
+  id: "nat-clear",
+  views: ["enable-view"],
+  keywords: ["clear"],
+  run({ args, ctx }): ModalResult {
+    if (args[0]?.toLowerCase() !== "nat") return null;
+    const what = args[1]?.toLowerCase();
+    if (what === "translations") natClearTranslations(ctx.device);
+    else if (what === "statistics") natClearStatistics(ctx.device);
+    else return { output: [err("% Usage: clear nat translations|statistics")] };
+    // natclear:61,64 prints "\nDynamic NAT entries are cleared." / "\nNAT statistics are cleared."
+    return { output: [line(""), line(what === "translations" ? "Dynamic NAT entries are cleared." : "NAT statistics are cleared.")] };
   },
 });

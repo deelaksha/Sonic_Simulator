@@ -34,6 +34,8 @@ registerLab("bfd", (api) => {
     "         (Diagnostics: control detection time expired), then no shutdown → Up again.",
     "Also:    bfd → peer 10.0.12.2 → shutdown on S1: S1 shows admin-down, S2 shows",
     "         'neighbor signaled session down' with remote diag 'administratively down'.",
+    "Echo:    bfd → peer 10.0.12.2 interface Ethernet0 → echo-mode: UDP 3785 echoes (src = dst = 10.0.12.1)",
+    "         looped back by S2's data plane; show bfd peer 10.0.12.2 counters → Echo packet input/output.",
   ]);
   api.finish("BFD — bidirectional forwarding detection", t.s1);
 });

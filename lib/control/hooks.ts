@@ -15,6 +15,14 @@
  *   forwardVirtual deliver to a MAC-table entry whose interfaceId is not a local
  *                  port (e.g. "vtep:10.0.0.3")
  *   isLocalMac     extra MACs an L3 interface accepts as its own (VRRP vMAC)
+ *   isLocalIp6     extra IPv6 addresses the device answers for (VRRPv3 VIP on the Master)
+ *   l3Ingress      routed IPv4 packet on a router/L3 switch, after control-plane
+ *                  daemons and before local delivery / forwarding: return a
+ *                  replacement frame (NAT), null if the hook consumed it
+ *                  (PBR, multicast routing — the hook emits its own events),
+ *                  undefined to continue unchanged
+ *   hostIngress    IPv4 frame reaching a host, before its NIC address filter;
+ *                  true = consumed (multicast receivers)
  *   toCpu          a packet is trapped from the ASIC to the switch CPU (hostif
  *                  trap); return false to drop it (CoPP policer), or a string
  *                  naming another drop cause
@@ -39,7 +47,10 @@ export interface DataPlaneHook {
   flood?(ctx: SimContext, sw: Device, ingressId: string | null, vid: number, frame: Frame): void;
   forwardVirtual?(ctx: SimContext, sw: Device, entryInterfaceId: string, vid: number, frame: Frame): boolean;
   isLocalMac?(device: Device, iface: NetInterface, mac: string): boolean;
+  isLocalIp6?(device: Device, ip: string): boolean;
   toCpu?(ctx: SimContext, device: Device, iface: NetInterface, frame: Frame): boolean | string;
+  l3Ingress?(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame, vrf: string): Frame | null | undefined;
+  hostIngress?(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): boolean;
 }
 
 const HOOKS: DataPlaneHook[] = [];
@@ -117,6 +128,25 @@ export function trapToCpu(ctx: SimContext, device: Device, iface: NetInterface, 
   }
   ctx.markTrapped(device.id, frame.id);
   return true;
+}
+
+/** Run l3Ingress hooks in order: the frame to continue with, or null if consumed. */
+export function runL3Ingress(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame, vrf: string): Frame | null {
+  let f = frame;
+  for (const h of HOOKS) {
+    const r = h.l3Ingress?.(ctx, device, ingress, f, vrf);
+    if (r === null) return null;
+    if (r) f = r;
+  }
+  return f;
+}
+
+export function hostIngressConsumed(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): boolean {
+  return HOOKS.some((h) => h.hostIngress?.(ctx, device, ingress, frame));
+}
+
+export function isExtraLocalIp6(device: Device, ip: string): boolean {
+  return HOOKS.some((h) => h.isLocalIp6?.(device, ip));
 }
 
 export function isExtraLocalMac(device: Device, iface: NetInterface, mac: string): boolean {

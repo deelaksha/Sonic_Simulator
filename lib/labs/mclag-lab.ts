@@ -104,6 +104,8 @@ registerLab("mclag", (api) => {
     "Packets: tcpdump -i Ethernet2 -nn tcp port 8888   (ICCP heartbeats every 1 s)",
     "Try:     ping H1/H2 from H3; MACs learned on one peer appear on the other (show mac);",
     "         delete P1–S3: traffic to H3 crosses the peer-link and leaves P2 (isolation lifted).",
+    "ARP sync: give P1/P2 `interface Vlan 10` addresses, ping P1's from H1 → the ARP entry appears on P2;",
+    "         bash: mclagdctl dump arp -i 10 (L = local, R = from the peer)  |  mclagdctl dump mac -i 10",
   ]);
   api.finish("MCLAG — two peers + dual-homed switch", t.p1);
 });

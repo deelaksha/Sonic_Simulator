@@ -1,11 +1,9 @@
 /**
- * Static Anycast Gateway (SAG) — CONFIG-PLANE feature. There is no Click module
- * and no packet/engine backend, so we STORE exactly what is configured
- * (SAG_GLOBAL + per-interface SAG_LIST in CONFIG_DB) and RENDER it back on
- * `show`. Nothing runtime is fabricated: SAG is a data-plane feature (the box
- * answers ARP/ND for the anycast gateway IP/MAC and routes for it) that this sim
- * does not forward for — dataPlaneNotSimulated. The operational Admin/Oper state
- * shown by the real box is therefore not invented here.
+ * Static Anycast Gateway (SAG) — KLISH config + show. The commands store
+ * SAG_GLOBAL + per-interface SAG_LIST (CONFIG_DB) in the config-plane store
+ * "cp_sag"; lib/protocols/sag.ts turns that into data-plane behaviour (ARP for the
+ * anycast IP answered with the anycast MAC, frames to the anycast MAC routed by the
+ * SVI, anycast subnet as a connected route) on every leaf that configures it.
  *
  * Wired from data/device-capture/klish-xml/sag.xml:
  *
@@ -147,7 +145,6 @@ registerModal({
       out.push(line(`${"Interfaces".padEnd(11)}${"Gateway Address".padEnd(21)}Vrf`));
       out.push(muted(`${"----------".padEnd(11)}${"---------------".padEnd(21)}------`));
       for (const g of gws) out.push(line(`${g.iface.padEnd(11)}${g.addr.padEnd(21)}`));
-      out.push(muted("% Admin/Oper state is runtime operational data; SAG forwarding is not simulated in this lab."));
     } else {
       out.push(muted("No anycast gateways configured"));
     }

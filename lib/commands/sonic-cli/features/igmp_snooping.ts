@@ -1,5 +1,7 @@
 /**
- * IGMP snooping — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * IGMP snooping — KLISH config + shows. The stored config drives the snooping
+ * data plane (lib/protocols/igmp-snooping.ts: report/leave snooping, mrouter
+ * ports, querier, restricted multicast flooding).
  *
  * Real KLISH (data/device-capture/klish-xml/igmp_snooping.xml), per-VLAN in the
  * VLAN interface view (configure-vlan-view, entered via `interface Vlan <id>`):
@@ -16,18 +18,17 @@
  *   ... each with a `no ...` form (scalars reset to default; enables/lists cleared).
  *
  *   sonic# show ip igmp snooping [[vlan] <id>]          render per-vlan config
- *   sonic# show ip igmp snooping groups [[vlan] <id>]   render static groups
+ *   sonic# show ip igmp snooping groups [[vlan] <id>]   static + learned groups
  *
  * We store exactly what CONFIG_DB would hold (CFG_L2MC_TABLE / mrouter / static
- * member) and render it back. dataPlaneNotSimulated: IGMP snooping actually
- * snoops IGMP report/leave packets to build a dynamic multicast forwarding
- * table; the sim has no data plane, so dynamically-learned groups are never
- * fabricated — only configured values are reflected.
+ * member); the groups table merges static members with the ports learned from
+ * snooped IGMP reports (igmp_snooping.xml EXAMPLE layout).
  */
 import { line, err, muted, OutputLine } from "../../types";
 import type { Device } from "../../../models/device";
 import { registerModal } from "../registry";
 import { cpList, cpUpsert, cpRemove } from "../config-plane";
+import { klishSnoopGroups } from "../../../protocols/mcast-show";
 
 const ID = "igmp_snooping";
 
@@ -171,17 +172,15 @@ registerModal({
 
     const out: OutputLine[] = [];
     if (groups) {
-      // Only statically-configured groups are shown; dynamically-learned groups
-      // require a data plane the sim does not model.
-      out.push(muted("(dynamically-learned groups are not simulated; showing static-group config only)"));
+      const now = Date.now();
       for (const v of vlans) {
         const id = vlanNum(v.vlan);
         out.push(line(`Vlan ID: ${id}`));
         out.push(line("-".repeat(9 + id.length)));
-        const sg = v.staticGroups ?? [];
+        const sg = klishSnoopGroups(ctx.device, Number(id), now);
         sg.forEach((g, i) => {
-          out.push(line(`${i + 1} (*, ${g.group})`));
-          out.push(line(`  Outgoing Ports: ${g.intf}`));
+          out.push(line(`${i + 1} (${g.source}, ${g.group})`));
+          out.push(line(`  Outgoing Ports: ${g.ports.join(",")}`));
         });
         out.push(line(`Total number of entries: ${sg.length}`));
         out.push(line(""));

@@ -9,21 +9,20 @@
  * ge/le 0..32, len<=ge<=le, same-seq conflict) and CONFIG_DB state — nothing is
  * duplicated or re-validated here.
  *
- * Only the IPv4 form is wired — that is all the Click module supports. The KLISH
- * grammar's `ipv6 prefix-list` / `no ipv6 prefix-list` forms have no Click
- * equivalent, so they are not claimed (fall through / return null).
+ * `[no] ipv6 prefix-list ...` (same grammar, IPv6 prefixes) delegates to the Click
+ * `config [no] ipv6 prefix-list ...`; BGP IPv6 unicast policy reads those lists.
  */
 import { registerModal } from "../registry";
 
 registerModal({
   id: "prefixlist",
   views: ["configure-view"],
-  keywords: ["ip"],
-  run({ isNo, args, delegate }) {
-    // Only claim `[no] ip prefix-list ...`; other `ip ...` commands are not ours.
+  keywords: ["ip", "ipv6"],
+  run({ head, isNo, args, delegate }) {
+    // Only claim `[no] ip|ipv6 prefix-list ...`; other `ip ...` commands are not ours.
     if (args[0]?.toLowerCase() !== "prefix-list") return null;
     // args already carry `prefix-list <name> seq ...`; rebuild the exact Click line
     // and let the Click module validate + mutate the simulated CONFIG_DB.
-    return { output: delegate(`config ${isNo ? "no ip" : "ip"} ${args.join(" ")}`) };
+    return { output: delegate(`config ${isNo ? "no " : ""}${head} ${args.join(" ")}`) };
   },
 });

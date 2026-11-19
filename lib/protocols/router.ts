@@ -14,7 +14,7 @@ import { handleIcmpLocal } from "./icmp";
 import { routerReceiveV6 } from "./ipv6";
 import { handleOspfFrame } from "./ospf";
 import { dispatchL3 } from "../control/daemon";
-import { trapToCpu } from "../control/hooks";
+import { trapToCpu, runL3Ingress } from "../control/hooks";
 import { vrfOf, ownsIpInVrf } from "../models/vrf";
 import { receiveTrafficTcp } from "./traffic";
 import { handleBgpFrame } from "./bgp";
@@ -58,16 +58,22 @@ export function routerReceive(
   ctx: SimContext,
   device: Device,
   ingress: NetInterface,
-  frame: Frame,
+  inFrame: Frame,
 ): void {
+  let frame = inFrame;
   // Host-interface traps: ARP, multicast/broadcast control, IP-to-me and TTL
   // expiry go from the ASIC to the CPU (where CoPP may police them); transit
   // traffic is forwarded in hardware and never reaches the CPU.
+  // Multicast: only link-local groups (224.0.0.x: OSPF, VRRP, PIM hello…) and
+  // IGMP/PIM are trapped; routed multicast data is replicated in hardware (l3Ingress).
+  const mcastControl =
+    frame.ipv4 !== undefined &&
+    (frame.ipv4.dstIp.startsWith("224.0.0.") || frame.ipv4.protocolNumber === 2 || frame.ipv4.protocolNumber === 103);
   const toMe =
     !!frame.arp ||
     (frame.ipv4 !== undefined &&
       (isBroadcast(frame.ethernet.dstMac) ||
-        isMulticast(frame.ethernet.dstMac) ||
+        (isMulticast(frame.ethernet.dstMac) && mcastControl) ||
         ownsIpInVrf(device, frame.ipv4.dstIp, vrfOf(device, ingress)) ||
         frame.ipv4.ttl <= 1));
   if (toMe && !trapToCpu(ctx, device, ingress, frame)) return;
@@ -98,8 +104,12 @@ export function routerReceive(
   // DHCP relay: intercept client broadcasts / server replies on relay-configured interfaces.
   if (frame.dhcp && handleDhcpRelay(ctx, device, ingress, frame)) return;
 
-  const ip = frame.ipv4;
-  if (!ip) return;
+  if (!frame.ipv4) return;
+  // NAT / PBR / multicast routing (lib/control/hooks.ts l3Ingress).
+  const hooked = runL3Ingress(ctx, device, ingress, frame, vrfOf(device, ingress));
+  if (!hooked) return;
+  frame = hooked;
+  const ip = frame.ipv4!;
 
   const dstMac = frame.ethernet.dstMac;
   // Accept frames to our own MAC, broadcast, or a VRRP virtual MAC we currently

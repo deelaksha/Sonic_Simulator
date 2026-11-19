@@ -133,3 +133,42 @@ export function isLinkLocal6(addr: string): boolean {
 export function formatCidr6(addr: Ipv6Addr): string {
   return `${addr.address}/${addr.prefix}`;
 }
+
+/** ff00::/8 multicast. */
+export function isMulticast6(addr: string): boolean {
+  const n = parseIpv6(addr);
+  return n !== null && n >> 120n === 0xffn;
+}
+
+/**
+ * Modified EUI-64 interface identifier from a 48-bit MAC (RFC 4291 App. A):
+ * insert ff:fe in the middle and flip the universal/local bit.
+ */
+export function eui64InterfaceId(mac: string): bigint {
+  const b = mac.split(/[:-]/).map((x) => parseInt(x, 16) & 0xff);
+  const bytes = [b[0] ^ 0x02, b[1], b[2], 0xff, 0xfe, b[3], b[4], b[5]];
+  return bytes.reduce((n, x) => (n << 8n) | BigInt(x), 0n);
+}
+
+/** fe80::<EUI-64> — the link-local address the kernel assigns (addr_gen_mode eui64). */
+export function linkLocalFromMac(mac: string): string {
+  return formatIpv6((0xfe80n << 112n) | eui64InterfaceId(mac));
+}
+
+/** SLAAC address: the /64 prefix + EUI-64 interface id (RFC 4862 5.5.3). */
+export function slaacAddress(prefix: string, mac: string): string {
+  return formatIpv6(network6(prefix, 64) | eui64InterfaceId(mac));
+}
+
+/** 16 network-order bytes of an IPv6 address. */
+export function ipv6Bytes(addr: string): number[] {
+  const n = parseIpv6(addr) ?? 0n;
+  return Array.from({ length: 16 }, (_, i) => Number((n >> BigInt((15 - i) * 8)) & 0xffn));
+}
+
+/** IPv6 address from 16 bytes at offset o. */
+export function ipv6FromBytes(b: ArrayLike<number>, o = 0): string {
+  let n = 0n;
+  for (let i = 0; i < 16; i++) n = (n << 8n) | BigInt(b[o + i] ?? 0);
+  return formatIpv6(n);
+}

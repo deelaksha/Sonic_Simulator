@@ -13,6 +13,7 @@ import { handleUdp } from "./udpapp";
 import { hostReceiveV6 } from "./ipv6";
 import { countIcmpDelivery, receiveTrafficTcp } from "./traffic";
 import { dispatchL3 } from "../control/daemon";
+import { hostIngressConsumed } from "../control/hooks";
 
 export function hostReceive(
   ctx: SimContext,
@@ -34,6 +35,9 @@ export function hostReceive(
   if (frame.ospf) return;
 
   if (!frame.ipv4) return;
+
+  // Multicast receivers etc. (lib/control/hooks.ts hostIngress).
+  if (hostIngressConsumed(ctx, device, ingress, frame)) return;
 
   // NIC address filter: accept our unicast or broadcast only.
   const dstMac = frame.ethernet.dstMac;

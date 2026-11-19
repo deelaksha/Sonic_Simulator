@@ -13,8 +13,10 @@ import { Device } from "../models/device";
 import { Frame } from "../models/packet";
 import { SimContext } from "../engine/context";
 import { featureState, peekFeatureState } from "../models/feature-state";
-import { PDU, SnmpMessage, SnmpValue, decodeMessage, encodeMessage, pduContentLength } from "./snmp-ber";
-import { SNMPTRAP_PORT, SNMP_PORT, agentDue, agentListens, agentReceive, agentTick, isAgentDevice } from "./snmp-agent";
+import { PDU, SnmpMessage, SnmpPdu, SnmpValue, decodeMessage, encodeMessage, messageVersion, pduContentLength } from "./snmp-ber";
+import { SNMPTRAP_PORT, SNMP_PORT, agentDue, agentListens, agentReceive, agentTick, isAgentDevice, stopAgent } from "./snmp-agent";
+import { FLAG, UsmUser, decodeV3, hexOf, unsecureV3 } from "./snmp-usm";
+import { isRouter, isSwitch } from "../models/device";
 import { ensureAgent, peekAgent } from "./snmp-config";
 
 // ------------------------------------------------------------------ manager side
@@ -43,6 +45,45 @@ export interface TrapdState {
   running: boolean;
   port: number;
   traps: ReceivedTrap[];
+  /** snmptrapd.conf `createUser` entries (USM users for SNMPv3 notifications). */
+  users?: UsmUser[];
+}
+
+export interface DecodedTrap {
+  version: number;
+  /** v1/v2c community, or v3 user. */
+  community?: string;
+  user?: string;
+  pdu?: SnmpPdu;
+  /** Why a v3 notification could not be accepted (unknown user, auth/decrypt failure). */
+  error?: string;
+}
+
+/**
+ * Decode a received notification as snmptrapd would: v1/v2c directly; v3 with the
+ * snmptrapd.conf USM user (any engine ID — as if `createUser -e <sender engine>`).
+ */
+export function decodeTrap(bytes: number[], users: UsmUser[] = []): DecodedTrap {
+  if (messageVersion(bytes) === 3) {
+    try {
+      const d = decodeV3(bytes);
+      const u = users.find((x) => x.name === d.msg.user);
+      if (!u && d.msg.flags & (FLAG.AUTH | FLAG.PRIV)) return { version: 3, user: d.msg.user, error: "Unknown user name" };
+      if (u) {
+        const e = unsecureV3(bytes, d, u);
+        if (e) return { version: 3, user: d.msg.user, error: e === "wrongDigest" ? "Authentication failure (incorrect password, community or key)" : "Decryption error" };
+      }
+      return { version: 3, user: d.msg.user, pdu: d.msg.scoped?.pdu };
+    } catch {
+      return { version: 3, error: "ASN.1 parse error" };
+    }
+  }
+  try {
+    const m = decodeMessage(bytes);
+    return { version: m.version, community: m.community, pdu: m.pdu };
+  } catch {
+    return { version: -1, error: "ASN.1 parse error" };
+  }
 }
 
 export const trapdState = (d: Device): TrapdState => featureState<TrapdState>(d, "snmptrapd", () => ({ running: false, port: SNMPTRAP_PORT, traps: [] }));
@@ -67,13 +108,21 @@ function receive(ctx: SimContext, device: Device, frame: Frame): boolean {
   if (trapd?.running && udp.dstPort === trapd.port) {
     const payload = l4Payload(frame);
     if (!payload) return true;
+    if (messageVersion(payload) === 3) {
+      // USM: an unknown user / bad digest / undecryptable notification is dropped (snmpusm.c).
+      const t = decodeTrap(Array.from(payload), trapd.users);
+      if (t.error || !t.pdu || (t.pdu.type !== PDU.TRAP2 && t.pdu.type !== PDU.INFORM)) return true;
+      trapd.traps.push({ timeMs: ctx.wallNow(), srcIp: ip.srcIp, srcPort: udp.srcPort, dstIp: ip.dstIp, dstPort: udp.dstPort, bytes: Array.from(payload) });
+      if (trapd.traps.length > MAX_TRAPS) trapd.traps.splice(0, trapd.traps.length - MAX_TRAPS);
+      return true;
+    }
     let msg: SnmpMessage | undefined;
     try {
       msg = decodeMessage(payload);
     } catch {
       return true; // snmptrapd logs the parse error and drops it
     }
-    if (msg.pdu.type !== PDU.TRAP2 && msg.pdu.type !== PDU.INFORM) return true;
+    if (msg.pdu.type !== PDU.TRAP && msg.pdu.type !== PDU.TRAP2 && msg.pdu.type !== PDU.INFORM) return true;
     trapd.traps.push({ timeMs: ctx.wallNow(), srcIp: ip.srcIp, srcPort: udp.srcPort, dstIp: ip.dstIp, dstPort: udp.dstPort, bytes: Array.from(payload) });
     if (trapd.traps.length > MAX_TRAPS) trapd.traps.splice(0, trapd.traps.length - MAX_TRAPS);
     if (msg.pdu.type === PDU.INFORM) {
@@ -155,6 +204,21 @@ export function describeSnmp(frame: Frame, verbose: boolean): string | undefined
   if (!ports.includes(udp.srcPort) && !ports.includes(udp.dstPort)) return undefined;
   const payload = l4Payload(frame);
   if (!payload) return undefined;
+  if (messageVersion(payload) === 3) {
+    try {
+      const d = decodeV3(payload).msg;
+      const f = (d.flags & FLAG.AUTH ? "a" : "") + (d.flags & FLAG.PRIV ? "p" : "") + (d.flags & FLAG.REPORTABLE ? "r" : "");
+      let out = ` F=${f} U="${d.user}"`;
+      if (verbose) out = ` { SNMPv3 { F=${f} } { USM B=${d.boots} T=${d.time} U="${d.user}" }`;
+      if (d.encrypted) return `${out} [!scoped PDU]${verbose ? " } " : ""}`;
+      const p = d.scoped!.pdu;
+      out += ` E=${d.scoped!.contextEngineId.length ? "_" + hexOf(d.scoped!.contextEngineId) : ""} C="${d.scoped!.contextName}" ${PDU_NAMES[p.type] ?? "?"} R=${p.reqId}`;
+      for (const vb of p.varbinds) out += " ." + vb.oid.join(".") + (p.type === PDU.GET || p.type === PDU.GETNEXT || p.type === PDU.GETBULK ? "" : "=" + asn1(vb.value));
+      return verbose ? `${out} } ` : out;
+    } catch {
+      return undefined;
+    }
+  }
   let m: SnmpMessage;
   let pduLen: number;
   try {
@@ -173,6 +237,11 @@ export function describeSnmp(frame: Frame, verbose: boolean): string | undefined
   const isReq = p.type === PDU.GET || p.type === PDU.GETNEXT || p.type === PDU.GETBULK;
   if (p.type === PDU.GETBULK) s += ` N=${p.errStatus} M=${p.errIndex}`;
   else if (p.errStatus !== 0) s += ` ${ERR_NAMES[p.errStatus] ?? p.errStatus}${p.errIndex ? `@${p.errIndex}` : ""}`;
+  if (p.type === PDU.TRAP && p.trap) {
+    // print-snmp.c trappdu_print: enterprise, agent-addr, generic(specific) time-stamp.
+    const GEN = ["coldStart", "warmStart", "linkDown", "linkUp", "authenticationFailure", "egpNeighborLoss", "enterpriseSpecific"];
+    s += ` .${p.trap.enterprise.join(".")} ${p.trap.agentAddr} ${GEN[p.trap.generic] ?? p.trap.generic}${p.trap.generic === 6 ? `s=${p.trap.specific}` : ""} ${p.trap.timestamp}`;
+  }
   for (const vb of p.varbinds) {
     s += " ." + vb.oid.join(".");
     if (!isReq) s += "=" + asn1(vb.value);
@@ -185,7 +254,12 @@ registerDaemon({
   id: "snmp",
   nextDue: (device, now) => agentDue(device, now),
   tick: (ctx, device, now) => {
-    if (!isAgentDevice(device)) return false;
+    if (!isAgentDevice(device)) {
+      if (!isSwitch(device.type) && !isRouter(device.type)) return false;
+      const stopped = stopAgent(ctx, device, now); // feature snmp disabled: docker-snmp stops
+      if (stopped) logEvent(device, now, "INFO", "snmp#snmpd", "Received TERM or STOP signal...  shutting down...");
+      return stopped;
+    }
     const started = peekAgent(device)?.startedAt;
     const r = agentTick(ctx, device, now);
     // net-snmp agent/snmpd.c:1500 (stop) and :1181 (start), LOG_INFO.

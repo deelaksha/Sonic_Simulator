@@ -1,5 +1,7 @@
 /**
- * DHCP Snooping — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * DHCP Snooping (KLISH) — config + show; the data plane (dropping server
+ * messages on untrusted ports, learning bindings from ACKs, MAC verification)
+ * is lib/protocols/dhcp-snooping.ts.
  *
  *   sonic(config)# ip dhcp snooping                     enable v4 globally
  *   sonic(config)# ip dhcp snooping Vlan10,20           enable v4 on vlan(s)
@@ -7,18 +9,19 @@
  *   sonic(config-if-Ethernet0)# ip dhcp snooping trust  mark port trusted
  *   sonic(config)# no ip dhcp snooping ...              clear each of the above
  *   sonic# show ip dhcp snooping                        render from stored state
- *   (the `ipv6 dhcp snooping ...` / `show ipv6 dhcp snooping` family mirrors v4)
+ *   sonic# show ip dhcp snooping binding                dynamic bindings learned from ACKs
+ *   sonic# clear ip dhcp snooping binding               flush dynamic bindings
+ *   (the `ipv6 dhcp snooping ...` family mirrors v4 for config; v6 is not snooped)
  *
- * We model the real box's CONFIG_DB honestly: config commands write to the
- * config-plane store and `show ip|ipv6 dhcp snooping` renders exactly what was
- * configured — nothing is fabricated. DHCP snooping's DATA plane (inspecting
- * DHCP exchanges, learning dynamic bindings, dropping rogue traffic) is NOT
- * simulated; the binding-database and statistics `show` subcommands are runtime
- * data, so they are left to fall through rather than invented here.
+ * Binding-table layout: the show_ip_dhcp_snooping_binding.j2 template is not in
+ * the source tree, so the columns follow the binding fields (MAC, IP, VLAN,
+ * interface, type, remaining lease). `show ... statistics` is not modelled.
  */
 import { line, err } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpGet, cpList } from "../config-plane";
+import { liveBindings, peekSnoopState } from "../../../protocols/dhcp-snooping";
+import { OutputLine } from "../../types";
 
 const ID = "dhcp_snooping";
 
@@ -84,9 +87,10 @@ registerModal({
     const a0 = args[0]?.toLowerCase();
     if (a0 !== "ip" && a0 !== "ipv6") return null; // not ours
     if (args[1]?.toLowerCase() !== "dhcp" || args[2]?.toLowerCase() !== "snooping") return null;
-    if (args[3] !== undefined) return null; // `binding`/`statistics` are runtime data — not modelled
-
     const fam = famOf(a0);
+    if (args[3]?.toLowerCase() === "binding") return { output: bindingTable(fam === "v4" ? liveBindings(ctx.device, Date.now()) : []) };
+    if (args[3] !== undefined) return null; // `statistics` — not modelled
+
     const st = cpGet(ctx.device, ID) ?? {};
     const enabled = st[`${fam}_enabled`] ? "Enabled" : "Disabled";
     const verify = st[`${fam}_verify_mac`] ? "enabled" : "disabled";
@@ -103,5 +107,35 @@ registerModal({
     ];
     for (const t of trusted) out.push(line(`${String(t.iface).padEnd(12)}Yes`));
     return { output: out };
+  },
+});
+
+function bindingTable(rows: ReturnType<typeof liveBindings>): OutputLine[] {
+  const now = Date.now();
+  const out = [
+    line(`Total number of Dynamic bindings: ${rows.length}`),
+    line("Total number of Static bindings: 0"),
+    line("Total number of Tentative bindings: 0"),
+    line(`${"MAC Address".padEnd(19)}${"IP Address".padEnd(17)}${"VLAN".padEnd(7)}${"Interface".padEnd(13)}${"Type".padEnd(8)}Lease (Secs)`),
+    line(`${"-".repeat(17)}  ${"-".repeat(15)}  ${"-".repeat(5)}  ${"-".repeat(11)}  ${"-".repeat(6)}  ${"-".repeat(12)}`),
+  ];
+  for (const b of rows) {
+    const left = Math.max(0, Math.floor(b.lease - (now - b.learnedAt) / 1000));
+    out.push(line(`${b.mac.toLowerCase().padEnd(19)}${b.ip.padEnd(17)}${String(b.vlan).padEnd(7)}${b.iface.padEnd(13)}${"DYN".padEnd(8)}${left}`));
+  }
+  return out;
+}
+
+// enable-view: `clear ip dhcp snooping binding` — flush the dynamic bindings.
+registerModal({
+  id: "dhcp-snooping-clear",
+  views: ["enable-view"],
+  keywords: ["clear"],
+  run({ args, ctx }) {
+    const a = args.map((x) => x.toLowerCase());
+    if (a[0] !== "ip" || a[1] !== "dhcp" || a[2] !== "snooping" || a[3] !== "binding") return null;
+    const st = peekSnoopState(ctx.device);
+    if (st) st.bindings = [];
+    return { output: [] };
   },
 });

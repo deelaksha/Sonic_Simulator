@@ -1,14 +1,12 @@
 /**
- * PIM (IPv4 Protocol Independent Multicast) — CONFIG-PLANE feature. There is no
- * Click module and no packet/engine backend, so we STORE exactly what is
- * configured (PIM_GLOBALS / PIM_GLOBALS_RENDEZVOUS_POINT / PIM_INTERFACE in
- * CONFIG_DB) and RENDER it back on `show running-configuration pim`. Nothing
- * runtime is fabricated: PIM is a multicast routing/forwarding protocol that
- * this sim does not run — dataPlaneNotSimulated. The operational tables shown by
- * the real box (`show ip pim neighbor|interface|rpf|topology|...`) are therefore
- * NOT invented here; those `show ip pim` forms are left to the grammar fallback.
+ * PIM (IPv4 Protocol Independent Multicast) + interface IGMP — KLISH config and
+ * operational shows. The configuration is stored as CONFIG_DB holds it
+ * (PIM_GLOBALS / PIM_GLOBALS_RENDEZVOUS_POINT / PIM_INTERFACE, and
+ * IGMP_INTERFACE_QUERY under config-plane id "igmp") and RUNS: the pimd model in
+ * lib/protocols/pim-daemon.ts sends Hellos, elects the IGMP querier, builds
+ * (*,G)/(S,G) state with Join/Prune + Register, and forwards multicast.
  *
- * Wired from data/device-capture/klish-xml/pim.xml:
+ * Wired from data/device-capture/klish-xml/pim.xml + igmp.xml:
  *
  * configure-view (global, PIM_GLOBALS keyed by vrf; RP list per vrf+rp):
  *   ip pim [vrf <name>] ecmp [rebalance]
@@ -19,20 +17,34 @@
  *   ip pim [vrf <name>] spt-threshold infinity [prefix-list <name>]
  *   no ip pim [vrf <name>] <same>            clear / reset to default
  *
- * configure-if-view / -vlan-view / -lag-view (per-interface PIM_INTERFACE):
+ * configure-if-view / -vlan-view / -lag-view / -lo-view (PIM_INTERFACE):
  *   ip pim sparse-mode
  *   ip pim drpriority <1-4294967295>
  *   ip pim hello <1-255>
  *   ip pim bfd [profile <name>]
  *   no ip pim <same>                         clear
+ * and IGMP (igmp.xml:231-420, IGMP_INTERFACE_QUERY):
+ *   ip igmp                                  enable IGMP (querier) on the interface
+ *   ip igmp version <2-3>                    default 3
+ *   ip igmp query-interval <1-1800>          seconds, default 125
+ *   ip igmp query-max-response-time <1-25>   seconds, default 10
+ *   ip igmp last-member-query-count <1-7>    default 2
+ *   ip igmp last-member-query-interval <1-255>  deciseconds, default 10
+ *   no ip igmp [<same>]
  *
  * enable-view:
- *   show running-configuration pim           render only the stored config
+ *   show running-configuration pim | igmp    the stored config
+ *   show ip pim [vrf default] neighbor [<addr>]          (pim.xml EXAMPLE)
+ *   show ip pim [vrf default] topology [<grp> [<src>]]   (pim.xml EXAMPLE)
+ *   show ip igmp groups                                  (igmp.xml EXAMPLE)
+ * Other `show ip pim …` forms fall through to the FRR vtysh renderers
+ * (lib/protocols/mcast-show.ts: show ip pim join / rp-info, show ip mroute …).
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { Device } from "../../../models/device";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
+import { klishIgmpGroups, klishPimNeighbor, klishPimTopology } from "../../../protocols/mcast-show";
 
 const FEATURE = "pim";
 const IP_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
@@ -151,9 +163,10 @@ registerModal({
 // --- configure-if/vlan/lag-view: per-interface PIM (PIM_INTERFACE, keyed by iface) ---
 registerModal({
   id: "pim-if",
-  views: ["configure-if-view", "configure-vlan-view", "configure-lag-view"],
+  views: ["configure-if-view", "configure-vlan-view", "configure-lag-view", "configure-lo-view"],
   keywords: ["ip"],
   run({ isNo, args, ifname, ctx }) {
+    if ((args[0] ?? "").toLowerCase() === "igmp" && (args[1] ?? "").toLowerCase() !== "snooping") return igmpIf(ctx.device, ifname ?? "", isNo, args.slice(1));
     if ((args[0] ?? "").toLowerCase() !== "pim") return null; // not ours
     const dev = ctx.device;
     const iface = ifname ?? "";
@@ -214,6 +227,36 @@ registerModal({
     return null; // bare `ip pim` / unknown option — leave to grammar fallback
   },
 });
+
+
+// --- interface IGMP (IGMP_INTERFACE_QUERY, config-plane id "igmp") ---
+const IGMP_PARAMS: Record<string, { field: string; lo: number; hi: number; msg: string }> = {
+  version: { field: "version", lo: 2, hi: 3, msg: "% IGMP version must be 2 or 3." },
+  "query-interval": { field: "queryInterval", lo: 1, hi: 1800, msg: "% Query interval must be 1-1800 seconds." },
+  "query-max-response-time": { field: "queryMaxResponseTime", lo: 1, hi: 25, msg: "% Query max response time must be 1-25 seconds." },
+  "last-member-query-count": { field: "lastMemberQueryCount", lo: 1, hi: 7, msg: "% Last member query count must be 1-7." },
+  "last-member-query-interval": { field: "lastMemberQueryInterval", lo: 1, hi: 255, msg: "% Last member query interval must be 1-255 deciseconds." },
+};
+
+function igmpIf(dev: Device, iface: string, isNo: boolean, rest: string[]) {
+  const sub = (rest[0] ?? "").toLowerCase();
+  if (!sub) {
+    if (isNo) cpRemove(dev, "igmp", "interfaces", "iface", iface);
+    else cpUpsert(dev, "igmp", "interfaces", { iface, enabled: true }, "iface");
+    return { output: [] };
+  }
+  const p = IGMP_PARAMS[sub];
+  if (!p) return null; // ip igmp join … — left to the grammar fallback
+  const item = cpList(dev, "igmp", "interfaces").find((e) => e.iface === iface);
+  if (isNo) {
+    if (item) delete item[p.field];
+    return { output: [] };
+  }
+  const n = intInRange(rest[1], p.lo, p.hi);
+  if (n === null) return { output: [err(p.msg)] };
+  cpUpsert(dev, "igmp", "interfaces", { iface, [p.field]: n }, "iface");
+  return { output: [] };
+}
 
 // --- enable-view: `show running-configuration pim` — render only stored config ---
 interface PimGlobal {
@@ -286,7 +329,59 @@ registerModal({
     }
 
     if (!out.length) return { output: [muted("No PIM configuration")] };
-    out.push(muted("% PIM multicast forwarding is not simulated in this lab; only configuration is stored/shown."));
     return { output: out };
+  },
+});
+
+// --- enable-view: `show running-configuration igmp` ---
+interface IgmpIf {
+  iface: string;
+  enabled?: boolean;
+  version?: number;
+  queryInterval?: number;
+  queryMaxResponseTime?: number;
+  lastMemberQueryCount?: number;
+  lastMemberQueryInterval?: number;
+}
+registerModal({
+  id: "igmp-show-running",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ args, ctx }) {
+    if ((args[0] ?? "").toLowerCase() !== "running-configuration" || (args[1] ?? "").toLowerCase() !== "igmp") return null;
+    const out: OutputLine[] = [];
+    for (const i of cpList(ctx.device, "igmp", "interfaces") as unknown as IgmpIf[]) {
+      out.push(line(`interface ${i.iface}`));
+      if (i.enabled) out.push(line(" ip igmp"));
+      if (i.version !== undefined) out.push(line(` ip igmp version ${i.version}`));
+      if (i.queryInterval !== undefined) out.push(line(` ip igmp query-interval ${i.queryInterval}`));
+      if (i.queryMaxResponseTime !== undefined) out.push(line(` ip igmp query-max-response-time ${i.queryMaxResponseTime}`));
+      if (i.lastMemberQueryCount !== undefined) out.push(line(` ip igmp last-member-query-count ${i.lastMemberQueryCount}`));
+      if (i.lastMemberQueryInterval !== undefined) out.push(line(` ip igmp last-member-query-interval ${i.lastMemberQueryInterval}`));
+    }
+    return { output: out.length ? out : [muted("No IGMP configuration")] };
+  },
+});
+
+// --- enable-view: operational `show ip pim neighbor|topology`, `show ip igmp groups` ---
+registerModal({
+  id: "pim-oper-show",
+  views: ["enable-view"],
+  keywords: ["show"],
+  run({ args, ctx }) {
+    const a = args.map((x) => x.toLowerCase());
+    const now = Date.now();
+    const lines = (ls: string[]) => ({ output: ls.map((l) => line(l)) });
+    if (a[0] === "ip" && a[1] === "igmp" && a[2] === "groups") return lines(klishIgmpGroups(ctx.device, now));
+    if (a[0] !== "ip" || a[1] !== "pim") return null;
+    let rest = args.slice(2);
+    if ((rest[0] ?? "").toLowerCase() === "vrf") {
+      if (rest[1] && rest[1] !== "default" && rest[1] !== "all") return lines([`% PIM is not configured in VRF ${rest[1]}`]);
+      rest = rest.slice(2);
+    }
+    const sub = (rest[0] ?? "").toLowerCase();
+    if (sub === "neighbor") return lines(klishPimNeighbor(ctx.device, now, IP_RE.test(rest[1] ?? "") ? rest[1] : undefined));
+    if (sub === "topology") return lines(klishPimTopology(ctx.device, now, rest[1], rest[2]));
+    return null; // join / rp-info / … → FRR vtysh renderers in the Click layer
   },
 });

@@ -13,23 +13,31 @@
  * equivalent, so those fall through (return null).
  */
 import { registerModal } from "../registry";
+import { forgetTracked } from "../../../protocols/ipsla-daemon";
+import { networkAddress } from "../../../models/ip";
 
 registerModal({
   id: "staticroute",
   views: ["configure-view"],
   keywords: ["ip"],
-  run({ head, isNo, args, delegate }) {
+  run({ head, isNo, args, ctx, delegate }) {
     if (head !== "ip" || args[0]?.toLowerCase() !== "route") return null;
     // Tokens after "route". The Click form is exactly <prefix> <next-hop-addr>.
     let rest = args.slice(1);
     let vrf = "";
+    let vrfName: string | undefined;
     if (rest[0]?.toLowerCase() === "vrf" && rest[1]) {
+      vrfName = rest[1];
       vrf = `vrf ${rest[1]} `;
       rest = rest.slice(2);
     }
     if (rest.length !== 2) return null; // interface / tag / weight / pref / track: not modelled
     const [prefix, nexthop] = rest;
     if (!prefix.includes("/") || nexthop.toLowerCase() === "blackhole") return null; // blackhole: not modelled
+    if (isNo) {
+      const [addr, len] = prefix.split("/");
+      forgetTracked(ctx.device, networkAddress(addr, Number(len)), Number(len), nexthop, vrfName);
+    }
     return { output: delegate(`config route ${isNo ? "del" : "add"} prefix ${vrf}${prefix} nexthop ${nexthop}`) };
   },
 });

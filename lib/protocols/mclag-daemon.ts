@@ -43,7 +43,23 @@
  *     netlink FDB events; synced MACs are re-pinned on the next tick if the bridge
  *     relearns them on the peer-link (real SONiC disables peer-link learning).
  *   - A configured mclag-system-mac is used as the LACP system ID on both peers.
- *   - ARP/ND sync, unique-ip, delay-restore, backup keepalive, traffic_disable are not modelled.
+ *   - ND sync, unique-ip, delay-restore, backup keepalive, traffic_disable are not modelled.
+ *
+ * ARP sync (iccpd mlacp_sync_update.c:626-917, mlacp_tlv.h:376-405):
+ *   ARP entries learned on a VLAN interface or an MLAG interface are sent in an ARP
+ *   Information TLV (0x1036; per entry op 1 add / 2 del, flag, learn_flag, ifname[20],
+ *   IPv4, MAC). The peer installs each on its same-named interface
+ *   (mlacp_fsm_update_arp_entry → kernel neighbour), skipping its own address
+ *   (my_ip_arp_flag) — so a host's ARP learned on one peer appears on the other.
+ *   Simplification: the local table is diffed every tick instead of netlink
+ *   neighbour events; a locally learned entry wins over a synced one. Entries
+ *   learned from the peer are not flushed when the session goes down (the disconnect
+ *   handler, mlacp_link_handler.c:2394-2470, does not touch neighbours).
+ *   `mclagdctl dump state|arp|mac -i <domain>` (iccpd src/mclagdctl/mclagdctl.c)
+ *   lives in lib/commands/mclagdctl.ts.
+ *
+ * Feature: `config feature state iccpd disabled` stops docker-iccpd: the session
+ * goes down (peer-learned MACs flushed, isolation lifted) and nothing is sent.
  */
 import { registerDaemon } from "../control/daemon";
 import { logEvent } from "../control/syslog";
@@ -56,13 +72,18 @@ import { featureState, peekFeatureState } from "../models/feature-state";
 import { SimContext } from "../engine/context";
 import { normalizeMac } from "../models/mac";
 import { systemMac } from "./lacp-daemon";
+import { learnArp, deleteArp } from "./arp";
+import { featureEnabled } from "./cpu-features";
 
 export const ICCP_TCP_PORT = 8888; // iccp_csm.h:53
 const CONNECT_INTERVAL_MS = 1000; // scheduler.h:40
 const DFLT_KEEPALIVE = 1; // sonic-mclag.yang:90
 const DFLT_SESSION_TIMEOUT = 30; // sonic-mclag.yang:100
 const MSG = { RG_CONNECT: 0x0700, RG_APP_DATA: 0x0703 } as const;
-const TLV = { SENDER_NAME: 0x0001, RG_ID: 0x0005, SYSTEM_CONFIG: 0x0032, AGG_STATE: 0x0037, HEARTBEAT: 0x003a, MAC_INFO: 0x1038 } as const;
+const TLV = { SENDER_NAME: 0x0001, RG_ID: 0x0005, SYSTEM_CONFIG: 0x0032, AGG_STATE: 0x0037, HEARTBEAT: 0x003a, ARP_INFO: 0x1036, MAC_INFO: 0x1038 } as const;
+const NEIGH_SYNC_ADD = 1; // mlacp_tlv.h:475
+const NEIGH_SYNC_DEL = 2;
+const NEIGH_LOCAL = 1; // mlacp_tlv.h:373
 const PORT_UP = 0x00; // port.h:49
 const PORT_DOWN = 0x01;
 const MAC_ADD = 1; // mlacp_tlv.h:500
@@ -115,6 +136,10 @@ export interface MclagRt {
   redirected: Record<string, string>;
   /** Standby: original PortChannel hwaddr before the system-ID rewrite. */
   origMac: Record<string, string>;
+  /** ARP sync: ip → "ifname|MAC" we advertised; ip → entry the peer advertised; ips we installed. */
+  sentArps?: Record<string, string>;
+  remoteArps?: Record<string, { ifname: string; mac: string }>;
+  installedArps?: Record<string, true>;
   msgId: number;
   tx: number;
   rx: number;
@@ -210,6 +235,13 @@ function aggStateTlv(name: string, up: boolean): number[] {
   return tlv(TLV.AGG_STATE, [...new Array(6).fill(0), ...u16(0), ...u16(0), ...u16(id), ...u16(0), up ? PORT_UP : PORT_DOWN]);
 }
 
+function arpInfoTlv(entries: { op: number; ip: string; mac: string; ifname: string }[]): number[] {
+  // mLACPARPInfoTLV / struct ARPMsg (mlacp_tlv.h:376-405): op, flag, learn_flag, ifname[20], ipv4, mac.
+  const v = [...u16(entries.length)];
+  for (const e of entries) v.push(e.op, 0, NEIGH_LOCAL, ...fixedName(e.ifname), ...e.ip.split(".").map(Number), ...macBytes(e.mac));
+  return tlv(TLV.ARP_INFO, v);
+}
+
 function macInfoTlv(entries: { op: number; mac: string; vid: number; ifname: string }[]): number[] {
   // mLACPMACInfoTLV / mLACPMACData (mlacp_tlv.h:353-371).
   const v = [...u16(entries.length)];
@@ -253,6 +285,7 @@ function sendInitial(ctx: SimContext, d: Device, c: MclagDomainCfg, rt: MclagRt)
   const ifs = localIfStates(d, c);
   rt.sentIfs = ifs;
   rt.sentMacs = {};
+  rt.sentArps = {};
   const params = [
     ...tlv(TLV.SYSTEM_CONFIG, [...macBytes(localSystemId(d, c)), ...u16(0xffff), isActiveRole(c) ? 0 : 1]),
     ...Object.entries(ifs).flatMap(([n, s]) => aggStateTlv(n, s === "up")),
@@ -273,6 +306,9 @@ function sessionDown(d: Device, rt: MclagRt): boolean {
   rt.remoteIfs = {};
   rt.sentIfs = {};
   rt.sentMacs = {};
+  rt.sentArps = {};
+  rt.remoteArps = {};
+  rt.installedArps = {};
   rt.session = false;
   rt.tcb = undefined;
   rt.remoteSystemId = undefined;
@@ -411,18 +447,72 @@ function syncFdb(d: Device, c: MclagDomainCfg, rt: MclagRt): { changed: boolean;
   return { changed, send };
 }
 
+// ---------- ARP sync ----------
+
+/** Interfaces whose neighbours iccpd syncs: VLAN interfaces and MLAG interfaces. */
+const arpSynced = (c: MclagDomainCfg, name: string) => /^Vlan\d+$/.test(name) || c.interfaces.includes(name);
+
+/** Local ARP entries to advertise → add/del ARPMsg entries (diff against what was sent). */
+function syncArp(d: Device, c: MclagDomainCfg, rt: MclagRt): { op: number; ip: string; mac: string; ifname: string }[] {
+  const installed = (rt.installedArps ??= {});
+  const now: Record<string, string> = {};
+  for (const e of d.arpTable) {
+    if (e.state === "incomplete" || installed[e.ip]) continue;
+    const iface = d.interfaces.find((i) => i.id === e.interfaceId);
+    if (!iface || !arpSynced(c, iface.name)) continue;
+    now[e.ip] = `${iface.name}|${normalizeMac(e.mac)}`;
+  }
+  const sent = (rt.sentArps ??= {});
+  const out: { op: number; ip: string; mac: string; ifname: string }[] = [];
+  for (const [ip, v] of Object.entries(now)) {
+    if (sent[ip] === v) continue;
+    const [ifname, mac] = v.split("|");
+    out.push({ op: NEIGH_SYNC_ADD, ip, mac, ifname });
+  }
+  for (const [ip, v] of Object.entries(sent)) {
+    if (ip in now) continue;
+    const [ifname, mac] = v.split("|");
+    out.push({ op: NEIGH_SYNC_DEL, ip, mac, ifname });
+  }
+  rt.sentArps = now;
+  return out;
+}
+
+/** mlacp_fsm_update_arp_entry (mlacp_sync_update.c:626-760): install a peer's ARP entry. */
+function applyRemoteArp(d: Device, rt: MclagRt, op: number, ip: string, mac: string, ifname: string, nowMs: number): void {
+  const installed = (rt.installedArps ??= {});
+  const remote = (rt.remoteArps ??= {});
+  if (op === NEIGH_SYNC_DEL) {
+    delete remote[ip];
+    if (installed[ip]) {
+      deleteArp(d, ip);
+      delete installed[ip];
+    }
+    return;
+  }
+  remote[ip] = { ifname, mac };
+  const iface = ifByName(d, ifname);
+  if (!iface || !iface.ipv4.length) return; // no such L3 interface here
+  if (iface.ipv4.some((a) => a.address === ip)) return; // "ignoring ARP sync for self ip"
+  const local = d.arpTable.find((e) => e.ip === ip);
+  if (local && !installed[ip] && local.state !== "incomplete") return; // learned locally
+  learnArp(d, ip, mac, iface.id, { now: nowMs });
+  installed[ip] = true;
+}
+
 // ---------- daemon ----------
 
 function signature(d: Device, c: MclagDomainCfg): string {
   const ifs = [...c.interfaces, c.peerLink ?? ""].map((n) => `${n}:${isUp(ifByName(d, n)) ? 1 : 0}:${ifByName(d, n)?.mac ?? ""}`).join(",");
   const fdb = d.macTable.map((e) => `${e.mac}/${e.vlan}/${e.interfaceId}`).join(",");
-  return `${JSON.stringify(c)}|${ifs}|${fdb}`;
+  const arp = d.arpTable.map((e) => `${e.ip}/${e.mac}/${e.state}`).join(",");
+  return `${JSON.stringify(c)}|${ifs}|${fdb}|${arp}`;
 }
 
 function tickDevice(ctx: SimContext, d: Device, now: number): boolean {
   const c = mclagConfig(d);
   let rt = mclagRuntime(d);
-  if (!c || !c.sourceIp || !c.peerIp) {
+  if (!c || !c.sourceIp || !c.peerIp || !featureEnabled(d, "iccpd")) {
     if (!rt) return false;
     sessionDown(d, rt);
     delete d.config.features![RT];
@@ -459,6 +549,8 @@ function tickDevice(ctx: SimContext, d: Device, now: number): boolean {
       const fdb = syncFdb(d, c, rt);
       if (fdb.changed) changed = true;
       if (fdb.send.length) params.push(...macInfoTlv(fdb.send));
+      const arps = syncArp(d, c, rt);
+      if (arps.length) params.push(...arpInfoTlv(arps));
     }
     // Heartbeat every keepalive_interval.
     if ((rt.nextHello ?? 0) <= now) {
@@ -495,6 +587,13 @@ function handleMsgs(d: Device, c: MclagDomainCfg, rt: MclagRt, payload: number[]
       } else if (t.type === TLV.AGG_STATE && t.v.length >= 15) {
         const id = (t.v[10] << 8) | t.v[11];
         rt.remoteIfs[`PortChannel${id}`] = t.v[14] === PORT_UP ? "up" : "down";
+      } else if (t.type === TLV.ARP_INFO && t.v.length >= 2) {
+        const n = (t.v[0] << 8) | t.v[1];
+        for (let i = 0, off = 2; i < n && off + 33 <= t.v.length; i++, off += 33) {
+          const ifname = String.fromCharCode(...t.v.slice(off + 3, off + 23).filter((x) => x !== 0));
+          const ip = t.v.slice(off + 23, off + 27).join(".");
+          applyRemoteArp(d, rt, t.v[off], ip, hexMac(t.v.slice(off + 27, off + 33)), ifname, rt.lastRx);
+        }
       } else if (t.type === TLV.MAC_INFO && t.v.length >= 2) {
         const n = (t.v[0] << 8) | t.v[1];
         for (let i = 0, off = 2; i < n && off + 30 <= t.v.length; i++, off += 30) {
@@ -531,6 +630,7 @@ function receive(ctx: SimContext, d: Device, _ingress: NetInterface, frame: Fram
   if (!t || !ip || (t.dstPort !== ICCP_TCP_PORT && t.srcPort !== ICCP_TCP_PORT)) return false;
   const c = mclagConfig(d);
   if (!c || ip.dstIp !== c.sourceIp || ip.srcIp !== c.peerIp) return false;
+  if (!featureEnabled(d, "iccpd")) return false; // iccpd not running: the kernel answers RST
   const rt = mclagRuntime(d) ?? (featureState<MclagRt>(d, RT, () => freshRt(c.id)));
   const now = ctx.wallNow();
   const has = (f: string) => t.flags.includes(f);
@@ -574,7 +674,7 @@ registerDaemon({
     if (!isSwitch(d.type)) return undefined;
     const c = mclagConfig(d);
     const rt = mclagRuntime(d);
-    if (!c) return rt ? now : undefined;
+    if (!c || !featureEnabled(d, "iccpd")) return rt ? now : undefined;
     if (!rt || rt.sig !== signature(d, c)) return now;
     const ts: (number | undefined)[] = [rt.nextHello];
     if (rt.tcb?.state !== "ESTABLISHED" && isActiveRole(c)) ts.push(rt.nextConnect ?? now);

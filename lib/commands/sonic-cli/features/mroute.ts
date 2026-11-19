@@ -1,26 +1,21 @@
 /**
- * mroute — CONFIG-PLANE (show-only) SONiC feature.
+ * mroute — SONiC `show ip mroute` (KLISH), rendered from the running multicast
+ * routing state (lib/protocols/pim-daemon.ts via lib/protocols/mcast-show.ts):
  *
- *   sonic# show ip mroute [vrf {<vrf-name> | all}]
+ *   sonic# show ip mroute [vrf {<vrf-name> | all}] [<grp-addr> [<src-addr>]]
  *   sonic# show ip mroute [vrf {<vrf-name> | all}] summary
  *
- * The real box's `mroute` module (data/device-capture/klish-xml/mroute.xml) is
- * show/clear only: it has NO configure-view / configure-if-view / sub-view config
- * commands. The IP multicast routing table is RUNTIME state populated by the
- * multicast routing data-plane (PIM/IGMP), which this simulator does not model —
- * so we never fabricate routes, neighbours or uptimes. We render the real table
- * FORMAT with the honest, empty set of routes read from the config-plane store
- * (which no config command populates on this box).
+ * Layout from data/device-capture/klish-xml/mroute.xml (EXAMPLE): one row per
+ * installed (S,G) route, extra outgoing interfaces on continuation lines; the
+ * summary counts (S, G) routes installed/total. Multicast routing runs in the
+ * default VRF only, so other VRFs show an empty table.
  *
  * `clear ip mroute` is an operational reset and is not wired here: the core
- * sonic-cli routes only `show` to modal handlers, and editing the core is out of
- * scope for a single feature file.
+ * sonic-cli routes only `show` to modal handlers.
  */
 import { line, err } from "../../types";
 import { registerModal } from "../registry";
-import { cpList } from "../config-plane";
-
-type Mroute = { source: string; group: string; input: string; output: string; uptime: string };
+import { klishMrouteRows } from "../../../protocols/mcast-show";
 
 // Column header verbatim from the real `show ip mroute` output (mroute.xml EXAMPLE).
 const COLS = "  Source          Group           Input         Output        Uptime";
@@ -41,10 +36,10 @@ registerModal({
       rest = rest.slice(2);
     }
     const summary = rest.some((t) => t.toLowerCase() === "summary");
-
-    // No multicast data-plane in the sim => the store is empty (no config command
-    // populates it, and runtime routes are never fabricated).
-    const routes = cpList(ctx.device, "mroute", "routes") as Mroute[];
+    const [grp, src] = rest.filter((t) => /^\d{1,3}(\.\d{1,3}){3}$/.test(t));
+    const routes = vrf === "default" || vrf === "all"
+      ? klishMrouteRows(ctx.device, Date.now()).filter((r) => (!grp || r.group === grp) && (!src || src === "0.0.0.0" || r.source === src))
+      : [];
 
     if (summary) {
       const n = routes.length;
@@ -64,8 +59,8 @@ registerModal({
       line(COLS),
     ];
     for (const r of routes) {
-      out.push(
-        line(`* ${r.source.padEnd(16)}${r.group.padEnd(16)}${r.input.padEnd(14)}${r.output.padEnd(14)}${r.uptime}`),
+      r.outputs.forEach((o, i) =>
+        out.push(line(i === 0 ? `* ${r.source.padEnd(16)}${r.group.padEnd(16)}${r.input.padEnd(14)}${o.padEnd(14)}${r.uptime}` : `${" ".repeat(48)}${o.padEnd(14)}${r.uptime}`)),
       );
     }
     return { output: out };

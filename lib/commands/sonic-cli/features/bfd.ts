@@ -8,6 +8,8 @@
  *   sonic(config-bfd-peer)# receive-interval 200
  *   sonic(config-bfd-peer)# transmit-interval 200
  *   sonic(config-bfd-peer)# shutdown | no shutdown
+ *   sonic(config-bfd-peer)# echo-mode | no echo-mode
+ *   sonic(config-bfd-peer)# echo-interval 100
  *   sonic(config-bfd)# no peer 10.10.10.1      -> config bfd peer del (stays in BFD view)
  *
  * The tested Click module (lib/commands/sonic/bfd.ts) is FLAT: every sub-command
@@ -66,12 +68,13 @@ registerModal({
 registerModal({
   id: "bfd-peer",
   views: ["configure-bfd-peer-view"],
-  keywords: ["detect-multiplier", "receive-interval", "transmit-interval", "shutdown"],
+  keywords: ["detect-multiplier", "receive-interval", "transmit-interval", "shutdown", "echo-mode", "echo-interval"],
   run({ head, isNo, args, viewctx, delegate }) {
     const ip = viewctx ?? "";
     if (head === "shutdown") {
       return { output: delegate(`config bfd peer ${isNo ? "no-shutdown" : "shutdown"} ${ip}`) };
     }
+    if (head === "echo-mode") return { output: delegate(`config bfd peer ${isNo ? "no-echo-mode" : "echo-mode"} ${ip}`) };
     // detect-multiplier / receive-interval / transmit-interval: no reset form in Click.
     if (isNo) return null;
     return { output: delegate(`config bfd peer ${head} ${ip} ${args.join(" ")}`) };
@@ -126,8 +129,8 @@ function klishCounters(s: BfdSession): string[] {
     `peer ${s.peer}${s.multihop ? " multihop" : ""}${s.local ? ` local-address ${s.local}` : ""}${s.ifname ? ` interface ${s.ifname}` : ""} vrf default`,
     `    Control packet input: ${s.stats.rxCtrl} packets`,
     `    Control packet output: ${s.stats.txCtrl} packets`,
-    "    Echo packet input: 0 packets",
-    "    Echo packet output: 0 packets",
+    `    Echo packet input: ${s.stats.rxEcho} packets`,
+    `    Echo packet output: ${s.stats.txEcho} packets`,
     `    Session up events: ${s.stats.up}`,
     `    Session down events: ${s.stats.down}`,
     `    Zebra notifications: ${s.stats.zebra}`,

@@ -26,6 +26,37 @@
  *   SPF                RFC 16.1 Dijkstra with bidirectional link check, ECMP
  *                      next hops, stub networks → device.routingTable as type
  *                      "ospf", distance 110, metric = cost.
+ *   Inter-area         RFC 16.2 / ospf_ia.c process_summary_lsa: type-3/4 from
+ *                      the backbone only on an ABR with a Full backbone
+ *                      neighbour (Cisco ABR, ospf_ia.c:596-630), all areas
+ *                      otherwise; summaries inside an active range ignored.
+ *   ABR                ospf_abr.c: ABR = >1 configured area + active backbone
+ *                      (ospf_check_abr_status :454, abr-type cisco); type-3 for
+ *                      intra routes into other areas, backbone inter-area routes
+ *                      into non-backbone areas (ospf_abr_announce_network :840),
+ *                      `area X range` aggregates with the max component cost
+ *                      (ospf_abr_update_aggregate :530), type-4 for ASBRs into
+ *                      regular areas, not from an NSSA (:1140), default type-3
+ *                      (default-cost, 1) into stub and NSSA areas (:1530);
+ *                      `no-summary` suppresses all but the default.
+ *   NSSA               RFC 3101: N/P option bit; the ASBR floods its externals
+ *                      as type-7 with P-bit and an NSSA forwarding address when
+ *                      not an ABR (ospf_lsa.c ospf_install_flood_nssa,
+ *                      ospf_get_nssa_ip :1674); the elected translator (highest
+ *                      router-id ABR, ospf_abr_nssa_am_elected :322) re-originates
+ *                      them as type-5 (ospf_lsa_translated_nssa_new :2002).
+ *   ASBR / externals   `redistribute connected|static|bgp` and
+ *                      `default-information originate [always]` → type-5
+ *                      (metric 20 / E2 default, default route 10 or 1 with
+ *                      always: ospf_lsa.c metric_value :1712); connected networks
+ *                      OSPF already covers are skipped (ospf_zebra.c:999);
+ *                      forwarding address = next hop when on an OSPF subnet
+ *                      (:1627). Routes per RFC 16.4 / ospf_ase.c: E1 = path +
+ *                      metric, E2 compared by type-2 metric first; zebra metric
+ *                      is the type-2 cost for E2 (O>* … [110/20]).
+ *   VRF                `router ospf vrf NAME`: one instance per VRF (config in
+ *                      features["ospf:NAME"], state in features["ospfd:NAME"]),
+ *                      only that VRF's interfaces, routes tagged Route.vrf.
  *   BFD                `ip ospf bfd`: session registered when a neighbour
  *                      reaches 2-Way (ospf_bfd.c); BFD up→down kills the
  *                      neighbour immediately (NSM InactivityTimer).
@@ -33,8 +64,9 @@
  * Simplifications (documented): acks are sent directly (no 1 s delayed ack),
  * MinLSInterval/MinLSArrival and SPF hold timers are not enforced (FRR's
  * initial SPF delay is 0), a flushed MaxAge LSA is removed right after it is
- * flooded, only intra-area routes are computed (no summary/external LSAs), no
- * authentication, MTU is not checked in DBDs.
+ * flooded, no virtual links/transit areas, no NSSA ranges or type-7 defaults,
+ * range discard routes are listed in `show ip ospf route` but not installed in
+ * the RIB, no authentication, MTU is not checked in DBDs.
  */
 import { registerDaemon } from "../control/daemon";
 import { transmitIpv4, multicastMac, ipPayload } from "../control/packet";
@@ -44,7 +76,8 @@ import { Device, findInterface } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame } from "../models/packet";
 import { Route, carryInstallTime } from "../models/route";
-import { ipToInt, networkAddress, prefixToMask, sameSubnet } from "../models/ip";
+import { cidrContains, ipToInt, networkAddress, prefixToMask, sameSubnet } from "../models/ip";
+import { DEFAULT_VRF, vrfOf } from "../models/vrf";
 import { SimContext } from "../engine/context";
 import {
   OspfConfig,
@@ -53,7 +86,9 @@ import {
   ospfConfig,
   ospfInterfaces,
   ospfRouterId,
+  ospfConfiguredVrfs,
   areaType,
+  areaCfg,
   OSPF_RXMT_DEFAULT,
 } from "./ospf-config";
 import {
@@ -68,6 +103,19 @@ import {
   PACKET_NAMES,
   LSA_ROUTER,
   LSA_NETWORK,
+  LSA_SUMMARY,
+  LSA_ASBR_SUMMARY,
+  LSA_EXTERNAL,
+  LSA_NSSA,
+  LS_INFINITY,
+  OPT_NP,
+  RTR_B,
+  RTR_E,
+  RTR_NT,
+  encodeSummaryBody,
+  decodeSummaryBody,
+  encodeExternalBody,
+  decodeExternalBody,
   DD_I,
   DD_M,
   DD_MS,
@@ -99,8 +147,17 @@ import {
   decodeNetworkBody,
   describeOspf,
 } from "./ospf-wire";
+import { featureEnabled } from "./cpu-features";
+
+/** ospfd/zebra run in the bgp container: no config while it is disabled (adjacencies torn down, routes withdrawn). */
+const liveOspfConfig = (d: Device, vrf?: string) => (featureEnabled(d, "bgp") ? ospfConfig(d, vrf) : undefined);
 
 export const RT_KEY = "ospfd";
+/** Runtime key of an instance: "ospfd" (VRF default) or "ospfd:NAME". */
+export const rtKey = (vrf: string = DEFAULT_VRF) => (vrf === DEFAULT_VRF ? RT_KEY : `${RT_KEY}:${vrf}`);
+/** Pseudo-area holding the AS-scope LSDB (type-5). */
+export const AS_SCOPE = "AS";
+const BACKBONE = "0.0.0.0";
 const LS_REFRESH_TIME = 1800; // OSPF_LS_REFRESH_TIME (lib/libospf.h:28)
 const DBD_CHUNK = 60; // LSA headers per DBD (fits a 1500-byte MTU)
 const ZERO = "0.0.0.0";
@@ -167,6 +224,8 @@ export interface LsaEntry {
   rxMs: number;
   age0: number;
   self?: boolean;
+  /** Type-5 translated from a type-7 (OSPF_LSA_LOCAL_XLT). */
+  xlt?: boolean;
 }
 
 export interface OspfRoutePath {
@@ -181,6 +240,30 @@ export interface OspfRouteView {
   cost: number;
   area: string;
   paths: OspfRoutePath[];
+  /** OSPF_PATH_INTRA_AREA / OSPF_PATH_INTER_AREA / range discard entry. */
+  kind: "intra" | "inter" | "discard";
+}
+
+/** Router routing table entry (ABRs/ASBRs only, like FRR's new_rtrs). */
+export interface OspfRtrRoute {
+  rid: string;
+  cost: number;
+  area: string;
+  ia: boolean;
+  flags: number;
+  paths: OspfRoutePath[];
+}
+
+/** External routing table entry (type-5 / type-7). */
+export interface OspfExtRoute {
+  dest: string;
+  prefix: number;
+  e2: boolean;
+  /** Cost to the ASBR / forwarding address (E2), or total cost (E1). */
+  cost: number;
+  type2: number;
+  tag: number;
+  paths: OspfRoutePath[];
 }
 
 export interface OspfRt {
@@ -193,10 +276,27 @@ export interface OspfRt {
   spf: { runs: number; lastMs?: number; durUs: number; perArea: Record<string, number> };
   /** Last SPF result (undefined until SPF has run: "No OSPF routing information exist"). */
   routes?: OspfRouteView[];
+  rtrs?: OspfRtrRoute[];
+  ext?: OspfExtRoute[];
+  /** OSPF_FLAG_ABR / OSPF_FLAG_ASBR. */
+  abr?: boolean;
+  asbr?: boolean;
+  /** NSSATranslatorState per NSSA area. */
+  xlt?: Record<string, boolean>;
 }
 
-export function ospfRuntime(device: Device): OspfRt | undefined {
-  return device.config.features?.[RT_KEY] as OspfRt | undefined;
+export function ospfRuntime(device: Device, vrf: string = DEFAULT_VRF): OspfRt | undefined {
+  return device.config.features?.[rtKey(vrf)] as OspfRt | undefined;
+}
+
+/** VRFs with a running or configured instance. */
+function instanceVrfs(device: Device): string[] {
+  const out = new Set(ospfConfiguredVrfs(device));
+  for (const k of Object.keys(device.config.features ?? {})) {
+    if (k === RT_KEY) out.add(DEFAULT_VRF);
+    else if (k.startsWith(`${RT_KEY}:`)) out.add(k.slice(RT_KEY.length + 1));
+  }
+  return [...out];
 }
 
 /** Current LS age of an LSDB entry. */
@@ -250,6 +350,7 @@ interface D {
   cfg: OspfConfig;
   rt: OspfRt;
   now: number;
+  vrf: string;
 }
 
 function send(d: D, oif: OspfIf, to: "spf" | "dr" | OspfNbr, type: number, body: number[]): void {
@@ -275,8 +376,25 @@ function send(d: D, oif: OspfIf, to: "spf" | "dr" | OspfNbr, type: number, body:
   });
 }
 
-const areaOptions = (cfg: OspfConfig, area: string) => (areaType(cfg, area) ? 0 : OPT_E);
+/** Options of an area (ospf_area_type_set): regular E, stub none, NSSA N/P; AS scope E. */
+const areaOptions = (cfg: OspfConfig, area: string) => {
+  if (area === AS_SCOPE) return OPT_E;
+  const t = areaType(cfg, area);
+  return t === "nssa" ? OPT_NP : t === "stub" ? 0 : OPT_E;
+};
+const isRegular = (cfg: OspfConfig, area: string) => !areaType(cfg, area);
 const ipNum = (ip: string) => ipToInt(ip);
+const lsaTypeOfKey = (key: string) => Number(key.slice(0, key.indexOf("/")));
+/** LSDB (area or AS) an LSA type lives in. */
+const scopeOf = (type: number, area: string) => (type === LSA_EXTERNAL ? AS_SCOPE : area);
+/** May an LSA of this type be exchanged on an interface of `area` (RFC 3101: no type-5 in stub/NSSA, type-7 only in NSSA)? */
+function typeAllowed(cfg: OspfConfig, area: string, t: number): boolean {
+  if (t === LSA_ROUTER || t === LSA_NETWORK || t === LSA_SUMMARY || t === LSA_ASBR_SUMMARY) return true;
+  if (t === LSA_EXTERNAL) return isRegular(cfg, area);
+  if (t === LSA_NSSA) return areaType(cfg, area) === "nssa";
+  return false;
+}
+const maskLen = (mask: string) => (ipNum(mask).toString(2).match(/1/g) ?? []).length;
 
 function emit(d: D, oif: OspfIf | undefined, type: "OSPF_HELLO" | "OSPF_NEIGHBOR" | "OSPF_ROUTE", message: string): void {
   d.ctx.emit({ type, deviceId: d.device.id, deviceName: d.device.name, interfaceId: oif?.ifId, interfaceName: oif?.name, message: `${d.device.name}: ${message}`, osiLayers: [3] });
@@ -286,10 +404,15 @@ function emit(d: D, oif: OspfIf | undefined, type: "OSPF_HELLO" | "OSPF_NEIGHBOR
 // Signature of everything that affects the running instance: config + the
 // interfaces' addresses/state. A change makes the daemon due immediately
 // (local interface down → neighbours on it go Down at once).
-function computeSig(device: Device): string {
-  const cfg = ospfConfig(device);
+function computeSig(device: Device, vrf: string): string {
+  const cfg = liveOspfConfig(device, vrf);
   if (!cfg) return "";
-  return JSON.stringify([cfg, device.interfaces.map((i) => [i.id, i.name, i.ipv4, i.adminState, i.operState, i.speed])]);
+  const vrfState = device.config.features?.vrf ?? null;
+  // Redistributed RIB routes: a change re-runs origination (zebra redistribute add/delete).
+  const rib = cfg.redistribute?.length || cfg.defaultInfo
+    ? device.routingTable.filter((r) => r.type !== "ospf" && (r.vrf ?? DEFAULT_VRF) === vrf).map((r) => [r.type, r.destination, r.prefix, r.nextHop])
+    : null;
+  return JSON.stringify([cfg, vrfState, rib, device.interfaces.map((i) => [i.id, i.name, i.ipv4, i.adminState, i.operState, i.speed])]);
 }
 
 function newRt(routerId: string, now: number): OspfRt {
@@ -307,7 +430,7 @@ function reconcile(d: D): void {
     teardown(d);
     Object.assign(rt, newRt(rid, now));
   }
-  const want = ospfInterfaces(device, cfg).filter((s) => s.up);
+  const want = ospfInterfaces(device, cfg, d.vrf).filter((s) => s.up);
   for (const oif of [...rt.oifs]) {
     const w = want.find((s) => s.iface.name === oif.name && s.iface.id === oif.ifId);
     if (!w || psigOf(w) !== oif.psig) ifDown(d, oif);
@@ -325,7 +448,7 @@ function reconcile(d: D): void {
     }
   }
   rt.oifs.sort((a, b) => device.interfaces.findIndex((i) => i.id === a.ifId) - device.interfaces.findIndex((i) => i.id === b.ifId));
-  rt.sig = computeSig(device);
+  rt.sig = computeSig(device, d.vrf);
 }
 
 function ifUp(d: D, s: OspfIfSpec): void {
@@ -404,11 +527,11 @@ function setNbrState(d: D, oif: OspfIf, n: OspfNbr, state: NsmState): void {
     emit(d, oif, "OSPF_NEIGHBOR", `OSPF neighbor ${n.rid} (${n.ip}) on ${oif.name}: ${old} → ${state}`);
   }
   // ospf_nsm.c:626-636 AdjChg: with log-adjacency-changes only Full or a downward change, "detail" every change.
-  // (Down is logged by nbrDown, which knows the event.) FRR's traditional default is off (ospf_vty.c:47-50); the
-  // OSPF config model has no log-adjacency-changes field yet, so the simulator defaults to on.
-  const lac = (d.cfg as { logAdjacencyChanges?: boolean | "detail" }).logAdjacencyChanges ?? true;
+  // (Down is logged by nbrDown, which knows the event.) Off unless configured (SONiC's effective default, see
+  // OspfConfig.logAdjacencyChanges); "(%s)" is ospf_get_name() = the VRF name.
+  const lac = d.cfg.logAdjacencyChanges;
   if (state !== "Down" && lac && (lac === "detail" || state === "Full" || NSM[state] < NSM[old]))
-    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (default) on ${oif.name}:${oif.ip}: ${old} -> ${state} (${
+    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (${d.vrf}) on ${oif.name}:${oif.ip}: ${old} -> ${state} (${
       state === "Full" ? (old === "Loading" ? "LoadingDone" : "ExchangeDone")
       : state === "Init" ? (NSM[old] > NSM.Init ? "1-WayReceived" : "HelloReceived")
       : state === "2-Way" ? (old === "Init" ? "2-WayReceived" : "AdjOK?")
@@ -433,8 +556,8 @@ function nbrDown(d: D, oif: OspfIf, n: OspfNbr, why: string): void {
   const was = n.state;
   setNbrState(d, oif, n, "Down");
   // ospf_nsm.c:631 — interface down = KillNbr (ospf_interface.c:355); dead timer and BFD down = InactivityTimer (ospf_bfd.c:60).
-  if (was !== "Down" && ((d.cfg as { logAdjacencyChanges?: boolean | "detail" }).logAdjacencyChanges ?? true))
-    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (default) on ${oif.name}:${oif.ip}: ${was} -> Down (${why === "interface down" ? "KillNbr" : "InactivityTimer"})`);
+  if (was !== "Down" && d.cfg.logAdjacencyChanges)
+    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (${d.vrf}) on ${oif.name}:${oif.ip}: ${was} -> Down (${why === "interface down" ? "KillNbr" : "InactivityTimer"})`);
   oif.nbrs = oif.nbrs.filter((x) => x !== n);
   emit(d, oif, "OSPF_NEIGHBOR", `OSPF neighbor ${n.rid} (${n.ip}) on ${oif.name} Down: ${why}`);
 }
@@ -467,14 +590,25 @@ function areaDb(rt: OspfRt, area: string): Record<string, LsaEntry> {
 }
 
 /** Next chunk of this neighbour's DD summary list as wire headers. */
+/** The LSDB entry for a key as seen from an interface's area (type-5 from the AS scope). */
+function entryFor(d: D, area: string, key: string): LsaEntry | undefined {
+  return areaDb(d.rt, scopeOf(lsaTypeOfKey(key), area))[key];
+}
+
 function nextChunk(d: D, oif: OspfIf, n: OspfNbr): { headers: number[][]; more: boolean } {
   if (!n.summary) {
     const db = areaDb(d.rt, oif.area);
-    n.summary = Object.keys(db).filter((k) => lsaAge(db[k], d.now) < MAX_AGE).sort();
+    const as = isRegular(d.cfg, oif.area) ? areaDb(d.rt, AS_SCOPE) : {};
+    n.summary = [...Object.keys(db).filter((k) => lsaAge(db[k], d.now) < MAX_AGE), ...Object.keys(as).filter((k) => lsaAge(as[k], d.now) < MAX_AGE)].sort();
   }
-  const db = areaDb(d.rt, oif.area);
-  const keys = n.summary.splice(0, DBD_CHUNK).filter((k) => db[k]);
-  return { headers: keys.map((k) => withAge(db[k].lsa, lsaAge(db[k], d.now)).slice(0, 20)), more: n.summary.length > 0 };
+  const keys = n.summary.splice(0, DBD_CHUNK).filter((k) => entryFor(d, oif.area, k));
+  return {
+    headers: keys.map((k) => {
+      const e = entryFor(d, oif.area, k)!;
+      return withAge(e.lsa, lsaAge(e, d.now)).slice(0, 20);
+    }),
+    more: n.summary.length > 0,
+  };
 }
 
 function exchangeDone(d: D, oif: OspfIf, n: OspfNbr): void {
@@ -570,7 +704,7 @@ function recvHello(d: D, oif: OspfIf, srcIp: string, srcMac: string, rid: string
   if (!h) return;
   if (h.helloInterval !== oif.hello || h.deadInterval !== oif.dead) return; // interval mismatch (ospf_packet.c:750-778)
   if (oif.type === "broadcast" && h.mask !== prefixToMask(oif.prefix)) return; // NetworkMask mismatch
-  if ((h.options & OPT_E) !== areaOptions(d.cfg, oif.area)) return; // E-bit mismatch
+  if ((h.options & (OPT_E | OPT_NP)) !== areaOptions(d.cfg, oif.area)) return; // E-bit / N-bit mismatch (ospf_packet.c ospf_hello)
   let n = oif.type === "point-to-point" ? oif.nbrs.find((x) => x.rid === rid) : oif.nbrs.find((x) => x.ip === srcIp);
   if (!n) {
     // New neighbour: priority -1 / DR+BDR 0.0.0.0 until its Hello is accepted (ospf_nbr_new).
@@ -614,10 +748,9 @@ function recvHello(d: D, oif: OspfIf, srcIp: string, srcMac: string, rid: string
 // ---------------------------------------------------------------------------
 // Database Description (RFC 10.6).
 function processHeaders(d: D, oif: OspfIf, n: OspfNbr, headers: LsaHeader[]): void {
-  const db = areaDb(d.rt, oif.area);
   for (const h of headers) {
-    if (h.type !== LSA_ROUTER && h.type !== LSA_NETWORK) continue;
-    const cur = db[lsaKey(h)];
+    if (!typeAllowed(d.cfg, oif.area, h.type)) continue;
+    const cur = entryFor(d, oif.area, lsaKey(h));
     if (cur && compareLsa(h, lsaHeaderNow(cur, d.now)) <= 0) continue;
     if (n.reqs.some((r) => lsaKey(r) === lsaKey(h))) continue;
     n.reqs.push({ type: h.type, id: h.id, adv: h.adv, seq: h.seq, checksum: h.checksum, age: h.age });
@@ -702,10 +835,9 @@ function masterNext(d: D, oif: OspfIf, n: OspfNbr, slaveFlags: number): void {
 // LS Request / Update / Ack.
 function recvLsr(d: D, oif: OspfIf, n: OspfNbr, body: number[]): void {
   if (NSM[n.state] < NSM.Exchange) return;
-  const db = areaDb(d.rt, oif.area);
   const lsas: number[][] = [];
   for (const e of decodeLsr(body)) {
-    const ent = db[lsaKey(e)];
+    const ent = typeAllowed(d.cfg, oif.area, e.type) ? entryFor(d, oif.area, lsaKey(e)) : undefined;
     if (!ent) return seqMismatch(d, oif, n); // BadLSReq
     lsas.push(wire(ent, d.now));
   }
@@ -723,12 +855,13 @@ function isSelfLsa(d: D, h: LsaHeader): boolean {
 
 function recvLsu(d: D, oif: OspfIf, n: OspfNbr, body: number[]): void {
   if (NSM[n.state] < NSM.Exchange) return;
-  const db = areaDb(d.rt, oif.area);
   const acks: number[][] = [];
   for (const lsa of decodeLsu(body)) {
     if (!lsaChecksumOk(lsa)) continue;
     const h = parseLsaHeader(lsa);
-    if (h.type !== LSA_ROUTER && h.type !== LSA_NETWORK) continue;
+    if (!typeAllowed(d.cfg, oif.area, h.type)) continue;
+    const scope = scopeOf(h.type, oif.area);
+    const db = areaDb(d.rt, scope);
     const key = lsaKey(h);
     const cur = db[key];
     const reqIdx = n.reqs.findIndex((r) => lsaKey(r) === key);
@@ -743,17 +876,17 @@ function recvLsu(d: D, oif: OspfIf, n: OspfNbr, body: number[]): void {
         // RFC 13.4: a newer instance of our own LSA (e.g. from before a restart).
         acks.push(lsa.slice(0, 20));
         const mine = cur?.self && h.age < MAX_AGE;
-        if (mine) originate(d, oif.area, h.type, h.id, cur!.lsa.slice(20), h.seq + 1);
+        if (mine) originate(d, scope, h.type, h.id, cur!.lsa.slice(20), h.seq + 1);
         else {
           db[key] = { lsa, rxMs: d.now, age0: h.age };
-          flushSelf(d, oif.area, key);
+          flushSelf(d, scope, key);
         }
         continue;
       }
       for (const o of d.rt.oifs) for (const x of o.nbrs) delete x.rxmt[key];
       db[key] = { lsa: withAge(lsa, h.age), rxMs: d.now, age0: h.age };
       d.rt.spfDirty = true;
-      flood(d, oif.area, key, oif, n);
+      flood(d, scope, key, oif, n);
       acks.push(lsa.slice(0, 20));
       if (h.age >= MAX_AGE) delete db[key];
     } else if (cmp === 0) {
@@ -771,22 +904,21 @@ function recvLsu(d: D, oif: OspfIf, n: OspfNbr, body: number[]): void {
 
 function recvAck(d: D, oif: OspfIf, n: OspfNbr, body: number[]): void {
   if (NSM[n.state] < NSM.Exchange) return;
-  const db = areaDb(d.rt, oif.area);
   for (const h of decodeAck(body)) {
     const key = lsaKey(h);
     if (n.rxmt[key] === undefined) continue;
-    const cur = db[key];
+    const cur = entryFor(d, oif.area, key);
     if (!cur || compareLsa(h, lsaHeaderNow(cur, d.now)) === 0) delete n.rxmt[key];
   }
 }
 
-/** RFC 13.3 flooding procedure. */
+/** RFC 13.3 flooding procedure; AS-scope LSAs go to every regular (non-stub, non-NSSA) area. */
 function flood(d: D, area: string, key: string, from?: OspfIf, fromNbr?: OspfNbr): void {
   const e = areaDb(d.rt, area)[key];
   if (!e) return;
   const h = lsaHeaderNow(e, d.now);
   for (const oif of d.rt.oifs) {
-    if (oif.area !== area || oif.passive || oif.state === "Loopback" || oif.state === "Down") continue;
+    if ((area === AS_SCOPE ? !isRegular(d.cfg, oif.area) : oif.area !== area) || oif.passive || oif.state === "Loopback" || oif.state === "Down") continue;
     let added = false;
     for (const n of oif.nbrs) {
       if (NSM[n.state] < NSM.Exchange) continue;
@@ -836,20 +968,25 @@ function routerLinks(d: D, area: string): RouterLink[] {
   return links;
 }
 
-function install(d: D, area: string, key: string, lsa: number[], self: boolean): void {
-  areaDb(d.rt, area)[key] = { lsa, rxMs: d.now, age0: parseLsaHeader(lsa).age, ...(self ? { self: true } : {}) };
-  d.rt.spfDirty = true;
+function install(d: D, area: string, key: string, lsa: number[], self: boolean, xlt?: boolean): void {
+  areaDb(d.rt, area)[key] = { lsa, rxMs: d.now, age0: parseLsaHeader(lsa).age, ...(self ? { self: true } : {}), ...(xlt ? { xlt: true } : {}) };
+  // Our own summary/external LSAs never feed our own SPF (process_summary_lsa / ospf_ase skip self).
+  const t = parseLsaHeader(lsa).type;
+  if (!self || t === LSA_ROUTER || t === LSA_NETWORK) d.rt.spfDirty = true;
 }
 
-function originate(d: D, area: string, type: number, id: string, body: number[], minSeq?: number, force = false): void {
+function originate(d: D, area: string, type: number, id: string, body: number[], minSeq?: number, force = false, opts: { options?: number; xlt?: boolean } = {}): void {
   const key = lsaKey({ type, id, adv: d.rt.routerId });
   const cur = areaDb(d.rt, area)[key];
   const curH = cur && lsaHeaderNow(cur, d.now);
-  if (!force && minSeq === undefined && cur && curH!.age < MAX_AGE && sameBytes(cur.lsa.slice(20), body)) return;
+  // A type-7 keeps its P-bit choice on refresh; everything else carries the area's options.
+  const options = opts.options ?? (type === LSA_NSSA && cur ? curH!.options : areaOptions(d.cfg, area));
+  const xlt = opts.xlt ?? cur?.xlt;
+  if (!force && minSeq === undefined && cur && curH!.age < MAX_AGE && curH!.options === options && !!cur.xlt === !!xlt && sameBytes(cur.lsa.slice(20), body)) return;
   let seq = curH ? curH.seq + 1 : INITIAL_SEQ;
   if (minSeq !== undefined && minSeq > seq) seq = minSeq;
-  const lsa = buildLsa({ age: 0, options: areaOptions(d.cfg, area), type, id, adv: d.rt.routerId, seq }, body);
-  install(d, area, key, lsa, true);
+  const lsa = buildLsa({ age: 0, options, type, id, adv: d.rt.routerId, seq }, body);
+  install(d, area, key, lsa, true, xlt);
   flood(d, area, key);
 }
 
@@ -867,13 +1004,21 @@ function flushSelf(d: D, area: string, key: string): void {
 
 const sameBytes = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
+/** Router-LSA flags (ospf_lsa.c router_lsa_flags :381): B on an ABR, E on an ASBR except in stub areas. */
+function routerFlags(d: D, area: string): number {
+  let f = 0;
+  if (d.rt.abr) f |= RTR_B;
+  if (d.rt.asbr && areaType(d.cfg, area) !== "stub") f |= RTR_E;
+  return f;
+}
+
 function originateAll(d: D): void {
   const { rt } = d;
-  const areas = new Set([...rt.oifs.map((o) => o.area), ...Object.keys(rt.lsdb)]);
+  const areas = new Set([...rt.oifs.map((o) => o.area), ...Object.keys(rt.lsdb).filter((a) => a !== AS_SCOPE)]);
   for (const area of areas) {
     const active = rt.oifs.some((o) => o.area === area && o.state !== "Down");
     const rkey = lsaKey({ type: LSA_ROUTER, id: rt.routerId, adv: rt.routerId });
-    if (active) originate(d, area, LSA_ROUTER, rt.routerId, encodeRouterBody(0, routerLinks(d, area)));
+    if (active) originate(d, area, LSA_ROUTER, rt.routerId, encodeRouterBody(routerFlags(d, area), routerLinks(d, area)));
     else if (areaDb(rt, area)[rkey]) flushSelf(d, area, rkey);
     // Network-LSA: originated by the DR while it has at least one Full neighbour.
     const want = new Set<string>();
@@ -902,7 +1047,19 @@ interface Vertex {
   lsa: number[];
 }
 
-function spfArea(d: D, area: string): OspfRouteView[] {
+interface RtrInfo {
+  cost: number;
+  paths: OspfRoutePath[];
+  flags: number;
+}
+
+interface AreaSpf {
+  nets: OspfRouteView[];
+  /** Routers reachable in the area (vertex cost + paths + Router-LSA flags). */
+  rtrs: Map<string, RtrInfo>;
+}
+
+function spfArea(d: D, area: string): AreaSpf {
   const db = areaDb(d.rt, area);
   const live = Object.values(db).filter((e) => lsaAge(e, d.now) < MAX_AGE);
   const routerLsa = new Map<string, number[]>();
@@ -914,7 +1071,7 @@ function spfArea(d: D, area: string): OspfRouteView[] {
   }
   const me = d.rt.routerId;
   const rootLsa = routerLsa.get(me);
-  if (!rootLsa) return [];
+  if (!rootLsa) return { nets: [], rtrs: new Map() };
   const rlinks = new Map<string, RouterLink[]>();
   const linksOf = (rid: string) => {
     if (!rlinks.has(rid)) rlinks.set(rid, decodeRouterBody(routerLsa.get(rid)!).links);
@@ -984,11 +1141,12 @@ function spfArea(d: D, area: string): OspfRouteView[] {
     if (!paths.length) return;
     const k = `${dest}/${prefix}`;
     const r = routes.get(k);
-    if (!r || cost < r.cost) routes.set(k, { dest, prefix, cost, area, paths: [...paths] });
+    if (!r || cost < r.cost) routes.set(k, { dest, prefix, cost, area, paths: [...paths], kind: "intra" });
     else if (cost === r.cost) addPaths(r.paths, paths);
   };
-  const maskLen = (mask: string) => (ipNum(mask).toString(2).match(/1/g) ?? []).length;
+  const rtrs = new Map<string, RtrInfo>();
   for (const V of tree.values()) {
+    if (V.kind === "R" && V.id !== me) rtrs.set(V.id, { cost: V.dist, paths: V.paths, flags: decodeRouterBody(V.lsa).flags });
     if (V.kind === "N") {
       const nb = decodeNetworkBody(V.lsa);
       const len = maskLen(nb.mask);
@@ -1006,69 +1164,364 @@ function spfArea(d: D, area: string): OspfRouteView[] {
       offer(l.linkId, len, V.dist + l.metric, paths);
     }
   }
-  return [...routes.values()];
+  return { nets: [...routes.values()], rtrs };
 }
+
+const addPathsTo = (into: OspfRoutePath[], add: OspfRoutePath[]) => {
+  for (const p of add) if (!into.some((q) => q.nh === p.nh && q.ifId === p.ifId)) into.push(p);
+};
+const sortPaths = (paths: OspfRoutePath[]) => paths.sort((a, b) => (a.nh === null ? -1 : b.nh === null ? 1 : ipNum(a.nh) - ipNum(b.nh)));
+const routeKey = (dest: string, prefix: number) => `${dest}/${prefix}`;
+
+/** Live LSAs of one type in a scope, skipping MaxAge and (optionally) our own. */
+function lsasOf(d: D, scope: string, type: number, includeSelf = false): { h: LsaHeader; e: LsaEntry }[] {
+  const out: { h: LsaHeader; e: LsaEntry }[] = [];
+  for (const e of Object.values(d.rt.lsdb[scope] ?? {})) {
+    if (lsaAge(e, d.now) >= MAX_AGE) continue;
+    const h = parseLsaHeader(e.lsa);
+    if (h.type !== type || (!includeSelf && h.adv === d.rt.routerId)) continue;
+    out.push({ h, e });
+  }
+  return out;
+}
+
+/** Areas with a running interface, backbone first. */
+const activeAreas = (d: D) => [...new Set(d.rt.oifs.map((o) => o.area))].sort((a, b) => ipNum(a) - ipNum(b));
+/** ospf_act_bb_connection: a Full neighbour in the backbone. */
+const bbConnected = (d: D) => d.rt.oifs.some((o) => o.area === BACKBONE && o.nbrs.some((n) => n.state === "Full"));
+
+interface ActiveRange {
+  area: string;
+  dest: string;
+  prefix: number;
+  cost: number;
+  advertise: boolean;
+}
+
+/** Configured `area X range` entries that cover at least one intra-area route of X (ospf_area_range_active), ABR only. */
+function activeRanges(d: D, intra: OspfRouteView[]): ActiveRange[] {
+  if (!d.rt.abr) return [];
+  const out: ActiveRange[] = [];
+  for (const a of d.cfg.areas) {
+    for (const r of a.ranges ?? []) {
+      const [net, len] = r.prefix.split("/");
+      const prefix = Number(len);
+      const comps = intra.filter((x) => x.area === a.id && x.prefix >= prefix && cidrContains(net, prefix, x.dest) && x.cost < LS_INFINITY);
+      if (!comps.length) continue;
+      out.push({ area: a.id, dest: networkAddress(net, prefix), prefix, cost: r.cost ?? Math.max(...comps.map((c) => c.cost)), advertise: !r.notAdvertise });
+    }
+  }
+  return out;
+}
+
+const inRange = (rg: { dest: string; prefix: number }, dest: string, prefix: number) => prefix >= rg.prefix && cidrContains(rg.dest, rg.prefix, dest);
 
 function runSpf(d: D): void {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0;
   const all = new Map<string, OspfRouteView>();
-  const areas = [...new Set(d.rt.oifs.map((o) => o.area))].sort((a, b) => ipNum(a) - ipNum(b));
+  const areas = activeAreas(d);
+  const perArea = new Map<string, Map<string, RtrInfo>>();
   for (const area of areas) {
-    for (const r of spfArea(d, area)) {
-      const k = `${r.dest}/${r.prefix}`;
+    const res = spfArea(d, area);
+    perArea.set(area, res.rtrs);
+    for (const r of res.nets) {
+      const k = routeKey(r.dest, r.prefix);
       const cur = all.get(k);
       if (!cur || r.cost < cur.cost) all.set(k, r);
     }
     d.rt.spf.perArea[area] = (d.rt.spf.perArea[area] ?? 0) + 1;
   }
-  for (const r of all.values()) r.paths.sort((a, b) => (a.nh === null ? -1 : b.nh === null ? 1 : ipNum(a.nh) - ipNum(b.nh)));
-  const routes = [...all.values()].sort((a, b) => ipNum(a.dest) - ipNum(b.dest) || a.prefix - b.prefix);
+  const intra = [...all.values()];
+  const ranges = activeRanges(d, intra);
+
+  // Inter-area routes (RFC 16.2, ospf_ia.c ospf_ia_routing / process_summary_lsa).
+  const examine = d.rt.abr && bbConnected(d) ? areas.filter((a) => a === BACKBONE) : areas;
+  const asbrIa = new Map<string, OspfRtrRoute>();
+  for (const area of examine) {
+    const rtrs = perArea.get(area)!;
+    for (const type of [LSA_SUMMARY, LSA_ASBR_SUMMARY]) {
+      for (const { h, e } of lsasOf(d, area, type)) {
+        const sb = decodeSummaryBody(e.lsa);
+        if (sb.metric >= LS_INFINITY) continue;
+        const len = type === LSA_SUMMARY ? maskLen(sb.mask) : 32;
+        const dest = networkAddress(h.id, len);
+        if (type === LSA_SUMMARY && ranges.some((rg) => inRange(rg, dest, len))) continue;
+        // Ignore a default summary from a stub/NSSA area on an ABR (ospf_ia.c process_summary_lsa).
+        if (d.rt.abr && !isRegular(d.cfg, area) && dest === ZERO && len === 0) continue;
+        const abr = rtrs.get(h.adv);
+        if (!abr || !(abr.flags & RTR_B)) continue; // ospf_find_abr_route
+        const cost = abr.cost + sb.metric;
+        if (type === LSA_SUMMARY) {
+          const k = routeKey(dest, len);
+          const cur = all.get(k);
+          if (cur?.kind === "intra") continue;
+          if (!cur || cost < cur.cost) all.set(k, { dest, prefix: len, cost, area, paths: [...abr.paths], kind: "inter" });
+          else if (cost === cur.cost) addPathsTo(cur.paths, abr.paths);
+        } else {
+          if ([...perArea.values()].some((m) => (m.get(h.id)?.flags ?? 0) & RTR_E)) continue; // intra-area route wins
+          const cur = asbrIa.get(h.id);
+          if (!cur || cost < cur.cost) asbrIa.set(h.id, { rid: h.id, cost, area, ia: true, flags: RTR_E, paths: [...abr.paths] });
+          else if (cost === cur.cost) addPathsTo(cur.paths, abr.paths);
+        }
+      }
+    }
+  }
+
+  // Router routing table: ABRs/ASBRs per area (ospf_intra_add_router) + inter-area ASBRs.
+  const rtrTable: OspfRtrRoute[] = [];
+  for (const [area, rtrs] of perArea) {
+    for (const [rid, r] of rtrs) if (r.flags & (RTR_B | RTR_E)) rtrTable.push({ rid, cost: r.cost, area, ia: false, flags: r.flags, paths: [...r.paths] });
+  }
+  rtrTable.push(...asbrIa.values());
+  rtrTable.sort((a, b) => ipNum(a.rid) - ipNum(b.rid) || ipNum(a.area) - ipNum(b.area));
+
+  // AS-external routes (RFC 16.4, ospf_ase.c ospf_ase_calculate_route).
+  const netRoutes = [...all.values()];
+  const asbrRoute = (rid: string, viaArea?: string): { cost: number; paths: OspfRoutePath[] } | undefined => {
+    let best: { cost: number; paths: OspfRoutePath[] } | undefined;
+    for (const r of rtrTable) {
+      if (r.rid !== rid || !(r.flags & RTR_E) || (viaArea !== undefined && (r.ia || r.area !== viaArea))) continue;
+      if (!best || r.cost < best.cost) best = { cost: r.cost, paths: r.paths };
+    }
+    return best;
+  };
+  const fwdRoute = (fwd: string): { cost: number; paths: OspfRoutePath[] } | undefined => {
+    if (d.rt.oifs.some((o) => o.ip === fwd)) return undefined; // our own address: ignore the LSA
+    let best: OspfRouteView | undefined;
+    for (const r of netRoutes) if (cidrContains(r.dest, r.prefix, fwd) && (!best || r.prefix > best.prefix)) best = r;
+    if (!best) return undefined;
+    return { cost: best.cost, paths: best.paths.map((p) => (p.nh === null ? { ...p, nh: fwd } : p)) };
+  };
+  const ext = new Map<string, OspfExtRoute>();
+  const sources: { h: LsaHeader; e: LsaEntry; area?: string }[] = [
+    ...lsasOf(d, AS_SCOPE, LSA_EXTERNAL),
+    ...areas.filter((a) => areaType(d.cfg, a) === "nssa").flatMap((a) => lsasOf(d, a, LSA_NSSA).map((x) => ({ ...x, area: a }))),
+  ];
+  for (const { h, e, area } of sources) {
+    const x = decodeExternalBody(e.lsa);
+    if (x.metric >= LS_INFINITY) continue;
+    const len = maskLen(x.mask);
+    const dest = networkAddress(h.id, len);
+    const k = routeKey(dest, len);
+    if (all.has(k)) continue; // intra/inter-area routes are preferred over externals
+    const asbr = asbrRoute(h.adv, area);
+    if (!asbr) continue;
+    const base = x.fwd !== ZERO ? fwdRoute(x.fwd) : asbr;
+    if (!base) continue;
+    const cand: OspfExtRoute = { dest, prefix: len, e2: x.e2, cost: x.e2 ? base.cost : base.cost + x.metric, type2: x.metric, tag: x.tag, paths: [...base.paths] };
+    const cur = ext.get(k);
+    const cmp = !cur
+      ? -1
+      : cand.e2 !== cur.e2
+        ? (cand.e2 ? 1 : -1)
+        : cand.e2 && cand.type2 !== cur.type2
+          ? cand.type2 - cur.type2
+          : cand.cost - cur.cost;
+    if (cmp < 0) ext.set(k, cand);
+    else if (cmp === 0) addPathsTo(cur!.paths, cand.paths);
+  }
+
+  // Discard entries for active advertised ranges (ospf_abr_manage_discard_routes).
+  for (const rg of ranges) {
+    const k = routeKey(rg.dest, rg.prefix);
+    if (rg.advertise && !all.has(k)) all.set(k, { dest: rg.dest, prefix: rg.prefix, cost: rg.cost, area: rg.area, paths: [], kind: "discard" });
+  }
+
+  for (const r of all.values()) sortPaths(r.paths);
+  for (const r of ext.values()) sortPaths(r.paths);
+  const bySortKey = (a: { dest: string; prefix: number }, b: { dest: string; prefix: number }) => ipNum(a.dest) - ipNum(b.dest) || a.prefix - b.prefix;
+  d.rt.routes = [...all.values()].sort(bySortKey);
+  d.rt.rtrs = rtrTable;
+  d.rt.ext = [...ext.values()].sort(bySortKey);
   d.rt.spf.runs++;
   d.rt.spf.lastMs = d.now;
   d.rt.spf.durUs = Math.max(1, Math.round(((typeof performance !== "undefined" ? performance.now() : 0) - t0) * 1000));
-  d.rt.routes = routes;
   d.rt.spfDirty = false;
-  installRoutes(d, routes);
+  installRoutes(d, d.rt.routes, d.rt.ext);
 }
 
-/** Replace this daemon's routes in the RIB (connected/static/BGP untouched). */
-function installRoutes(d: D, routes: OspfRouteView[]): void {
+/** Replace this instance's routes in the RIB (connected/static/BGP and other VRFs untouched). */
+function installRoutes(d: D, routes: OspfRouteView[], ext: OspfExtRoute[] = []): void {
   const table = d.device.routingTable;
-  const prev = table.filter((r) => r.type === "ospf");
-  const next: Route[] = routes.flatMap((r) =>
-    r.paths.map((p) => ({ destination: r.dest, prefix: r.prefix, nextHop: p.nh, interfaceId: p.ifId, type: "ospf" as const, metric: r.cost, distance: 110 })),
+  const mine = (r: Route) => r.type === "ospf" && (r.vrf ?? DEFAULT_VRF) === d.vrf;
+  const prev = table.filter(mine);
+  const vrf = d.vrf === DEFAULT_VRF ? {} : { vrf: d.vrf };
+  // zebra metric: path cost, or the type-2 metric for E2 (ospf_zebra.c ospf_zebra_add).
+  const entries = [
+    ...routes.filter((r) => r.kind !== "discard").map((r) => ({ dest: r.dest, prefix: r.prefix, metric: r.cost, paths: r.paths })),
+    ...ext.map((r) => ({ dest: r.dest, prefix: r.prefix, metric: r.e2 ? r.type2 : r.cost, paths: r.paths })),
+  ];
+  const next: Route[] = entries.flatMap((r) =>
+    r.paths.map((p) => ({ destination: r.dest, prefix: r.prefix, nextHop: p.nh, interfaceId: p.ifId, type: "ospf" as const, metric: r.metric, distance: 110, ...vrf })),
   );
   const strip = (l: Route[]) => JSON.stringify(l.map(({ installedAtMs: _t, ...rest }) => rest));
   if (strip(prev) === strip(next)) return;
   carryInstallTime(prev, next, d.now);
   const added = next.filter((r) => r.nextHop && !prev.some((p) => p.destination === r.destination && p.prefix === r.prefix && p.nextHop === r.nextHop));
   for (const r of added) emit(d, undefined, "OSPF_ROUTE", `OSPF route ${r.destination}/${r.prefix} via ${r.nextHop} (cost ${r.metric})`);
-  d.device.routingTable = [...table.filter((r) => r.type !== "ospf"), ...next];
+  d.device.routingTable = [...table.filter((r) => !mine(r)), ...next];
+}
+
+// ---------------------------------------------------------------------------
+// ABR / ASBR status and summary / external origination (ospf_abr.c ospf_abr_task, ospf_asbr.c).
+
+/** ospf_check_abr_status (abr-type cisco), ospf_abr_nssa_check_status, ospf_asbr_status_update. */
+function updateStatus(d: D): void {
+  const { rt, cfg } = d;
+  const configured = new Set(ospfInterfaces(d.device, cfg, d.vrf).map((s) => s.area));
+  rt.abr = configured.size > 1 && rt.oifs.some((o) => o.area === BACKBONE);
+  const xlt: Record<string, boolean> = {};
+  for (const area of activeAreas(d)) if (areaType(cfg, area) === "nssa") xlt[area] = !!rt.abr && nssaElected(d, area);
+  rt.xlt = xlt;
+  rt.asbr = !!(cfg.redistribute?.length || cfg.defaultInfo) || Object.values(xlt).some(Boolean);
+}
+
+/** ospf_abr_nssa_am_elected: highest router-id among the area's ABRs, unless one has the Nt bit. */
+function nssaElected(d: D, area: string): boolean {
+  let best: string | undefined;
+  for (const { h, e } of lsasOf(d, area, LSA_ROUTER)) {
+    const flags = decodeRouterBody(e.lsa).flags;
+    if (!(flags & RTR_B)) continue;
+    if (flags & RTR_NT) return false;
+    if (!best || ipNum(h.id) > ipNum(best)) best = h.id;
+  }
+  return !best || ipNum(best) < ipNum(d.rt.routerId);
+}
+
+/** Originate what we want in a scope for the given types and flush our stale ones. */
+function syncSelf(d: D, scope: string, types: number[], want: Map<string, { type: number; id: string; body: number[]; options?: number; xlt?: boolean }>): void {
+  for (const w of want.values()) originate(d, scope, w.type, w.id, w.body, undefined, false, { options: w.options, xlt: !!w.xlt });
+  for (const [key, e] of Object.entries(areaDb(d.rt, scope))) {
+    if (!e.self) continue;
+    const h = parseLsaHeader(e.lsa);
+    if (types.includes(h.type) && !want.has(`${h.type}/${h.id}`)) flushSelf(d, scope, key);
+  }
+}
+
+function abrTask(d: D): void {
+  const { rt, cfg } = d;
+  const areas = activeAreas(d);
+  const want = new Map<string, Map<string, { type: number; id: string; body: number[] }>>(areas.map((a) => [a, new Map()]));
+  const put = (area: string, type: number, dest: string, prefix: number, metric: number) =>
+    want.get(area)?.set(`${type}/${dest}`, { type, id: dest, body: encodeSummaryBody(type === LSA_SUMMARY ? prefixToMask(prefix) : ZERO, metric) });
+  if (rt.abr && rt.routes) {
+    const ifArea = (ifId: string) => rt.oifs.find((o) => o.ifId === ifId)?.area;
+    const nhIn = (paths: OspfRoutePath[], area: string) => paths.some((p) => ifArea(p.ifId) === area); // ospf_abr_nexthops_belong_to_area
+    const bb = bbConnected(d);
+    const intra = rt.routes.filter((r) => r.kind === "intra");
+    const ranges = activeRanges(d, intra);
+    // ospf_abr_process_network_rt / ospf_abr_announce_network.
+    for (const r of rt.routes) {
+      if (r.kind === "discard" || r.cost >= LS_INFINITY) continue;
+      if (r.kind === "inter" && (r.area !== BACKBONE || !bb)) continue;
+      for (const a of areas) {
+        if (a === r.area || nhIn(r.paths, a)) continue;
+        const ac = areaCfg(cfg, a);
+        if (ac?.type && ac.noSummary) continue;
+        if (r.kind === "inter") {
+          if (a !== BACKBONE) put(a, LSA_SUMMARY, r.dest, r.prefix, r.cost);
+        } else if (!ranges.some((rg) => rg.area === r.area && inRange(rg, r.dest, r.prefix))) put(a, LSA_SUMMARY, r.dest, r.prefix, r.cost);
+      }
+    }
+    // ospf_abr_announce_aggregates: an active range is announced into every other area.
+    for (const rg of ranges) if (rg.advertise) for (const a of areas) if (a !== rg.area) put(a, LSA_SUMMARY, rg.dest, rg.prefix, rg.cost);
+    // ospf_abr_process_router_rt / ospf_abr_announce_rtr: type-4 for the best route to each ASBR.
+    const best = new Map<string, OspfRtrRoute>();
+    for (const r of rt.rtrs ?? []) if (r.flags & RTR_E && (!best.has(r.rid) || r.cost < best.get(r.rid)!.cost)) best.set(r.rid, r);
+    for (const r of best.values()) {
+      if (r.ia && (r.area !== BACKBONE || !bb)) continue;
+      if (areaType(cfg, r.area) === "nssa") continue; // RFC 3101: no type-4 for an ASBR inside an NSSA
+      for (const a of areas) {
+        if (a === r.area || nhIn(r.paths, a) || !isRegular(cfg, a) || (r.ia && a === BACKBONE)) continue;
+        put(a, LSA_ASBR_SUMMARY, r.rid, 32, r.cost);
+      }
+    }
+    // ospf_abr_announce_stub_defaults.
+    for (const a of areas) if (a !== BACKBONE && !isRegular(cfg, a)) put(a, LSA_SUMMARY, ZERO, 0, areaCfg(cfg, a)?.defaultCost ?? 1);
+  }
+  for (const area of new Set([...areas, ...Object.keys(rt.lsdb).filter((a) => a !== AS_SCOPE)])) syncSelf(d, area, [LSA_SUMMARY, LSA_ASBR_SUMMARY], want.get(area) ?? new Map());
+}
+
+/** Self-originated externals: redistribution / default-information (type-5 + type-7 copies) and NSSA translation. */
+function externalTask(d: D): void {
+  const { rt, cfg, device } = d;
+  const areas = activeAreas(d);
+  const as = new Map<string, { type: number; id: string; body: number[]; xlt?: boolean }>();
+  // Translation: type-7 with the P-bit → type-5 (ospf_abr_process_nssa_translates).
+  for (const area of areas) {
+    if (!rt.xlt?.[area]) continue;
+    for (const { h, e } of lsasOf(d, area, LSA_NSSA)) {
+      const x = decodeExternalBody(e.lsa);
+      if (!(h.options & OPT_NP) || x.fwd === ZERO || x.metric >= LS_INFINITY) continue;
+      as.set(`${LSA_EXTERNAL}/${h.id}`, { type: LSA_EXTERNAL, id: h.id, body: encodeExternalBody(x), xlt: true });
+    }
+  }
+  // Redistribution (ospf_redistribute_check, ospf_external_lsa_body_set).
+  const onOspfNet = (ip: string) => rt.oifs.some((o) => cidrContains(networkAddress(o.ip, o.prefix), o.prefix, ip));
+  const own: { dest: string; prefix: number; body: number[] }[] = [];
+  const PROTO: Record<string, string> = { connected: "connected", static: "static", default: "static", bgp: "bgp" };
+  for (const red of cfg.redistribute ?? []) {
+    for (const r of device.routingTable) {
+      if (PROTO[r.type] !== red.protocol || (r.vrf ?? DEFAULT_VRF) !== d.vrf || r.prefix === 0) continue;
+      const dest = networkAddress(r.destination, r.prefix);
+      if (own.some((o) => o.dest === dest && o.prefix === r.prefix)) continue;
+      // Connected networks OSPF already runs on are not redistributed (ospf_distribute_check_connected).
+      if (r.type === "connected" && rt.oifs.some((o) => r.prefix >= o.prefix && cidrContains(networkAddress(o.ip, o.prefix), o.prefix, dest))) continue;
+      const fwd = r.nextHop && onOspfNet(r.nextHop) ? r.nextHop : ZERO; // ospf_external_lsa_nexthop_get
+      own.push({ dest, prefix: r.prefix, body: encodeExternalBody({ mask: prefixToMask(r.prefix), e2: red.metricType !== 1, metric: red.metric ?? 20, fwd, tag: 0 }) });
+    }
+  }
+  const di = cfg.defaultInfo;
+  if (di && (di.always || device.routingTable.some((r) => r.prefix === 0 && r.type !== "ospf" && (r.vrf ?? DEFAULT_VRF) === d.vrf))) {
+    own.push({ dest: ZERO, prefix: 0, body: encodeExternalBody({ mask: ZERO, e2: di.metricType !== 1, metric: di.metric ?? (di.always ? 1 : 10), fwd: ZERO, tag: 0 }) });
+  }
+  for (const o of own) as.set(`${LSA_EXTERNAL}/${o.dest}`, { type: LSA_EXTERNAL, id: o.dest, body: o.body });
+  syncSelf(d, AS_SCOPE, [LSA_EXTERNAL], as);
+  // Type-7 copies into each attached NSSA (ospf_install_flood_nssa): P-bit + NSSA forwarding address unless ABR.
+  for (const area of new Set([...areas, ...Object.keys(rt.lsdb).filter((a) => a !== AS_SCOPE)])) {
+    const want = new Map<string, { type: number; id: string; body: number[]; options: number }>();
+    if (areaType(cfg, area) === "nssa" && areas.includes(area)) {
+      const nssaIfs = rt.oifs.filter((o) => areaType(cfg, o.area) === "nssa");
+      const nssaIp = (nssaIfs.find((o) => o.area === area) ?? nssaIfs[0])?.ip ?? ZERO; // ospf_get_nssa_ip
+      for (const o of own) {
+        const x = decodeExternalBody([...Array(20).fill(0), ...o.body]);
+        if (!rt.abr && x.fwd === ZERO) x.fwd = nssaIp;
+        if (!rt.abr && x.fwd === ZERO) continue;
+        want.set(`${LSA_NSSA}/${o.dest}`, { type: LSA_NSSA, id: o.dest, body: encodeExternalBody(x), options: OPT_E | (rt.abr ? 0 : OPT_NP) });
+      }
+    }
+    syncSelf(d, area, [LSA_NSSA], want);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Driving: per-device processing with deferred ISM events + origination + SPF.
-function withDevice(ctx: SimContext, device: Device, now: number, fn: (d: D) => void): boolean {
-  const cfg = ospfConfig(device);
-  let rt = ospfRuntime(device);
+function withInstance(ctx: SimContext, device: Device, vrf: string, now: number, fn: (d: D) => void): boolean {
+  const cfg = liveOspfConfig(device, vrf);
+  let rt = ospfRuntime(device, vrf);
   if (!cfg && !rt) return false;
   const features = (device.config.features ??= {});
   if (!rt) {
     rt = newRt(ospfRouterId(device, cfg!), now);
-    features[RT_KEY] = rt;
+    features[rtKey(vrf)] = rt;
   }
-  const d: D = { ctx, device, cfg: cfg ?? { networks: [], areas: [] }, rt, now };
+  const d: D = { ctx, device, cfg: cfg ?? { networks: [], areas: [] }, rt, now, vrf };
   if (!cfg) {
     teardown(d);
-    delete features[RT_KEY];
+    delete features[rtKey(vrf)];
     flush();
     return true;
   }
-  if (rt.sig !== computeSig(device)) reconcile(d);
+  if (rt.sig !== computeSig(device, vrf)) reconcile(d);
   fn(d);
   postProcess(d);
   flush();
   return true;
+}
+
+/** Run `fn` on every OSPF instance of the device (one per VRF). */
+function withDevice(ctx: SimContext, device: Device, now: number, fn: (d: D) => void): void {
+  for (const vrf of instanceVrfs(device)) withInstance(ctx, device, vrf, now, fn);
 }
 
 /** Run deferred ISM events (OSPF_ISM_EVENT_SCHEDULE): BackupSeen / NeighborChange → election. */
@@ -1091,7 +1544,11 @@ function runIsmEvents(d: D): void {
 
 function postProcess(d: D): void {
   runIsmEvents(d);
+  updateStatus(d);
   originateAll(d);
+  if (d.rt.spfDirty) runSpf(d);
+  abrTask(d);
+  externalTask(d);
   if (d.rt.spfDirty) runSpf(d);
 }
 
@@ -1113,8 +1570,10 @@ function dueTimes(rt: OspfRt): number[] {
   return t;
 }
 
+const rtSnapshot = (device: Device) => JSON.stringify([instanceVrfs(device).map((v) => device.config.features?.[rtKey(v)] ?? null), device.routingTable]);
+
 function tick(ctx: SimContext, device: Device, now: number): boolean {
-  const before = JSON.stringify([device.config.features?.[RT_KEY] ?? null, device.routingTable]);
+  const before = rtSnapshot(device);
   withDevice(ctx, device, now, (d) => {
     for (const oif of [...d.rt.oifs]) {
       if (oif.waitDue !== undefined && oif.waitDue <= now && oif.state === "Waiting") election(d, oif); // WaitTimer
@@ -1139,10 +1598,9 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
         if (n.reqDue !== undefined && n.reqDue <= now && n.reqs.length && (n.state === "Exchange" || n.state === "Loading")) sendLsr(d, oif, n);
         const dueKeys = Object.entries(n.rxmt).filter(([, t]) => t <= now).map(([k]) => k);
         if (dueKeys.length) {
-          const db = areaDb(d.rt, oif.area);
-          const lsas = dueKeys.filter((k) => db[k]).map((k) => wire(db[k], now));
+          const lsas = dueKeys.filter((k) => entryFor(d, oif.area, k)).map((k) => wire(entryFor(d, oif.area, k)!, now));
           for (const k of dueKeys) {
-            if (db[k]) n.rxmt[k] = now + oif.rxmt * 1000;
+            if (entryFor(d, oif.area, k)) n.rxmt[k] = now + oif.rxmt * 1000;
             else delete n.rxmt[k];
           }
           if (lsas.length) {
@@ -1171,30 +1629,34 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
       }
     }
   });
-  return JSON.stringify([device.config.features?.[RT_KEY] ?? null, device.routingTable]) !== before;
+  return rtSnapshot(device) !== before;
 }
 
 function nextDue(device: Device, now: number): number | undefined {
   if (device.state === "down" || !ospfCapable(device)) return undefined;
-  const rt = ospfRuntime(device);
-  if (!rt && !ospfConfig(device)) return undefined;
-  if ((rt?.sig ?? "") !== computeSig(device)) return now;
-  if (!rt) return undefined;
-  for (const oif of rt.oifs) for (const n of oif.nbrs) if (n.bfdReg && bfd().state(device, n.ip) !== n.bfdLast) return now;
-  const t = dueTimes(rt);
-  return t.length ? Math.min(...t) : undefined;
+  let due: number | undefined;
+  for (const vrf of instanceVrfs(device)) {
+    const rt = ospfRuntime(device, vrf);
+    if ((rt?.sig ?? "") !== computeSig(device, vrf)) return now;
+    if (!rt) continue;
+    for (const oif of rt.oifs) for (const n of oif.nbrs) if (n.bfdReg && bfd().state(device, n.ip) !== n.bfdLast) return now;
+    const t = dueTimes(rt);
+    if (t.length) due = Math.min(due ?? Infinity, ...t);
+  }
+  return due;
 }
 
 function receiveL3(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): boolean {
   const ip = frame.ipv4;
   if (!ip || ip.protocol !== "OSPF" || !ospfCapable(device)) return false;
-  const rt = ospfRuntime(device);
-  if (!rt || !ospfConfig(device)) return false;
+  const vrf = vrfOf(device, ingress);
+  const rt = ospfRuntime(device, vrf);
+  if (!rt || !liveOspfConfig(device, vrf)) return false;
   const payload = ipPayload(frame);
   const pkt = payload && decodePacket(payload);
   if (!pkt) return true; // bad checksum/version: dropped by ospfd
   const now = ctx.wallNow();
-  withDevice(ctx, device, now, (d) => {
+  withInstance(ctx, device, vrf, now, (d) => {
     const oif = d.rt.oifs.find((o) => o.ifId === ingress.id);
     if (!oif || oif.passive || oif.state === "Down" || oif.state === "Loopback") return;
     if (ip.dstIp === OSPF_ALL_DR ? oif.state !== "DR" && oif.state !== "Backup" : ip.dstIp !== OSPF_ALL_SPF && ip.dstIp !== oif.ip) return;
@@ -1235,7 +1697,7 @@ export interface OspfConvergeSummary {
  */
 export function convergeOspf(ctx: SimContext): OspfConvergeSummary {
   const now = ctx.wallNow();
-  const devs = Object.values(ctx.state.devices).filter((dv) => dv.state !== "down" && ospfCapable(dv) && (ospfConfig(dv) || ospfRuntime(dv)));
+  const devs = Object.values(ctx.state.devices).filter((dv) => dv.state !== "down" && ospfCapable(dv) && instanceVrfs(dv).length > 0);
   for (const dv of devs) withDevice(ctx, dv, now, () => {});
   for (let round = 0; round < 6; round++) {
     for (const dv of devs) {
@@ -1251,9 +1713,9 @@ export function convergeOspf(ctx: SimContext): OspfConvergeSummary {
   }
   let adjacencies = 0;
   let routesInstalled = 0;
-  const live = devs.filter((dv) => ospfRuntime(dv));
+  const live = devs.filter((dv) => instanceVrfs(dv).some((v) => ospfRuntime(dv, v)));
   for (const dv of live) {
-    for (const oif of ospfRuntime(dv)!.oifs) adjacencies += oif.nbrs.filter((n) => n.state === "Full").length;
+    for (const v of instanceVrfs(dv)) for (const oif of ospfRuntime(dv, v)?.oifs ?? []) adjacencies += oif.nbrs.filter((n) => n.state === "Full").length;
     routesInstalled += dv.routingTable.filter((r) => r.type === "ospf" && r.nextHop).length;
   }
   return { routers: live.length, adjacencies, routesInstalled };

@@ -20,6 +20,12 @@
  * always ACTIVE (teammgr.cpp:609); an empty summary prints "No PortChannels configured".
  * `--fallback enable|disable` is accepted besides true/false (the simulator's earlier
  * syntax, kept so existing labs/tests work).
+ *
+ * Static LAG: `config portchannel add <name> --static true` (newer sonic-utilities;
+ * not in this tree's config/main.py:2766-2826) stores PORTCHANNEL static "true"; the
+ * teamd model then runs the loadbalance runner (lib/protocols/lacp-daemon.ts).
+ * teamshow has no LACP runner state for such a team, so its Protocol column reads
+ * NONE (simulator choice; this tree's portchannel.py:110-111 assumes runner.active).
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
@@ -35,6 +41,7 @@ export interface PortChannel {
   fallback?: boolean;
   fastRate?: boolean;
   mode?: string;
+  static?: boolean;
 }
 
 export interface LacpState {
@@ -93,7 +100,7 @@ function flagValue(args: string[], flag: string): string | undefined {
 const config: SonicCmd[] = [
   {
     path: ["portchannel", "add"],
-    summary: "Create a PortChannel (LAG) [--min-links n] [--fallback true|false] [--fast-rate true|false]",
+    summary: "Create a PortChannel (LAG) [--min-links n] [--fallback true|false] [--fast-rate true|false] [--static true|false]",
     run(args, ctx): CommandResult {
       const name = positional(args)[0];
       if (!name) {
@@ -137,14 +144,22 @@ const config: SonicCmd[] = [
         fastRate = v === "true";
       }
 
-      st.portchannels.push({ name, members: [], minLinks, fallback, fastRate, mode: "LACP" });
+      let isStatic = false;
+      const stc = flagValue(args, "--static");
+      if (stc !== undefined) {
+        const v = stc.toLowerCase();
+        if (v !== "true" && v !== "false") return { output: [err(`config portchannel add: --static must be true or false (got '${stc}')`)] };
+        isStatic = v === "true";
+      }
+
+      st.portchannels.push({ name, members: [], minLinks, fallback, fastRate, mode: isStatic ? "STATIC" : "LACP", ...(isStatic ? { static: true } : {}) });
       ensureLagInterface(ctx.device, name);
       const extras = [
         minLinks !== undefined ? `min-links ${minLinks}` : null,
         fallback !== undefined ? `fallback ${fallback ? "enabled" : "disabled"}` : null,
         fastRate ? "fast-rate" : null,
       ].filter(Boolean);
-      return { output: [muted(`PortChannel ${name} created (mode LACP${extras.length ? ", " + extras.join(", ") : ""})`)] };
+      return { output: [muted(`PortChannel ${name} created (mode ${isStatic ? "static" : "LACP"}${extras.length ? ", " + extras.join(", ") : ""})`)] };
     },
   },
   {
@@ -260,7 +275,7 @@ function renderTeamshow(ctx: CommandContext): OutputLine[] {
       continue;
     }
     const oper = interfaceByName(d, pc.name)?.operState;
-    const protocol = `LACP(A)${oper === "up" ? "(Up)" : oper === "down" ? "(Dw)" : "(N/A)"}`;
+    const protocol = `${pc.static ? "NONE" : "LACP(A)"}${oper === "up" ? "(Up)" : oper === "down" ? "(Dw)" : "(N/A)"}`;
     const members = Object.keys(lr.ports);
     const ports = members.length ? members.map((m) => `${m}(${memberFlag(d, pc.name, m)})`).join(" ") : "N/A";
     rows.push([id, pc.name, protocol, ports]);

@@ -130,3 +130,28 @@ export function tcpdumpBfd(p: BfdPacket, dport: number, udpLen: number, verbose:
     `\t  Required min Echo Interval: ${ms(p.requiredMinEchoRx)} ms`,
   ].join("\n");
 }
+
+// --- echo packets (FRR bfdd struct bfd_echo_pkt, bfd.h:141-153) -------------
+
+/** RFC 5881 §4 echo destination port (BFD_DEF_ECHO_PORT, bfd.h:454). */
+export const BFD_PORT_ECHO = 3785;
+export const BFD_ECHO_VERSION = 1; // bfd.h:198
+export const BFD_ECHO_PKT_LEN = 24; // sizeof(struct bfd_echo_pkt)
+
+/**
+ * ver(1) len(1) reserved(2) my_discr(4) time_sent_sec(8) time_sent_usec(8), as
+ * ptm_bfd_echo_fp_snd builds it (bfd_packet.c:260-270): the send time lets the
+ * sender compute the round-trip time when the peer's forwarding plane loops it back.
+ */
+export function encodeBfdEcho(myDisc: number, sentMs: number): number[] {
+  const sec = Math.floor(sentMs / 1000);
+  const usec = Math.round((sentMs - sec * 1000) * 1000);
+  const u64 = (n: number) => [0, 0, 0, 0, (n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
+  return [BFD_ECHO_VERSION, BFD_ECHO_PKT_LEN, 0, 0, (myDisc >>> 24) & 0xff, (myDisc >>> 16) & 0xff, (myDisc >>> 8) & 0xff, myDisc & 0xff, ...u64(sec), ...u64(usec)];
+}
+
+export function decodeBfdEcho(b: Uint8Array): { myDisc: number; sentMs: number } | undefined {
+  if (b.length < BFD_ECHO_PKT_LEN) return undefined; // "small echo packet" (bfd_packet.c:1150)
+  const u32 = (o: number) => ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0;
+  return { myDisc: u32(4), sentMs: u32(12) * 1000 + u32(20) / 1000 };
+}

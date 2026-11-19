@@ -1,5 +1,18 @@
 /**
- * EVPN ESI-multihoming — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * EVPN ESI-multihoming — global timers (config-plane) + per-PortChannel Ethernet
+ * segments, which drive lib/protocols/evpn-mh.ts (DF election, split horizon,
+ * aliasing) and the type-1/type-4 routes of lib/protocols/vxlan-daemon.ts:
+ *
+ *   sonic(config)# interface PortChannel 1
+ *   sonic(conf-if-po1)# evpn ethernet-segment 00:11:22:33:44:55:66:77:88:99   (type-0)
+ *   sonic(conf-if-po1)# evpn ethernet-segment auto-system-mac                (type-3)
+ *   sonic(config-es-…)# df-preference 50000          (interface.xml:1480-1530)
+ *   sonic(conf-if-po1)# no evpn ethernet-segment
+ *   sonic# show evpn es                               (Click/FRR zebra format)
+ *
+ * `auto-lacp` (type-1, from the LACP partner) is not modelled.
+ *
+ * The global ESI-MH timers below are stored only:
  *
  *   sonic(config)# evpn esi-multihoming            -> enter the ESI-MH sub-view
  *   sonic(config-evpn-esi-mh)# startup-delay 100
@@ -15,14 +28,11 @@
  * `enter: subViewFrame(...)`, and a sub-view handler stores the scalar timers
  * (EVPN_MH_GLOBAL in CONFIG_DB). Nothing is fabricated — only configured values.
  *
- * ESI-multihoming is a DATA-PLANE feature (DF election, split-horizon, ES/ES-EVI
- * forwarding done by BGP-EVPN + the ASIC). The sim cannot forward EVPN traffic,
- * so we store + show the config honestly and mark dataPlaneNotSimulated. Runtime
- * state (Ethernet Segments, neighbors, DF results) is never fabricated.
+ * (df-election-time / startup-delay hold-downs are not modelled).
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
-import { cpSet, cpUnset, cpGet } from "../config-plane";
+import { cpSet, cpUnset, cpGet, cpUpsert, cpRemove, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
 
 // Scalar timers, in render order. Each maps to a klish command with an integer
@@ -93,5 +103,45 @@ registerModal({
       if (v !== undefined) out.push(line(` ${f.key} ${v}`));
     }
     return { output: out };
+  },
+});
+
+// configure-lag-view: `[no] evpn ethernet-segment <ESI>|auto-system-mac` → ES sub-view.
+const ESI_RE = /^([0-9a-fA-F]{2}:){9}[0-9a-fA-F]{2}$/;
+registerModal({
+  id: "evpn-mh-es",
+  views: ["configure-lag-view"],
+  keywords: ["evpn"],
+  run({ isNo, args, ifname, ctx }) {
+    if ((args[0] ?? "").toLowerCase() !== "ethernet-segment" || !ifname) return null;
+    if (isNo) {
+      cpRemove(ctx.device, "evpn_mh", "es", "ifname", ifname);
+      return { output: [] };
+    }
+    const id = (args[1] ?? "").toLowerCase();
+    if (id === "auto-lacp") return { output: [muted("% evpn ethernet-segment auto-lacp (type-1 ESI from LACP) is not modelled; use a type-0 ESI or auto-system-mac")] };
+    if (id !== "auto-system-mac" && !ESI_RE.test(id)) return { output: [err("% Ethernet Segment Id must be 10 hex bytes (00:11:22:33:44:55:66:77:88:99) or auto-system-mac")] };
+    const other = (cpList(ctx.device, "evpn_mh", "es") as Record<string, string>[]).find((e) => e.esi === id && e.ifname !== ifname && id !== "auto-system-mac");
+    if (other) return { output: [err(`% ESI ${id} is already configured on ${other.ifname}`)] };
+    cpUpsert(ctx.device, "evpn_mh", "es", { ifname, esi: id }, "ifname");
+    return { output: [], enter: subViewFrame("configure-evpn-eth-seg", ifname) };
+  },
+});
+
+// configure-evpn-eth-seg: `[no] df-preference <1-65535>`.
+registerModal({
+  id: "evpn-mh-es-df",
+  views: ["configure-evpn-eth-seg"],
+  keywords: ["df-preference"],
+  run({ isNo, args, viewctx, ctx }) {
+    if (!viewctx) return null;
+    if (isNo) {
+      cpUpsert(ctx.device, "evpn_mh", "es", { ifname: viewctx, df_pref: "" }, "ifname");
+      return { output: [] };
+    }
+    const n = Number(args[0]);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) return { output: [err("% df-preference must be an integer in the range 1..65535.")] };
+    cpUpsert(ctx.device, "evpn_mh", "es", { ifname: viewctx, df_pref: String(n) }, "ifname");
+    return { output: [] };
   },
 });

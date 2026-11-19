@@ -23,6 +23,7 @@ import { CommandContext, OutputLine, muted, err } from "./types";
 import { execute } from "./index";
 import { runModalHandlers } from "./sonic-cli/registry";
 import { cpStoreLine } from "./sonic-cli/config-plane";
+import { lagEntry } from "./sonic/lacp";
 import { viewForStackTop, isKnownCommand, resolveModeEntry, subViewFrame } from "../sonic/grammar";
 import "./sonic-cli/features"; // side-effect: registers all feature handlers
 
@@ -170,7 +171,7 @@ function dispatch(raw: string, stack: CliStack, ctx: CommandContext, delegate: D
     }
     return stay(out);
   }
-  if (["ping", "ping6", "traceroute", "tracepath", "tcpdump", "curl", "ss", "netstat"].includes(cmd)) {
+  if (["ping", "ping6", "traceroute", "traceroute6", "tracepath", "tcpdump", "curl", "ss", "netstat"].includes(cmd)) {
     return stay(delegate(raw));
   }
   if (cmd === "write" || cmd === "copy" || cmd === "commit") {
@@ -224,8 +225,11 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
     if (args[0]?.toLowerCase() === "vxlan" && args[1] && !isNo) {
       return { output: [], stack: [...stack, subViewFrame("configure-vxlan-view", args[1])] };
     }
-    const name = ifName(args);
-    if (!name) return stay([err(`% Invalid interface "${args.join(" ")}".`)]);
+    // `interface PortChannel N [mode active|on] [min-links N] [fallback] [fast_rate]` (interface.xml po-if-name).
+    const optAt = args.findIndex((t) => ["mode", "min-links", "fallback", "fast_rate"].includes(t.toLowerCase()));
+    const poOpts = optAt > 0 ? args.slice(optAt).map((t) => t.toLowerCase()) : [];
+    const name = ifName(optAt > 0 ? args.slice(0, optAt) : args);
+    if (!name || (poOpts.length && !name.startsWith("PortChannel"))) return stay([err(`% Invalid interface "${args.join(" ")}".`)]);
     if (isNo) {
       // `no interface Vlan/Loopback/PortChannel <n>` deletes the logical interface.
       const iface = ctx.device.interfaces.find((i) => i.name === name);
@@ -243,6 +247,22 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
     }
     if (!ensureInterface(ctx.device, name)) {
       return stay([err(`% Interface ${name} does not exist on this device.`)]);
+    }
+    if (poOpts.length) {
+      const pc = lagEntry(ctx.device, name);
+      const val = (k: string) => (poOpts.includes(k) ? poOpts[poOpts.indexOf(k) + 1] : undefined);
+      const mode = val("mode");
+      if (mode !== undefined && mode !== "on" && mode !== "active") return stay([err(`% Invalid PortChannel mode "${mode}" (active|on).`)]);
+      if (pc) {
+        // static (mode on) = teamd loadbalance runner, no LACP; picked when teamd creates the LAG.
+        if (mode) {
+          pc.static = mode === "on" || undefined;
+          pc.mode = mode === "on" ? "STATIC" : "LACP";
+        }
+        if (val("min-links") !== undefined) pc.minLinks = Number(val("min-links"));
+        if (poOpts.includes("fallback")) pc.fallback = true;
+        if (poOpts.includes("fast_rate")) pc.fastRate = true;
+      }
     }
     if (name.includes(".")) {
       const parentName = name.split(".")[0];

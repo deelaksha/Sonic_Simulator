@@ -5,7 +5,8 @@
  */
 import { Device, findInterface } from "../models/device";
 import { IcmpPayload, IpProtocol, Ipv4Header, UdpHeader, NtpPayload, DhcpPayload, DnsPayload, TcpHeader, BgpPayload } from "../models/packet";
-import { longestPrefixMatch, flowHash5, Route } from "../models/route";
+import { longestPrefixMatch, Route } from "../models/route";
+import { ecmpFlowHash } from "./loadshare-hash";
 import { cidrContains } from "../models/ip";
 import { SimContext } from "../engine/context";
 import { RouteTableRow } from "../engine/events";
@@ -65,7 +66,7 @@ export interface IpOutputResult {
 
 export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): IpOutputResult {
   const l4 = opts.udp ? [opts.udp.srcPort, opts.udp.dstPort] : opts.tcp ? [opts.tcp.srcPort, opts.tcp.dstPort] : [0, 0];
-  const flow = flowHash5(opts.srcIp, opts.dstIp, opts.protocolNumber ?? opts.protocol, l4[0], l4[1]);
+  const flow = ecmpFlowHash(device, opts.srcIp, opts.dstIp, opts.protocolNumber ?? opts.protocol, l4[0], l4[1]);
   const match = longestPrefixMatch(device.routingTable, opts.dstIp, opts.vrf, flow);
   const egress = match ? findInterface(device, match.route.interfaceId) : undefined;
 

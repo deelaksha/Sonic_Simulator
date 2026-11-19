@@ -36,6 +36,9 @@ registerLab("snmp", (api) => {
     "5. snmpset -v2c -c private 192.168.100.1 sysName.0 s core-1   (sysLocation: notWritable — set in snmpd.conf)",
     "6. On S1: configure terminal / interface Ethernet 0 / shutdown — then here: snmptrapd -l (linkDown trap)",
     "7. sudo tcpdump -i eth0 -nn port 161 or port 162       — GetRequest / GetResponse / V2Trap on the wire",
+    "8. SNMPv3: on S1 `sudo config snmp user add u1 Priv RO SHA authpass1 AES privpass1`, then here:",
+    "   snmpget -v3 -u u1 -l authPriv -a SHA -A authpass1 -x AES -X privpass1 192.168.100.1 sysName.0",
+    "9. SNMPv1 traps: on S1 `sudo config snmptrap modify 1 192.168.100.250` → snmptrapd -l shows 'TRAP, SNMP v1'",
   ]);
   api.finish("SNMP Lab — NMS polling S1/S2/S3 + traps", t.nms);
 });

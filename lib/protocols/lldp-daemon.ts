@@ -34,7 +34,27 @@
  *     (lldpmgrd:671-680): the first PDUs leave BOOT_DELAY_MS (5 s) after the
  *     daemon first sees the device; a port that comes up later sends at once.
  *   - Management-address ifIndex: eth0 = 2 (lo = 1), other ports 3 + position.
- *   - Optional 802.1/802.3 organisational TLVs are not sent.
+ *
+ * Organisational TLVs (lldp.c:208-388, sent after Port Description in this order):
+ *   802.1 Port VLAN ID (subtype 1) + VLAN Name (subtype 3) per bridge VLAN of the
+ *     port; lldpd names them "vlan<N>" (interfaces.c:221-238).
+ *   802.3 Link Aggregation (subtype 3, always: status 3 + PortChannel ifindex when
+ *     the port is a team member, else capability only, lldp.c:251-257,
+ *     interfaces-linux.c:850) and MAC/PHY (subtype 1, always, lldp.c:260-267):
+ *     autoneg not supported, MAU type from the ethtool speed with an unknown
+ *     connector (interfaces-linux.c:587-675: 1G → 1000BaseTFD, 40G → 40GBaseCR4,
+ *     100G → 100GBaseCR4, 10G/25G → 0).
+ *   802.3 Max Frame Size is never sent: lldpd 1.0.16 only fills p_mfs from a
+ *     received TLV (lldp.c:981), so it is decoded/displayed but not advertised.
+ *   LLDP-MED Network Policy (lldp.c:356-382) for ports bound to a KLISH
+ *     network-policy profile (`network-policy <n>` on the interface). SONiC starts
+ *     lldpd without -M, so the simulator advertises as `lldpd -M 4` would
+ *     (lldpd.c:1952-1958: MED Capabilities TLV, class Network Connectivity) —
+ *     without it a receiving lldpctl hides the policy (display.c:70).
+ *
+ * Feature: `config feature state lldp disabled` stops docker-lldp; lldpd exits
+ * sending a shutdown LLDPDU (TTL 0) on every port (lldpd.c:1316-1317) and all
+ * runtime is gone; re-enabling starts a fresh (paused) lldpd.
  */
 import { registerDaemon } from "../control/daemon";
 import { transmitL2 } from "../control/packet";
@@ -42,6 +62,8 @@ import { Device, isRouter, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame } from "../models/packet";
 import { featureState, peekFeatureState } from "../models/feature-state";
+import { featureEnabled } from "./cpu-features";
+import { cpList } from "../commands/sonic-cli/config-plane";
 
 export const LLDP_MULTICAST = "01:80:C2:00:00:0E";
 export const ETH_P_LLDP = 0x88cc;
@@ -73,9 +95,30 @@ export interface LldpNeighbor {
   capEnabled: number;
   mgmtIp?: string;
   mgmtIfIndex?: number;
+  /** 802.1 Port VLAN ID / VLAN names. */
+  pvid?: number;
+  vlans?: { vid: number; name: string }[];
+  /** 802.3 link aggregation (status bits, aggregated port id), MAC/PHY, max frame size. */
+  aggStatus?: number;
+  aggId?: number;
+  macphy?: { autonegSupport: boolean; autonegEnabled: boolean; advertised: number; mau: number };
+  mfs?: number;
+  /** LLDP-MED device type + capabilities, network policies. */
+  medType?: number;
+  medCap?: number;
+  medPolicies?: MedPolicy[];
   rid: number;
   lastChange: number;
   lastUpdate: number;
+}
+
+export interface MedPolicy {
+  type: number;
+  unknown: boolean;
+  tagged: boolean;
+  vid: number;
+  priority: number;
+  dscp: number;
 }
 
 export interface LldpStats { tx: number; rx: number; discarded: number; unrecognized: number; ageout: number }
@@ -100,7 +143,7 @@ interface LldpCfg {
   multiplier?: number;
   systemName?: string;
   systemDescription?: string;
-  interfaces?: Record<string, { enabled?: boolean; transmit?: boolean; receive?: boolean }>;
+  interfaces?: Record<string, { enabled?: boolean; transmit?: boolean; receive?: boolean; networkPolicy?: number }>;
 }
 
 const cfgOf = (d: Device) => peekFeatureState<LldpCfg>(d, "lldp");
@@ -179,6 +222,78 @@ const u16 = (n: number) => [(n >> 8) & 0xff, n & 0xff];
 const u32 = (n: number) => [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff];
 const tlv = (type: number, value: number[]) => [...u16((type << 9) | (value.length & 0x1ff)), ...value];
 
+const OUI_DOT1 = [0x00, 0x80, 0xc2];
+const OUI_DOT3 = [0x00, 0x12, 0x0f];
+const OUI_MED = [0x00, 0x12, 0xbb];
+const org = (oui: number[], subtype: number, value: number[]) => tlv(TLV.ORG, [...oui, subtype, ...value]);
+
+/** MAU type lldpd derives from the ethtool speed, connector unknown (interfaces-linux.c:587-675). */
+export function mauType(speedMbps: number): number {
+  if (speedMbps === 10) return 11; // 10BaseTFD
+  if (speedMbps === 100) return 16; // 100BaseTXFD
+  if (speedMbps === 1000) return 30; // 1000BaseTFD
+  if (speedMbps === 40000) return 71; // 40GBaseCR4
+  if (speedMbps === 50000) return 117; // 50GBaseCR (lldp-const.h:168)
+  if (speedMbps === 100000) return 98; // 100GBaseCR4
+  return 0;
+}
+
+/** Bridge VLANs of a switch port as lldpd reads them from the kernel bridge (pvid + members). */
+export function portVlans(d: Device, port: NetInterface): { pvid: number; vids: number[] } {
+  if (!isSwitch(d.type) || port.management || port.logical || port.ipv4.length) return { pvid: 0, vids: [] };
+  const known = new Set((d.config.vlans ?? []).map((v) => v.id));
+  if (port.vlan.mode === "access") return known.has(port.vlan.accessVlan) ? { pvid: port.vlan.accessVlan, vids: [port.vlan.accessVlan] } : { pvid: 0, vids: [] };
+  const vids = [...new Set(port.vlan.allowedVlans)].filter((v) => known.has(v)).sort((a, b) => a - b);
+  return { pvid: known.has(port.vlan.nativeVlan) ? port.vlan.nativeVlan : 0, vids };
+}
+
+/** Kernel ifindex of the PortChannel a port is a team member of (0 = not aggregated). */
+function aggregId(d: Device, port: NetInterface): number {
+  const lags = peekFeatureState<{ portchannels: { name: string; members: string[] }[] }>(d, "lacp")?.portchannels ?? [];
+  const lag = lags.find((l) => l.members.includes(port.name));
+  const pc = lag && d.interfaces.find((i) => i.logical && i.name === lag.name);
+  return pc ? ifIndex(d, pc) : 0;
+}
+
+/** LLDP-MED network policies of the KLISH network-policy profile bound to the port. */
+function medPolicies(d: Device, port: NetInterface): MedPolicy[] {
+  const n = cfgOf(d)?.interfaces?.[port.name]?.networkPolicy;
+  if (n === undefined) return [];
+  const prof = cpList(d, "network-policy", "profiles").find((p) => String(p.number) === String(n)) as
+    | { apps?: { type: string; vlan: string; untagged?: boolean; cos?: string; dscp?: string }[] }
+    | undefined;
+  const out: MedPolicy[] = [];
+  for (const a of prof?.apps ?? []) {
+    const type = a.type === "voice" ? 1 : a.type === "voice-signaling" ? 2 : 0;
+    if (!type) continue;
+    const dot1p = a.vlan === "dot1p";
+    out.push({ type, unknown: false, tagged: !a.untagged, vid: dot1p || a.untagged ? 0 : Number(a.vlan), priority: Number(a.cos ?? 0), dscp: Number(a.dscp ?? 0) });
+  }
+  return out.sort((x, y) => x.type - y.type);
+}
+
+function orgTlvs(d: Device, port: NetInterface): number[] {
+  const out: number[] = [];
+  const { pvid, vids } = portVlans(d, port);
+  if (pvid) out.push(...org(OUI_DOT1, 1, u16(pvid)));
+  for (const vid of vids) {
+    const name = ascii(`vlan${vid}`);
+    out.push(...org(OUI_DOT1, 3, [...u16(vid), name.length, ...name]));
+  }
+  const agg = aggregId(d, port);
+  out.push(...org(OUI_DOT3, 3, [agg ? 3 : 1, ...u32(agg)]));
+  out.push(...org(OUI_DOT3, 1, [0, ...u16(0), ...u16(mauType(port.speed))]));
+  const pols = medPolicies(d, port);
+  if (pols.length) {
+    out.push(...org(OUI_MED, 1, [...u16(0x01 | 0x02), 4])); // capabilities: Capabilities|Policy, class Network Connectivity
+    for (const p of pols) {
+      const v = ((p.type & 0xff) << 24) | ((p.unknown ? 1 : 0) << 23) | ((p.tagged ? 1 : 0) << 22) | ((p.vid & 0xfff) << 9) | ((p.priority & 7) << 6) | (p.dscp & 0x3f);
+      out.push(...org(OUI_MED, 2, u32(v >>> 0)));
+    }
+  }
+  return out;
+}
+
 /** The LLDPDU (bytes after the EtherType) this device sends out of `port`. */
 export function buildLldpdu(d: Device, port: NetInterface, shutdown = false): number[] {
   const { ttl } = lldpTimers(d);
@@ -193,6 +308,7 @@ export function buildLldpdu(d: Device, port: NetInterface, shutdown = false): nu
     const m = mgmtAddress(d);
     if (m) out.push(...tlv(TLV.MGMT, [5, 1, ...m.ip.split(".").map(Number), 2, ...u32(m.ifIndex), 0]));
     out.push(...tlv(TLV.PORT_DESCR, ascii(port.name)));
+    out.push(...orgTlvs(d, port));
   }
   out.push(...tlv(TLV.END, []));
   return out;
@@ -268,6 +384,9 @@ export function parseLldpdu(bytes: ArrayLike<number>): ParsedLldpdu | null {
         }
         break;
       }
+      case TLV.ORG:
+        if (!parseOrg(nb, v)) unrecognized++;
+        break;
       default:
         unrecognized++;
     }
@@ -277,6 +396,40 @@ export function parseLldpdu(bytes: ArrayLike<number>): ParsedLldpdu | null {
   return { nb: nb as ParsedLldpdu["nb"], unrecognized };
 }
 
+const sameOui = (v: number[], oui: number[]) => v[0] === oui[0] && v[1] === oui[1] && v[2] === oui[2];
+
+/** 802.1 / 802.3 / LLDP-MED TLVs lldpd decodes (lldp.c:880-1270); false = unrecognized. */
+function parseOrg(nb: Partial<ParsedLldpdu["nb"]>, v: number[]): boolean {
+  if (v.length < 4) return false;
+  const st = v[3];
+  const b = v.slice(4);
+  if (sameOui(v, OUI_DOT1)) {
+    if (st === 1 && b.length >= 2) nb.pvid = (b[0] << 8) | b[1];
+    else if (st === 3 && b.length >= 3) (nb.vlans ??= []).push({ vid: (b[0] << 8) | b[1], name: text(b.slice(3, 3 + b[2])) });
+    else return false;
+    return true;
+  }
+  if (sameOui(v, OUI_DOT3)) {
+    if (st === 1 && b.length >= 5) nb.macphy = { autonegSupport: !!(b[0] & 1), autonegEnabled: !!(b[0] & 2), advertised: (b[1] << 8) | b[2], mau: (b[3] << 8) | b[4] };
+    else if (st === 3 && b.length >= 5) {
+      nb.aggStatus = b[0];
+      nb.aggId = ((b[1] << 24) | (b[2] << 16) | (b[3] << 8) | b[4]) >>> 0;
+    } else if (st === 4 && b.length >= 2) nb.mfs = (b[0] << 8) | b[1];
+    else return false;
+    return true;
+  }
+  if (sameOui(v, OUI_MED)) {
+    if (st === 1 && b.length >= 3) {
+      nb.medCap = (b[0] << 8) | b[1];
+      nb.medType = b[2];
+    } else if (st === 2 && b.length >= 4) {
+      const x = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+      (nb.medPolicies ??= []).push({ type: x >>> 24, unknown: !!((x >> 23) & 1), tagged: !!((x >> 22) & 1), vid: (x >> 9) & 0xfff, priority: (x >> 6) & 7, dscp: x & 0x3f });
+    } else return false;
+    return true;
+  }
+  return false;
+}
 
 // ---------- tcpdump -v (print-lldp.c) ----------
 
@@ -291,6 +444,27 @@ const TD_CAP: [number, string][] = [
   [CAP.ROUTER, "Router"], [CAP.TELEPHONE, "Telephone"], [CAP.DOCSIS, "Docsis"], [CAP.STATION, "Station Only"],
 ];
 const capList = (v: number) => `[${TD_CAP.filter(([b]) => v & b).map(([, n]) => n).join(", ")}] (0x${v.toString(16).padStart(4, "0")})`;
+
+const TD_OUI: Record<string, [string, Record<number, string>]> = {
+  "0080c2": ["Ethernet bridged", { 1: "Port VLAN Id", 3: "VLAN name" }],
+  "00120f": ["IEEE 802.3 Private", { 1: "MAC/PHY configuration/status", 3: "Link aggregation", 4: "Maximum frame size" }],
+  "0012bb": ["TIA", { 1: "LLDP-MED Capabilities", 2: "Network policy" }],
+};
+
+/** print-lldp.c LLDP_PRIVATE_TLV: OUI, subtype, the main value. */
+function tcpdumpOrg(head: string, v: number[]): string[] {
+  const oui = v.slice(0, 3).map((x) => x.toString(16).padStart(2, "0")).join("");
+  const [name, subs] = TD_OUI[oui] ?? ["Unknown", {}];
+  const st = v[3];
+  const b = v.slice(4);
+  const out = [`${head}: OUI ${name} (0x${oui})`, `	  ${subs[st] ?? "unknown"} Subtype (${st})`];
+  if (oui === "0080c2" && st === 1) out.push(`	    port vlan id (PVID): ${(b[0] << 8) | b[1]}`);
+  if (oui === "0080c2" && st === 3) out.push(`	    vlan id (VID): ${(b[0] << 8) | b[1]}`, `	    vlan name: ${text(b.slice(3, 3 + b[2]))}`);
+  if (oui === "00120f" && st === 1) out.push(`	    autonegotiation [${b[0] & 1 ? "supported" : "none"}] (0x${b[0].toString(16).padStart(2, "0")})`, `	    MAU type ${(b[3] << 8) | b[4]}`);
+  if (oui === "00120f" && st === 3) out.push(`	    aggregation status [${b[0] & 2 ? "enabled" : "supported"}], aggregation port ID ${((b[1] << 24) | (b[2] << 16) | (b[3] << 8) | b[4]) >>> 0}`);
+  if (oui === "00120f" && st === 4) out.push(`	    MTU size (MFS): ${(b[0] << 8) | b[1]}`);
+  return out;
+}
 
 function tcpdumpTlvLines(raw: number[]): string[] {
   const out: string[] = [];
@@ -331,6 +505,9 @@ function tcpdumpTlvLines(raw: number[]): string[] {
         out.push(`\t  Interface ${ifSub === 2 ? "Index" : "Unknown"} Interface Numbering (${ifSub}): ${ifNum}`);
         break;
       }
+      case TLV.ORG:
+        out.push(...tcpdumpOrg(head, v));
+        break;
       default:
         out.push(head);
     }
@@ -386,6 +563,7 @@ registerDaemon({
   nextDue(d, now) {
     if (!runsLldp(d) || d.state === "down") return undefined;
     const rt = lldpRuntime(d);
+    if (!featureEnabled(d, "lldp")) return rt ? now : undefined; // container stopping
     if (!rt) return now;
     if (now < rt.boot) return rt.boot;
     let due = nextExpiry(rt);
@@ -408,6 +586,17 @@ registerDaemon({
 
   tick(ctx, d, now) {
     const rt = lldpRuntime(d);
+    if (!featureEnabled(d, "lldp")) {
+      if (!rt) return false;
+      // lldpd_exit (lldpd.c:1316-1317): a shutdown LLDPDU on every port it was sending on.
+      for (const p of lldpPorts(d)) {
+        if (!rt.ports[p.name]?.sig || !linkUp(p)) continue;
+        const pdu = buildLldpdu(d, p, true);
+        transmitL2(ctx, d, p, LLDP_MULTICAST, ETH_P_LLDP, pdu, `LLDP, length ${pdu.length} (shutdown)`);
+      }
+      delete d.config.features![RT];
+      return true;
+    }
     if (!rt) {
       featureState<LldpRuntime>(d, RT, () => ({ boot: now + BOOT_DELAY_MS, lastRid: 0, ports: {}, neighbors: {}, stats: {} }));
       return true;
@@ -446,6 +635,7 @@ registerDaemon({
 
   receiveL2(ctx, d, ingress, frame) {
     if (frame.ethernet.typeCode !== ETH_P_LLDP || !runsLldp(d)) return false;
+    if (!featureEnabled(d, "lldp")) return false; // docker-lldp stopped: nobody listens
     const rt = lldpRuntime(d);
     const now = ctx.wallNow();
     if (!rt || now < rt.boot) return true; // paused until lldpmgrd resumes (lldpd.c:1052)

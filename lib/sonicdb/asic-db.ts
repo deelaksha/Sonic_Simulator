@@ -194,7 +194,7 @@ export function projectAsicDb(d: Device): Tables {
   const route = (vrf: string, dest: string, row: Row) =>
     A("ROUTE_ENTRY", entryKey({ dest, switch_id: SWITCH_OID, vr: vrOid.get(vrf) ?? vrOid.get("default")! }), { SAI_ROUTE_ENTRY_ATTR_PACKET_ACTION: "SAI_PACKET_ACTION_FORWARD", ...row });
 
-  for (const g of fibRoutes(d)) {
+  for (const g of [...fibRoutes(d), ...fibRoutes(d, d.routingTable6 ?? [])]) {
     const usable = g.filter((r) => rifOid.has(r.interfaceId));
     if (!usable.length) continue; // e.g. management-port routes are kernel-only
     const r0 = usable[0];
@@ -220,6 +220,7 @@ export function projectAsicDb(d: Device): Tables {
   for (const i of d.interfaces) {
     if (i.management) continue;
     for (const a of i.ipv4) route(vrfOf(d, i), `${a.address}/32`, { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID: CPU_PORT_OID });
+    for (const a of i.ipv6) route(vrfOf(d, i), `${a.address}/128`, { SAI_ROUTE_ENTRY_ATTR_NEXT_HOP_ID: CPU_PORT_OID });
   }
   return t;
 }

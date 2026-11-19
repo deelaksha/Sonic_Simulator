@@ -31,6 +31,8 @@ export type DropReason =
   | "LINK_LOCAL_NOT_FORWARDED"
   | "COPP_POLICER"
   | "DIP_LOCAL_NO_LISTENER"
+  | "STORM_CONTROL"
+  | "DHCP_SNOOPING"
   | "OTHER";
 
 /** Per-interface drop counters: { [ifaceName]: { [reason]: count } }. */
@@ -42,6 +44,9 @@ const RULES: [RegExp, DropReason][] = [
   [/tagged frame arrived on access port/i, "VLAN_TAG_NOT_ALLOWED"],
   [/known on ingress port/i, "L2_LOOPBACK_FILTER"],
   [/dropped on egress by/i, "ACL_EGRESS_PORT"],
+  // storm-control policer / DHCP snooping hooks (lib/protocols/storm-control.ts, dhcp-snooping.ts)
+  [/dropped on ingress by storm-control/i, "STORM_CONTROL"],
+  [/dropped on ingress by dhcp-snooping/i, "DHCP_SNOOPING"],
   [/dropped on ingress by copp|CoPP|policer/i, "COPP_POLICER"],
   [/dropped on ingress by/i, "ACL_ANY"],
   [/no route to|no-route/i, "LPM4_MISS"],

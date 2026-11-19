@@ -21,6 +21,7 @@ import { TrafficSpec, sendTrafficPacket, validateTrafficSpec, SendFailure } from
 import { sflowAgentTick } from "../sflow/agent";
 import { nextControlDue, runControlTick } from "../control";
 import { getLab, LabApi } from "../labs";
+import { getMission, holds, makeCheckCtx } from "../missions";
 import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
 import { isSwitch } from "../models/device";
 import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
@@ -119,8 +120,8 @@ interface LabState {
   /** Ctrl+C on a running tcpdump: print the capture summary and end it. */
   stopLiveCapture(deviceId: string): void;
   /** Run KLISH lines on a switch from a fresh `exec` stack (GUI-driven config);
-   *  the transcript is echoed into that switch's terminal. Returns error lines. */
-  runCliScript(deviceId: string, lines: string[]): OutputLine[];
+   *  the transcript is echoed into that switch's terminal (unless `silent`). Returns error lines. */
+  runCliScript(deviceId: string, lines: string[], opts?: { silent?: boolean }): OutputLine[];
 
   // traffic generator + sFlow agent (wall-clock driven)
   /** Start generating traffic; returns an error message or null. */
@@ -154,6 +155,17 @@ interface LabState {
   loadVlanLab(): void;
   /** Load a ready-to-use topology for a SONiC feature (bgp/ospf/ipvx/...). */
   loadFeatureLab(featureId: string): void;
+  /** Running lab mission / troubleshooting lab (lib/missions), if any. */
+  mission: ActiveMission | null;
+  /** Solved missions for this viewer: id → completion time (kept in browser storage). */
+  missionProgress: Record<string, number>;
+  /** Load the mission's lab (and break it, for troubleshooting labs) and start checking. */
+  startMission(id: string): void;
+  stopMission(): void;
+  revealHint(objectiveId: string): void;
+  showSolution(): void;
+  /** Re-check the running mission's objectives (called every second). */
+  missionTick(): void;
   exportLab(): string;
   importLab(json: string): boolean;
 
@@ -213,6 +225,33 @@ function nextName(network: NetworkState, type: DeviceType): string {
   return `${short}${count + 1}`;
 }
 
+export interface ActiveMission {
+  id: string;
+  startedAtMs: number;
+  /** Objective id → when it was met (missions latch; troubleshooting tracks the live state). */
+  done: Record<string, number>;
+  /** Objective id → number of hints revealed. */
+  hints: Record<string, number>;
+  solutionShown: boolean;
+  solvedAtMs?: number;
+}
+
+const PROGRESS_KEY = "sonic-sim.missions.v1";
+function loadProgress(): Record<string, number> {
+  try {
+    return typeof localStorage === "undefined" ? {} : JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+function saveProgress(p: Record<string, number>): void {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+  } catch {
+    /* private window / blocked storage: progress stays in memory */
+  }
+}
+
 export const useLabStore = create<LabState>((set, get) => {
   const summary = (n: number) => [
     { text: "", kind: "output" as const },
@@ -220,6 +259,269 @@ export const useLabStore = create<LabState>((set, get) => {
     { text: `${n} packet${n === 1 ? "" : "s"} received by filter`, kind: "output" as const, lineKind: "muted" as LineKind },
     { text: "0 packets dropped by kernel", kind: "output" as const, lineKind: "muted" as LineKind },
   ];
+
+  /**
+   * The LabApi handed to registered labs (lib/labs) and troubleshooting faults
+   * (lib/missions). `silent`: faults break the lab without echoing anything into
+   * the terminals — the learner must find the cause.
+   */
+  const labApi = (silent = false): LabApi => ({
+    newLab: () => get().newLab(),
+    addDevice: (type, pos, ports) => get().addDevice(type, pos, ports),
+    setInterfaceIp: (d, i, a, p) => get().setInterfaceIp(d, i, a, p),
+    setDefaultGateway: (d, gw) => get().setDefaultGateway(d, gw),
+    connect: (a, ai, b, bi) => void get().connect(a, ai, b, bi),
+    setAccessVlan: (d, i, v) => get().setAccessVlan(d, i, v),
+    rename: (d, n) => get().renameDevice(d, n),
+    deviceId: (name) => Object.values(get().network.devices).find((d) => d.name === name)?.id ?? "",
+    setPortSpeed: (d, mbps) => {
+      const next = structuredClone(get().network);
+      for (const p of next.devices[d]?.interfaces ?? []) if (!p.management && !p.logical) p.speed = mbps;
+      set({ network: next });
+    },
+    runCliScript: (d, lines) => void get().runCliScript(d, lines, { silent }),
+    exec: (d, command) => {
+      if (silent) return void get().execCommand(d, command);
+      get().appendTerminal(d, [{ text: `# ${command}`, kind: "output", lineKind: "muted" }]);
+      const r = get().execCommand(d, command);
+      get().appendTerminal(d, r.output.map((o) => ({ text: o.text, kind: "output" as const, lineKind: o.kind })));
+    },
+    hint: (d, lines) => {
+      if (silent) return;
+      get().appendTerminal(
+        d,
+        lines.map((text, i) => ({ text, kind: "output" as const, lineKind: (i === 0 ? "heading" : "muted") as LineKind })),
+      );
+    },
+    finish: (labName, selectedDeviceId) => set({ labName, selectedDeviceId }),
+  });
+
+  /** Built-in labs that are not in the lib/labs registry. */
+  const loadBuiltinLab = (featureId: string): void => {
+    // Print a short "what to try" guide into the selected device's terminal.
+    const hint = (deviceId: string, lines: string[]) =>
+      get().appendTerminal(
+        deviceId,
+        lines.map((text, i) => ({
+          text,
+          kind: "output" as const,
+          lineKind: (i === 0 ? "heading" : "muted") as LineKind,
+        })),
+      );
+
+    // Two routers back-to-back with a PC on each side — the base for L3 labs.
+    const twoRouterCore = () => {
+      get().newLab();
+      const pc1 = get().addDevice("pc", { x: 60, y: 140 });
+      const r1 = get().addDevice("router", { x: 320, y: 140 }, 2);
+      const r2 = get().addDevice("router", { x: 580, y: 140 }, 2);
+      const pc2 = get().addDevice("pc", { x: 840, y: 140 });
+      get().setInterfaceIp(pc1, `${pc1}-if0`, "10.1.1.10", 24);
+      get().setDefaultGateway(pc1, "10.1.1.1");
+      get().setInterfaceIp(r1, `${r1}-if0`, "10.1.1.1", 24);
+      get().setInterfaceIp(r1, `${r1}-if1`, "10.0.0.1", 30);
+      get().setInterfaceIp(r2, `${r2}-if0`, "10.0.0.2", 30);
+      get().setInterfaceIp(r2, `${r2}-if1`, "10.2.2.1", 24);
+      get().setInterfaceIp(pc2, `${pc2}-if0`, "10.2.2.10", 24);
+      get().setDefaultGateway(pc2, "10.2.2.1");
+      get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
+      get().connect(r1, `${r1}-if1`, r2, `${r2}-if0`);
+      get().connect(r2, `${r2}-if1`, pc2, `${pc2}-if0`);
+      return { pc1, r1, r2, pc2 };
+    };
+
+    switch (featureId) {
+      case "vlan":
+        get().loadVlanLab();
+        return;
+
+      case "sflow": {
+        // Mirrors the live SONiC-VS bench: H1/H2 on 25G Ethernet0/1 in VLAN 100,
+        // collector on the out-of-band management network (eth0).
+        get().newLab();
+        const h1 = get().addDevice("pc", { x: 60, y: 60 });
+        const h2 = get().addDevice("pc", { x: 60, y: 360 });
+        const sw = get().addDevice("switch", { x: 380, y: 210 }, 4);
+        const col = get().addDevice("server", { x: 640, y: 40 });
+        const net = structuredClone(get().network);
+        for (const p of net.devices[sw].interfaces) if (!p.management && !p.logical) p.speed = 25000;
+        net.devices[col].name = "COLLECTOR";
+        net.devices[col].config.hostname = "collector";
+        set({ network: net });
+        get().setInterfaceIp(h1, `${h1}-if0`, "192.168.100.11", 24);
+        get().setInterfaceIp(h2, `${h2}-if0`, "192.168.100.12", 24);
+        get().setInterfaceIp(sw, `${sw}-mgmt`, "192.168.200.204", 24);
+        get().setInterfaceIp(col, `${col}-if0`, "192.168.200.16", 24);
+        get().connect(h1, `${h1}-if0`, sw, `${sw}-if0`);
+        get().connect(h2, `${h2}-if0`, sw, `${sw}-if1`);
+        get().connect(col, `${col}-if0`, sw, `${sw}-mgmt`);
+        get().setAccessVlan(sw, `${sw}-if0`, 100);
+        get().setAccessVlan(sw, `${sw}-if1`, 100);
+        get().setCollector(col, true, 6343);
+        set({ labName: "sFlow: H1/H2 — SW (VLAN 100) — collector on eth0", selectedDeviceId: sw });
+        hint(sw, [
+          "sFlow lab — configure the agent, generate traffic, watch the collector",
+          "1. configure terminal → sflow enable → sflow collector 192.168.200.16 6343",
+          "   sflow polling-interval 5 → interface Ethernet 0 → sflow sampling-rate 256",
+          "   (or use the sFlow tab → 'Apply to switch')",
+          "2. exit to bash and run: sudo tcpdump -i any -nn port 6343   (Ctrl+C stops)",
+          "3. Traffic tab: H1 → 192.168.100.12, UDP, e.g. 2000 packets",
+          "4. sFlow tab: datagrams / FLOW / COUNTER samples decoded at COLLECTOR",
+        ]);
+        return;
+      }
+
+      case "staticroute": {
+        const { r1 } = twoRouterCore();
+        set({ labName: "Static Route Lab — two routers, no routing protocol", selectedDeviceId: r1 });
+        hint(r1, ["Static-route lab: R1 ↔ R2 (no routing protocol yet).", "Add on R1:  config route add prefix 10.2.2.0/24 nexthop 10.0.0.2", "Add on R2:  config route add prefix 10.1.1.0/24 nexthop 10.0.0.1", "Then ping 10.2.2.10 from PC1."]);
+        return;
+      }
+
+      case "ipvx": {
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 120, y: 140 });
+        const sw1 = get().addDevice("switch", { x: 440, y: 260 }, 4);
+        const pc2 = get().addDevice("pc", { x: 760, y: 140 });
+        get().connect(pc1, `${pc1}-if0`, sw1, `${sw1}-if0`);
+        get().connect(pc2, `${pc2}-if0`, sw1, `${sw1}-if1`);
+        const next = structuredClone(get().network);
+        next.devices[pc1].interfaces[0].ipv6 = [{ address: "2001:db8::1", prefix: 64 }];
+        next.devices[pc2].interfaces[0].ipv6 = [{ address: "2001:db8::2", prefix: 64 }];
+        rebuildConnectedRoutes6(next.devices[pc1]);
+        rebuildConnectedRoutes6(next.devices[pc2]);
+        set({ network: next, labName: "IPv6 Lab — 2001:db8::/64", selectedDeviceId: pc1 });
+        hint(pc1, ["IPv6 lab: PC1 2001:db8::1, PC2 2001:db8::2.", "Try:  ping6 2001:db8::2", "      ip -6 neigh"]);
+        return;
+      }
+
+      case "ntp": {
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
+        const ntp = get().addDevice("ntp-server", { x: 540, y: 160 });
+        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.100.100", 24);
+        get().setInterfaceIp(ntp, `${ntp}-if0`, "192.168.100.10", 24);
+        get().connect(pc1, `${pc1}-if0`, ntp, `${ntp}-if0`);
+        set({ labName: "NTP Lab — client ↔ ntp-server", selectedDeviceId: pc1 });
+        hint(pc1, ["NTP lab: client ↔ ntp-server (192.168.100.10).", "Try:  ntpdate 192.168.100.10"]);
+        return;
+      }
+
+      case "ntp-upstream": {
+        // NTP to a PUBLIC upstream reached over the network (routing), not cabled
+        // to the switch — client → router → internet (answers any public IP).
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
+        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
+        const inet = get().addDevice("internet", { x: 640, y: 160 });
+        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.1.10", 24);
+        get().setDefaultGateway(pc1, "192.168.1.1");
+        get().setInterfaceIp(r1, `${r1}-if0`, "192.168.1.1", 24);
+        get().setInterfaceIp(r1, `${r1}-if1`, "203.0.113.1", 30);
+        get().setInterfaceIp(inet, `${inet}-if0`, "203.0.113.2", 30);
+        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
+        get().connect(r1, `${r1}-if1`, inet, `${inet}-if0`);
+        const next = structuredClone(get().network);
+        next.devices[r1].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.2", interfaceId: `${r1}-if1`, type: "static", metric: 1 });
+        next.devices[inet].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.1", interfaceId: `${inet}-if0`, type: "static", metric: 1 });
+        set({ network: next, labName: "NTP Upstream Lab — client → router → internet (public NTP)", selectedDeviceId: pc1 });
+        hint(pc1, ["NTP over the network: the upstream is a PUBLIC IP reached via routing (not cabled to the switch).", "Try:  ntpdate 216.239.35.0    (answered by the internet upstream)", "      ping 8.8.8.8"]);
+        return;
+      }
+
+      case "dns": {
+        // Direct DNS: client resolves names via a dns-server on the subnet (A records).
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
+        const dns = get().addDevice("dns-server", { x: 540, y: 160 });
+        get().setInterfaceIp(pc1, `${pc1}-if0`, "10.0.0.2", 24);
+        get().setInterfaceIp(dns, `${dns}-if0`, "10.0.0.53", 24);
+        get().connect(pc1, `${pc1}-if0`, dns, `${dns}-if0`);
+        const next = structuredClone(get().network);
+        next.devices[pc1].config.features = { dns: { nameservers: ["10.0.0.53"] } };
+        next.devices[dns].config.features = { dnsRecords: { "server1.lab": "10.0.0.9", "www.lab": "10.0.0.80" } };
+        set({ network: next, labName: "DNS Lab — client ↔ dns-server (A records)", selectedDeviceId: pc1 });
+        hint(pc1, ["DNS lab: client resolves via dns-server 10.0.0.53.", "Try:  nslookup server1.lab   (→ 10.0.0.9)", "      nslookup www.lab       (→ 10.0.0.80)"]);
+        return;
+      }
+
+      case "dns-upstream": {
+        // Public DNS reached over the network (nameserver 8.8.8.8 via the internet).
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
+        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
+        const inet = get().addDevice("internet", { x: 640, y: 160 });
+        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.1.10", 24);
+        get().setDefaultGateway(pc1, "192.168.1.1");
+        get().setInterfaceIp(r1, `${r1}-if0`, "192.168.1.1", 24);
+        get().setInterfaceIp(r1, `${r1}-if1`, "203.0.113.1", 30);
+        get().setInterfaceIp(inet, `${inet}-if0`, "203.0.113.2", 30);
+        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
+        get().connect(r1, `${r1}-if1`, inet, `${inet}-if0`);
+        const next = structuredClone(get().network);
+        next.devices[pc1].config.features = { dns: { nameservers: ["8.8.8.8"] } };
+        next.devices[r1].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.2", interfaceId: `${r1}-if1`, type: "static", metric: 1 });
+        next.devices[inet].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.1", interfaceId: `${inet}-if0`, type: "static", metric: 1 });
+        set({ network: next, labName: "DNS Upstream Lab — client → router → internet (public DNS 8.8.8.8)", selectedDeviceId: pc1 });
+        hint(pc1, ["Public DNS over the network (nameserver 8.8.8.8, reached via routing).", "Try:  nslookup google.com", "      ping google.com   (resolves via DNS, then pings via the internet)"]);
+        return;
+      }
+
+      case "dhcp": {
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
+        const dh = get().addDevice("dhcp-server", { x: 540, y: 160 });
+        // Client starts with NO IP (it learns one); the server owns the subnet.
+        get().setInterfaceIp(dh, `${dh}-if0`, "192.168.100.1", 24);
+        get().connect(pc1, `${pc1}-if0`, dh, `${dh}-if0`);
+        set({ labName: "DHCP Lab — client ↔ dhcp-server", selectedDeviceId: pc1 });
+        hint(pc1, ["DHCP lab: client ↔ dhcp-server (pool 192.168.100.0/24).", "Try:  dhclient        (request a lease)", "      ip addr        (see the leased address)"]);
+        return;
+      }
+
+      case "dhcprelay": {
+        // Cross-subnet DHCP: client (10.1.1.0/24) — relay router — dhcp-server (10.2.2.0/24).
+        get().newLab();
+        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
+        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
+        const dh = get().addDevice("dhcp-server", { x: 640, y: 160 });
+        get().setDefaultGateway(pc1, "10.1.1.1"); // client learns its IP via DHCP
+        get().setInterfaceIp(r1, `${r1}-if0`, "10.1.1.1", 24); // client-facing (relay/giaddr)
+        get().setInterfaceIp(r1, `${r1}-if1`, "10.2.2.1", 24); // server-facing
+        get().setInterfaceIp(dh, `${dh}-if0`, "10.2.2.10", 24);
+        get().setDefaultGateway(dh, "10.2.2.1"); // server routes back to the client subnet via R1
+        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
+        get().connect(r1, `${r1}-if1`, dh, `${dh}-if0`);
+        const next = structuredClone(get().network);
+        // Relay: R1's client interface forwards DHCP to the server.
+        next.devices[r1].config.features = { dhcpRelay: { [next.devices[r1].interfaces[0].name]: ["10.2.2.10"] } };
+        // Server: a pool for the CLIENT subnet (selected by giaddr), gateway = relay.
+        next.devices[dh].config.features = {
+          dhcpServer: { gateway: "10.2.2.10", dns: "10.2.2.10", prefix: 24, leases: {}, pools: [{ subnet: "10.1.1.0", prefix: 24, gateway: "10.1.1.1", dns: "10.1.1.1", leases: {} }] },
+        };
+        set({ network: next, labName: "DHCP Relay Lab — client ↔ relay ↔ server (cross-subnet)", selectedDeviceId: pc1 });
+        hint(pc1, ["DHCP relay lab: client — R1 (relay) — dhcp-server on another subnet.", "R1 relays via `ip dhcp-relay 10.2.2.10` on its client interface.", "Try:  dhclient    (client gets 10.1.1.100 from across the relay)"]);
+        return;
+      }
+    }
+
+    // Config-plane features: drop into a sandbox where the feature's SONiC
+    // commands work. L3 features get a routing sandbox; everything else a switch.
+    const feat = SONIC_FEATURES.find((f) => f.id === featureId);
+    const label = feat?.label ?? featureId;
+    if (feat?.group === "L3") {
+      const { r1 } = twoRouterCore();
+      set({ labName: `${label} Lab — routing sandbox`, selectedDeviceId: r1 });
+      hint(r1, [`SONiC ${label} sandbox on R1 (10.1.1.1 ↔ R2 10.0.0.2).`, "Run `show` or `config` alone to list this device's SONiC sub-commands."]);
+    } else {
+      get().loadSample();
+      const swId = Object.values(get().network.devices).find((d) => d.type === "switch")?.id;
+      if (swId) {
+        set({ labName: `${label} Lab — SONiC switch sandbox`, selectedDeviceId: swId });
+        hint(swId, [`SONiC ${label} sandbox on the switch (sonic-cli).`, "Try:  configure terminal   then the feature's commands", "      show <feature>       to verify"]);
+      }
+    }
+  };
 
   /** Stream newly recorded frames into every running tcpdump session. */
   const feedCaptures = (fresh: CaptureRecord[]) => {
@@ -326,6 +628,8 @@ export const useLabStore = create<LabState>((set, get) => {
   return {
   network: { devices: {}, connections: [] },
   labName: "Untitled Lab",
+  mission: null,
+  missionProgress: loadProgress(),
   events: [],
   captures: [],
   terminals: {},
@@ -583,7 +887,7 @@ export const useLabStore = create<LabState>((set, get) => {
     return { output, clear };
   },
 
-  runCliScript(deviceId, lines) {
+  runCliScript(deviceId, lines, opts) {
     const draft = structuredClone(get().network);
     const device = draft.devices[deviceId];
     if (!device) return [];
@@ -612,7 +916,7 @@ export const useLabStore = create<LabState>((set, get) => {
       stack = r.toBash ? ["exec"] : r.stack;
     }
     set({ network: draft });
-    get().appendTerminal(deviceId, transcript);
+    if (!opts?.silent) get().appendTerminal(deviceId, transcript);
     return errors;
   },
 
@@ -788,6 +1092,7 @@ export const useLabStore = create<LabState>((set, get) => {
       traffic: null,
       sflowErrors: {},
       controlEvents: [],
+      mission: null,
       network: { devices: {}, connections: [] },
       labName: "Untitled Lab",
       events: [],
@@ -857,258 +1162,57 @@ export const useLabStore = create<LabState>((set, get) => {
     // Protocol labs registered in lib/labs/ take precedence.
     const registered = getLab(featureId);
     if (registered) {
-      const api: LabApi = {
-        newLab: () => get().newLab(),
-        addDevice: (type, pos, ports) => get().addDevice(type, pos, ports),
-        setInterfaceIp: (d, i, a, p) => get().setInterfaceIp(d, i, a, p),
-        setDefaultGateway: (d, gw) => get().setDefaultGateway(d, gw),
-        connect: (a, ai, b, bi) => void get().connect(a, ai, b, bi),
-        setAccessVlan: (d, i, v) => get().setAccessVlan(d, i, v),
-        rename: (d, n) => get().renameDevice(d, n),
-        setPortSpeed: (d, mbps) => {
-          const next = structuredClone(get().network);
-          for (const p of next.devices[d]?.interfaces ?? []) if (!p.management && !p.logical) p.speed = mbps;
-          set({ network: next });
-        },
-        runCliScript: (d, lines) => void get().runCliScript(d, lines),
-        exec: (d, command) => {
-          get().appendTerminal(d, [{ text: `# ${command}`, kind: "output", lineKind: "muted" }]);
-          const r = get().execCommand(d, command);
-          get().appendTerminal(d, r.output.map((o) => ({ text: o.text, kind: "output" as const, lineKind: o.kind })));
-        },
-        hint: (d, lines) =>
-          get().appendTerminal(
-            d,
-            lines.map((text, i) => ({ text, kind: "output" as const, lineKind: (i === 0 ? "heading" : "muted") as LineKind })),
-          ),
-        finish: (labName, selectedDeviceId) => set({ labName, selectedDeviceId }),
-      };
-      registered(api);
+      registered(labApi());
       return;
     }
+    loadBuiltinLab(featureId);
+  },
 
-    // Print a short "what to try" guide into the selected device's terminal.
-    const hint = (deviceId: string, lines: string[]) =>
-      get().appendTerminal(
-        deviceId,
-        lines.map((text, i) => ({
-          text,
-          kind: "output" as const,
-          lineKind: (i === 0 ? "heading" : "muted") as LineKind,
-        })),
-      );
+  startMission(id) {
+    const m = getMission(id);
+    if (!m || !getLab(m.labId)) return;
+    get().loadFeatureLab(m.labId);
+    m.inject?.(labApi(true));
+    set({ mission: { id, startedAtMs: Date.now(), done: {}, hints: {}, solutionShown: false } });
+    get().missionTick();
+  },
 
-    // Two routers back-to-back with a PC on each side — the base for L3 labs.
-    const twoRouterCore = () => {
-      get().newLab();
-      const pc1 = get().addDevice("pc", { x: 60, y: 140 });
-      const r1 = get().addDevice("router", { x: 320, y: 140 }, 2);
-      const r2 = get().addDevice("router", { x: 580, y: 140 }, 2);
-      const pc2 = get().addDevice("pc", { x: 840, y: 140 });
-      get().setInterfaceIp(pc1, `${pc1}-if0`, "10.1.1.10", 24);
-      get().setDefaultGateway(pc1, "10.1.1.1");
-      get().setInterfaceIp(r1, `${r1}-if0`, "10.1.1.1", 24);
-      get().setInterfaceIp(r1, `${r1}-if1`, "10.0.0.1", 30);
-      get().setInterfaceIp(r2, `${r2}-if0`, "10.0.0.2", 30);
-      get().setInterfaceIp(r2, `${r2}-if1`, "10.2.2.1", 24);
-      get().setInterfaceIp(pc2, `${pc2}-if0`, "10.2.2.10", 24);
-      get().setDefaultGateway(pc2, "10.2.2.1");
-      get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
-      get().connect(r1, `${r1}-if1`, r2, `${r2}-if0`);
-      get().connect(r2, `${r2}-if1`, pc2, `${pc2}-if0`);
-      return { pc1, r1, r2, pc2 };
-    };
+  stopMission() {
+    set({ mission: null });
+  },
 
-    switch (featureId) {
-      case "vlan":
-        get().loadVlanLab();
-        return;
+  revealHint(objectiveId) {
+    const cur = get().mission;
+    if (!cur) return;
+    set({ mission: { ...cur, hints: { ...cur.hints, [objectiveId]: (cur.hints[objectiveId] ?? 0) + 1 } } });
+  },
 
-      case "sflow": {
-        // Mirrors the live SONiC-VS bench: H1/H2 on 25G Ethernet0/1 in VLAN 100,
-        // collector on the out-of-band management network (eth0).
-        get().newLab();
-        const h1 = get().addDevice("pc", { x: 60, y: 60 });
-        const h2 = get().addDevice("pc", { x: 60, y: 360 });
-        const sw = get().addDevice("switch", { x: 380, y: 210 }, 4);
-        const col = get().addDevice("server", { x: 640, y: 40 });
-        const net = structuredClone(get().network);
-        for (const p of net.devices[sw].interfaces) if (!p.management && !p.logical) p.speed = 25000;
-        net.devices[col].name = "COLLECTOR";
-        net.devices[col].config.hostname = "collector";
-        set({ network: net });
-        get().setInterfaceIp(h1, `${h1}-if0`, "192.168.100.11", 24);
-        get().setInterfaceIp(h2, `${h2}-if0`, "192.168.100.12", 24);
-        get().setInterfaceIp(sw, `${sw}-mgmt`, "192.168.200.204", 24);
-        get().setInterfaceIp(col, `${col}-if0`, "192.168.200.16", 24);
-        get().connect(h1, `${h1}-if0`, sw, `${sw}-if0`);
-        get().connect(h2, `${h2}-if0`, sw, `${sw}-if1`);
-        get().connect(col, `${col}-if0`, sw, `${sw}-mgmt`);
-        get().setAccessVlan(sw, `${sw}-if0`, 100);
-        get().setAccessVlan(sw, `${sw}-if1`, 100);
-        get().setCollector(col, true, 6343);
-        set({ labName: "sFlow: H1/H2 — SW (VLAN 100) — collector on eth0", selectedDeviceId: sw });
-        hint(sw, [
-          "sFlow lab — configure the agent, generate traffic, watch the collector",
-          "1. configure terminal → sflow enable → sflow collector 192.168.200.16 6343",
-          "   sflow polling-interval 5 → interface Ethernet 0 → sflow sampling-rate 256",
-          "   (or use the sFlow tab → 'Apply to switch')",
-          "2. exit to bash and run: sudo tcpdump -i any -nn port 6343   (Ctrl+C stops)",
-          "3. Traffic tab: H1 → 192.168.100.12, UDP, e.g. 2000 packets",
-          "4. sFlow tab: datagrams / FLOW / COUNTER samples decoded at COLLECTOR",
-        ]);
-        return;
-      }
+  showSolution() {
+    const cur = get().mission;
+    if (cur) set({ mission: { ...cur, solutionShown: true } });
+  },
 
-      case "staticroute": {
-        const { r1 } = twoRouterCore();
-        set({ labName: "Static Route Lab — two routers, no routing protocol", selectedDeviceId: r1 });
-        hint(r1, ["Static-route lab: R1 ↔ R2 (no routing protocol yet).", "Add on R1:  config route add prefix 10.2.2.0/24 nexthop 10.0.0.2", "Add on R2:  config route add prefix 10.1.1.0/24 nexthop 10.0.0.1", "Then ping 10.2.2.10 from PC1."]);
-        return;
-      }
-
-      case "ipvx": {
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 120, y: 140 });
-        const sw1 = get().addDevice("switch", { x: 440, y: 260 }, 4);
-        const pc2 = get().addDevice("pc", { x: 760, y: 140 });
-        get().connect(pc1, `${pc1}-if0`, sw1, `${sw1}-if0`);
-        get().connect(pc2, `${pc2}-if0`, sw1, `${sw1}-if1`);
-        const next = structuredClone(get().network);
-        next.devices[pc1].interfaces[0].ipv6 = [{ address: "2001:db8::1", prefix: 64 }];
-        next.devices[pc2].interfaces[0].ipv6 = [{ address: "2001:db8::2", prefix: 64 }];
-        rebuildConnectedRoutes6(next.devices[pc1]);
-        rebuildConnectedRoutes6(next.devices[pc2]);
-        set({ network: next, labName: "IPv6 Lab — 2001:db8::/64", selectedDeviceId: pc1 });
-        hint(pc1, ["IPv6 lab: PC1 2001:db8::1, PC2 2001:db8::2.", "Try:  ping6 2001:db8::2", "      ip -6 neigh"]);
-        return;
-      }
-
-      case "ntp": {
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
-        const ntp = get().addDevice("ntp-server", { x: 540, y: 160 });
-        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.100.100", 24);
-        get().setInterfaceIp(ntp, `${ntp}-if0`, "192.168.100.10", 24);
-        get().connect(pc1, `${pc1}-if0`, ntp, `${ntp}-if0`);
-        set({ labName: "NTP Lab — client ↔ ntp-server", selectedDeviceId: pc1 });
-        hint(pc1, ["NTP lab: client ↔ ntp-server (192.168.100.10).", "Try:  ntpdate 192.168.100.10"]);
-        return;
-      }
-
-      case "ntp-upstream": {
-        // NTP to a PUBLIC upstream reached over the network (routing), not cabled
-        // to the switch — client → router → internet (answers any public IP).
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
-        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
-        const inet = get().addDevice("internet", { x: 640, y: 160 });
-        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.1.10", 24);
-        get().setDefaultGateway(pc1, "192.168.1.1");
-        get().setInterfaceIp(r1, `${r1}-if0`, "192.168.1.1", 24);
-        get().setInterfaceIp(r1, `${r1}-if1`, "203.0.113.1", 30);
-        get().setInterfaceIp(inet, `${inet}-if0`, "203.0.113.2", 30);
-        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
-        get().connect(r1, `${r1}-if1`, inet, `${inet}-if0`);
-        const next = structuredClone(get().network);
-        next.devices[r1].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.2", interfaceId: `${r1}-if1`, type: "static", metric: 1 });
-        next.devices[inet].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.1", interfaceId: `${inet}-if0`, type: "static", metric: 1 });
-        set({ network: next, labName: "NTP Upstream Lab — client → router → internet (public NTP)", selectedDeviceId: pc1 });
-        hint(pc1, ["NTP over the network: the upstream is a PUBLIC IP reached via routing (not cabled to the switch).", "Try:  ntpdate 216.239.35.0    (answered by the internet upstream)", "      ping 8.8.8.8"]);
-        return;
-      }
-
-      case "dns": {
-        // Direct DNS: client resolves names via a dns-server on the subnet (A records).
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
-        const dns = get().addDevice("dns-server", { x: 540, y: 160 });
-        get().setInterfaceIp(pc1, `${pc1}-if0`, "10.0.0.2", 24);
-        get().setInterfaceIp(dns, `${dns}-if0`, "10.0.0.53", 24);
-        get().connect(pc1, `${pc1}-if0`, dns, `${dns}-if0`);
-        const next = structuredClone(get().network);
-        next.devices[pc1].config.features = { dns: { nameservers: ["10.0.0.53"] } };
-        next.devices[dns].config.features = { dnsRecords: { "server1.lab": "10.0.0.9", "www.lab": "10.0.0.80" } };
-        set({ network: next, labName: "DNS Lab — client ↔ dns-server (A records)", selectedDeviceId: pc1 });
-        hint(pc1, ["DNS lab: client resolves via dns-server 10.0.0.53.", "Try:  nslookup server1.lab   (→ 10.0.0.9)", "      nslookup www.lab       (→ 10.0.0.80)"]);
-        return;
-      }
-
-      case "dns-upstream": {
-        // Public DNS reached over the network (nameserver 8.8.8.8 via the internet).
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
-        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
-        const inet = get().addDevice("internet", { x: 640, y: 160 });
-        get().setInterfaceIp(pc1, `${pc1}-if0`, "192.168.1.10", 24);
-        get().setDefaultGateway(pc1, "192.168.1.1");
-        get().setInterfaceIp(r1, `${r1}-if0`, "192.168.1.1", 24);
-        get().setInterfaceIp(r1, `${r1}-if1`, "203.0.113.1", 30);
-        get().setInterfaceIp(inet, `${inet}-if0`, "203.0.113.2", 30);
-        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
-        get().connect(r1, `${r1}-if1`, inet, `${inet}-if0`);
-        const next = structuredClone(get().network);
-        next.devices[pc1].config.features = { dns: { nameservers: ["8.8.8.8"] } };
-        next.devices[r1].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.2", interfaceId: `${r1}-if1`, type: "static", metric: 1 });
-        next.devices[inet].routingTable.push({ destination: "0.0.0.0", prefix: 0, nextHop: "203.0.113.1", interfaceId: `${inet}-if0`, type: "static", metric: 1 });
-        set({ network: next, labName: "DNS Upstream Lab — client → router → internet (public DNS 8.8.8.8)", selectedDeviceId: pc1 });
-        hint(pc1, ["Public DNS over the network (nameserver 8.8.8.8, reached via routing).", "Try:  nslookup google.com", "      ping google.com   (resolves via DNS, then pings via the internet)"]);
-        return;
-      }
-
-      case "dhcp": {
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 160, y: 160 });
-        const dh = get().addDevice("dhcp-server", { x: 540, y: 160 });
-        // Client starts with NO IP (it learns one); the server owns the subnet.
-        get().setInterfaceIp(dh, `${dh}-if0`, "192.168.100.1", 24);
-        get().connect(pc1, `${pc1}-if0`, dh, `${dh}-if0`);
-        set({ labName: "DHCP Lab — client ↔ dhcp-server", selectedDeviceId: pc1 });
-        hint(pc1, ["DHCP lab: client ↔ dhcp-server (pool 192.168.100.0/24).", "Try:  dhclient        (request a lease)", "      ip addr        (see the leased address)"]);
-        return;
-      }
-
-      case "dhcprelay": {
-        // Cross-subnet DHCP: client (10.1.1.0/24) — relay router — dhcp-server (10.2.2.0/24).
-        get().newLab();
-        const pc1 = get().addDevice("pc", { x: 60, y: 160 });
-        const r1 = get().addDevice("router", { x: 340, y: 160 }, 2);
-        const dh = get().addDevice("dhcp-server", { x: 640, y: 160 });
-        get().setDefaultGateway(pc1, "10.1.1.1"); // client learns its IP via DHCP
-        get().setInterfaceIp(r1, `${r1}-if0`, "10.1.1.1", 24); // client-facing (relay/giaddr)
-        get().setInterfaceIp(r1, `${r1}-if1`, "10.2.2.1", 24); // server-facing
-        get().setInterfaceIp(dh, `${dh}-if0`, "10.2.2.10", 24);
-        get().setDefaultGateway(dh, "10.2.2.1"); // server routes back to the client subnet via R1
-        get().connect(pc1, `${pc1}-if0`, r1, `${r1}-if0`);
-        get().connect(r1, `${r1}-if1`, dh, `${dh}-if0`);
-        const next = structuredClone(get().network);
-        // Relay: R1's client interface forwards DHCP to the server.
-        next.devices[r1].config.features = { dhcpRelay: { [next.devices[r1].interfaces[0].name]: ["10.2.2.10"] } };
-        // Server: a pool for the CLIENT subnet (selected by giaddr), gateway = relay.
-        next.devices[dh].config.features = {
-          dhcpServer: { gateway: "10.2.2.10", dns: "10.2.2.10", prefix: 24, leases: {}, pools: [{ subnet: "10.1.1.0", prefix: 24, gateway: "10.1.1.1", dns: "10.1.1.1", leases: {} }] },
-        };
-        set({ network: next, labName: "DHCP Relay Lab — client ↔ relay ↔ server (cross-subnet)", selectedDeviceId: pc1 });
-        hint(pc1, ["DHCP relay lab: client — R1 (relay) — dhcp-server on another subnet.", "R1 relays via `ip dhcp-relay 10.2.2.10` on its client interface.", "Try:  dhclient    (client gets 10.1.1.100 from across the relay)"]);
-        return;
-      }
+  missionTick() {
+    const cur = get().mission;
+    const m = cur && getMission(cur.id);
+    if (!cur || !m || cur.solvedAtMs) return;
+    const s = get();
+    const typed: Record<string, string[]> = {};
+    for (const [id, lines] of Object.entries(s.terminals)) typed[id] = lines.filter((l) => l.kind === "input").map((l) => l.text);
+    const now = Date.now();
+    const c = makeCheckCtx(s.network, typed, now);
+    const done: Record<string, number> = m.kind === "mission" ? { ...cur.done } : {};
+    for (const o of m.objectives) {
+      if (done[o.id]) continue; // missions latch
+      if (holds(o.check, c)) done[o.id] = cur.done[o.id] ?? now;
     }
-
-    // Config-plane features: drop into a sandbox where the feature's SONiC
-    // commands work. L3 features get a routing sandbox; everything else a switch.
-    const feat = SONIC_FEATURES.find((f) => f.id === featureId);
-    const label = feat?.label ?? featureId;
-    if (feat?.group === "L3") {
-      const { r1 } = twoRouterCore();
-      set({ labName: `${label} Lab — routing sandbox`, selectedDeviceId: r1 });
-      hint(r1, [`SONiC ${label} sandbox on R1 (10.1.1.1 ↔ R2 10.0.0.2).`, "Run `show` or `config` alone to list this device's SONiC sub-commands."]);
-    } else {
-      get().loadSample();
-      const swId = Object.values(get().network.devices).find((d) => d.type === "switch")?.id;
-      if (swId) {
-        set({ labName: `${label} Lab — SONiC switch sandbox`, selectedDeviceId: swId });
-        hint(swId, [`SONiC ${label} sandbox on the switch (sonic-cli).`, "Try:  configure terminal   then the feature's commands", "      show <feature>       to verify"]);
-      }
+    const solved = m.objectives.every((o) => done[o.id]);
+    if (!solved && JSON.stringify(done) === JSON.stringify(cur.done)) return;
+    set({ mission: { ...cur, done, ...(solved ? { solvedAtMs: now } : {}) } });
+    if (solved) {
+      const missionProgress = { ...get().missionProgress, [m.id]: get().missionProgress[m.id] ?? now };
+      saveProgress(missionProgress);
+      set({ missionProgress });
     }
   },
 

@@ -7,6 +7,10 @@
  *   VarBind ::= SEQUENCE { name OBJECT IDENTIFIER, value ANY }
  *
  * GetBulkRequest reuses error-status/error-index as non-repeaters/max-repetitions.
+ * SNMPv1 Trap-PDU (RFC 1157 §4.1.6): [4] IMPLICIT SEQUENCE { enterprise OID,
+ * agent-addr IpAddress, generic-trap INTEGER, specific-trap INTEGER, time-stamp
+ * TimeTicks, variable-bindings } — carried in SnmpPdu.trap. The SNMPv3 framing
+ * (RFC 3412/3414) is in ./snmp-usm.ts on top of the helpers exported as `ber`.
  * Only the definite-length form is produced; the decoder rejects anything it
  * cannot parse (the agent then drops the datagram, as snmpd counts
  * snmpInASNParseErrs and drops it).
@@ -40,8 +44,19 @@ export interface VarBind {
   value: SnmpValue;
 }
 
+/** SNMPv1 Trap-PDU header fields (RFC 1157). */
+export interface V1Trap {
+  enterprise: Oid;
+  agentAddr: string;
+  generic: number;
+  specific: number;
+  timestamp: number;
+}
+
 export interface SnmpPdu {
   type: number;
+  /** Only for PDU.TRAP (SNMPv1); reqId/errStatus/errIndex are then unused. */
+  trap?: V1Trap;
   reqId: number;
   /** error-status (non-repeaters for GetBulk). */
   errStatus: number;
@@ -179,16 +194,31 @@ export function encodeValue(v: SnmpValue): number[] {
   }
 }
 
-export function encodeMessage(m: SnmpMessage): number[] {
-  const vbs = m.pdu.varbinds.flatMap((vb) => tlv(TAG.SEQ, [...tlv(TAG.OID, oidBody(vb.oid)), ...encodeValue(vb.value)]));
-  const pdu = tlv(m.pdu.type, [
-    ...tlv(TAG.INTEGER, intBody(m.pdu.reqId)),
-    ...tlv(TAG.INTEGER, intBody(m.pdu.errStatus)),
-    ...tlv(TAG.INTEGER, intBody(m.pdu.errIndex)),
+/** BER of one PDU (any type, including the SNMPv1 Trap-PDU). */
+export function encodePdu(p: SnmpPdu): number[] {
+  const vbs = p.varbinds.flatMap((vb) => tlv(TAG.SEQ, [...tlv(TAG.OID, oidBody(vb.oid)), ...encodeValue(vb.value)]));
+  if (p.type === PDU.TRAP && p.trap) {
+    const t = p.trap;
+    return tlv(PDU.TRAP, [
+      ...tlv(TAG.OID, oidBody(t.enterprise)),
+      ...encodeValue({ type: "ipaddress", value: t.agentAddr }),
+      ...tlv(TAG.INTEGER, intBody(t.generic)),
+      ...tlv(TAG.INTEGER, intBody(t.specific)),
+      ...encodeValue({ type: "timeticks", value: t.timestamp }),
+      ...tlv(TAG.SEQ, vbs),
+    ]);
+  }
+  return tlv(p.type, [
+    ...tlv(TAG.INTEGER, intBody(p.reqId)),
+    ...tlv(TAG.INTEGER, intBody(p.errStatus)),
+    ...tlv(TAG.INTEGER, intBody(p.errIndex)),
     ...tlv(TAG.SEQ, vbs),
   ]);
+}
+
+export function encodeMessage(m: SnmpMessage): number[] {
   const community = Array.from(m.community, (c) => c.charCodeAt(0) & 0xff);
-  return tlv(TAG.SEQ, [...tlv(TAG.INTEGER, intBody(m.version)), ...tlv(TAG.OCTET, community), ...pdu]);
+  return tlv(TAG.SEQ, [...tlv(TAG.INTEGER, intBody(m.version)), ...tlv(TAG.OCTET, community), ...encodePdu(m.pdu)]);
 }
 
 // ---------------------------------------------------------------- decoding
@@ -281,17 +311,7 @@ function expect(t: Tlv, tag: number): Tlv {
   return t;
 }
 
-/** Decode an SNMPv1/v2c message. Throws on malformed input or a v1 Trap-PDU. */
-export function decodeMessage(b: ArrayLike<number>): SnmpMessage {
-  const msg = expect(readTlv(b, 0, b.length), TAG.SEQ);
-  const ver = expect(readTlv(b, msg.start, msg.end), TAG.INTEGER);
-  const com = expect(readTlv(b, ver.next, msg.end), TAG.OCTET);
-  const pdu = readTlv(b, com.next, msg.end);
-  if (pdu.tag < 0xa0 || pdu.tag > 0xa8 || pdu.tag === PDU.TRAP) throw new Error("unsupported PDU");
-  const rid = expect(readTlv(b, pdu.start, pdu.end), TAG.INTEGER);
-  const es = expect(readTlv(b, rid.next, pdu.end), TAG.INTEGER);
-  const ei = expect(readTlv(b, es.next, pdu.end), TAG.INTEGER);
-  const list = expect(readTlv(b, ei.next, pdu.end), TAG.SEQ);
+function readVarbinds(b: ArrayLike<number>, list: Tlv): VarBind[] {
   const varbinds: VarBind[] = [];
   for (let off = list.start; off < list.end; ) {
     const vb = expect(readTlv(b, off, list.end), TAG.SEQ);
@@ -300,14 +320,56 @@ export function decodeMessage(b: ArrayLike<number>): SnmpMessage {
     varbinds.push({ oid: readOid(b, name), value: readValue(b, val) });
     off = vb.next;
   }
+  return varbinds;
+}
+
+/** Decode the PDU starting at `off` (within `limit`). */
+export function decodePduAt(b: ArrayLike<number>, off: number, limit: number): SnmpPdu {
+  const pdu = readTlv(b, off, limit);
+  if (pdu.tag < 0xa0 || pdu.tag > 0xa8) throw new Error("unsupported PDU");
+  if (pdu.tag === PDU.TRAP) {
+    const ent = expect(readTlv(b, pdu.start, pdu.end), TAG.OID);
+    const addr = expect(readTlv(b, ent.next, pdu.end), TAG.IPADDR);
+    const gen = expect(readTlv(b, addr.next, pdu.end), TAG.INTEGER);
+    const spec = expect(readTlv(b, gen.next, pdu.end), TAG.INTEGER);
+    const ts = expect(readTlv(b, spec.next, pdu.end), TAG.TIMETICKS);
+    const list = expect(readTlv(b, ts.next, pdu.end), TAG.SEQ);
+    const agentAddr = Array.from({ length: addr.end - addr.start }, (_, i) => b[addr.start + i]).join(".");
+    return {
+      type: PDU.TRAP, reqId: 0, errStatus: 0, errIndex: 0, varbinds: readVarbinds(b, list),
+      trap: { enterprise: readOid(b, ent), agentAddr, generic: readInt(b, gen), specific: readInt(b, spec), timestamp: Number(readUint(b, ts)) },
+    };
+  }
+  const rid = expect(readTlv(b, pdu.start, pdu.end), TAG.INTEGER);
+  const es = expect(readTlv(b, rid.next, pdu.end), TAG.INTEGER);
+  const ei = expect(readTlv(b, es.next, pdu.end), TAG.INTEGER);
+  const list = expect(readTlv(b, ei.next, pdu.end), TAG.SEQ);
+  return { type: pdu.tag, reqId: readInt(b, rid), errStatus: readInt(b, es), errIndex: readInt(b, ei), varbinds: readVarbinds(b, list) };
+}
+
+/** Decode an SNMPv1/v2c message (v1 Trap-PDU included). Throws on malformed input or SNMPv3. */
+export function decodeMessage(b: ArrayLike<number>): SnmpMessage {
+  const msg = expect(readTlv(b, 0, b.length), TAG.SEQ);
+  const ver = expect(readTlv(b, msg.start, msg.end), TAG.INTEGER);
+  const com = expect(readTlv(b, ver.next, msg.end), TAG.OCTET);
+  const pdu = decodePduAt(b, com.next, msg.end);
   let community = "";
   for (let i = com.start; i < com.end; i++) community += String.fromCharCode(b[i]);
-  return {
-    version: readInt(b, ver),
-    community,
-    pdu: { type: pdu.tag, reqId: readInt(b, rid), errStatus: readInt(b, es), errIndex: readInt(b, ei), varbinds },
-  };
+  return { version: readInt(b, ver), community, pdu };
 }
+
+/** msgVersion of any SNMP message (3 = SNMPv3), or undefined if not decodable. */
+export function messageVersion(b: ArrayLike<number>): number | undefined {
+  try {
+    const msg = expect(readTlv(b, 0, b.length), TAG.SEQ);
+    return readInt(b, expect(readTlv(b, msg.start, msg.end), TAG.INTEGER));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Low-level BER pieces for the SNMPv3 framing (./snmp-usm.ts). */
+export const ber = { TAG, tlv, intBody, readTlv, readInt, expect };
 
 /** Length of the PDU's contents (tcpdump prints it as `GetRequest(28)`). */
 export function pduContentLength(b: ArrayLike<number>): number {

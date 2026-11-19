@@ -40,12 +40,14 @@ export interface RouteMatch {
  * ipv4-l4-src-port / ipv4-l4-dst-port`). FNV-1a + fmix32: deterministic, so one
  * flow always takes the same next hop and different flows spread.
  */
-export function flowHash5(srcIp: string, dstIp: string, proto: string | number, srcPort = 0, dstPort = 0): number {
+export function flowHash5(srcIp: string, dstIp: string, proto: string | number, srcPort = 0, dstPort = 0, seed = 0): number {
   let h = 0x811c9dc5;
   for (const c of `${srcIp}|${dstIp}|${proto}|${srcPort}|${dstPort}`) {
     h ^= c.charCodeAt(0);
     h = Math.imul(h, 0x01000193);
   }
+  // `ip load-share hash seed <n>` (lib/protocols/loadshare-hash.ts); seed 0 = unchanged hash.
+  if (seed) h = Math.imul(h ^ seed, 0x01000193);
   h ^= h >>> 16;
   h = Math.imul(h, 0x85ebca6b);
   h ^= h >>> 13;
@@ -82,11 +84,16 @@ export function longestPrefixMatch(table: Route[], dstIp: string, vrf = "default
 }
 
 /** Longest-prefix match over an IPv6 routing table (destination/nextHop are v6 strings). */
-export function longestPrefixMatch6(table: Route[], dstIp: string): RouteMatch | null {
+export function longestPrefixMatch6(table: Route[], dstIp: string, vrf = "default"): RouteMatch | null {
   let best: Route | null = null;
   for (const r of table) {
-    if (!contains6(r.destination, r.prefix, dstIp)) continue;
-    if (best === null || r.prefix > best.prefix || (r.prefix === best.prefix && r.metric < best.metric)) {
+    if ((r.vrf ?? "default") !== vrf || !contains6(r.destination, r.prefix, dstIp)) continue;
+    if (
+      best === null ||
+      r.prefix > best.prefix ||
+      (r.prefix === best.prefix &&
+        (routeDistance(r) < routeDistance(best) || (routeDistance(r) === routeDistance(best) && r.metric < best.metric)))
+    ) {
       best = r;
     }
   }

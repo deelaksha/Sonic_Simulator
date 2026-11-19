@@ -1,5 +1,5 @@
 /**
- * Errdisable — CONFIG-PLANE feature (no engine backend; store + show).
+ * Errdisable recovery (KLISH) — config + show.
  *
  *   sonic(config)# errdisable recovery cause <udld|bpduguard|link-flap|coa>   enable a cause
  *   sonic(config)# no errdisable recovery cause <cause>                       disable a cause
@@ -8,10 +8,10 @@
  *   sonic# show errdisable [recovery]                                         render recovery table from stored state
  *   sonic# show errdisable link-flap                                          per-interface operational state (not simulated)
  *
- * Config-plane-only: the config commands write to the config-plane store and
- * `show errdisable recovery` renders exactly what was configured. The DATA-plane
- * effect (ports actually transitioning to err-disabled and auto-recovering after
- * the interval) is NOT simulated — only the CONFIG_DB values are modelled.
+ * The config commands write to the config-plane store and `show errdisable
+ * recovery` renders exactly what was configured. Ports err-disabled by UDLD
+ * (lib/protocols/udld-daemon.ts) are re-enabled by lib/protocols/errdisable.ts
+ * when recovery is enabled for their cause and the interval has elapsed.
  */
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";

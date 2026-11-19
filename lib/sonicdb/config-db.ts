@@ -17,6 +17,7 @@
  *     sonic-vxlan.yang:42-114, sonic-vrrp.yang:71-140, sonic-snmp.yang:90-387,
  *     sonic-lldp.yang:63-193, sonic-ntp.yang:177, sonic-dns.yang:122-137,
  *     sonic-bfd.yang:252-272 (key "remote-address|interface|vrf|local-address"),
+ *     (BGP/OSPF and the newer feature tables: ./config-db-features.ts)
  *     sonic-device_metadata.yang:38-105.
  * Live capture: data/device-capture/sflow-live/configdb-and-click-show.txt.
  *
@@ -30,7 +31,6 @@ import { vrfOf, DEFAULT_VRF } from "../models/vrf";
 import { listVlans, vlanMembers } from "../models/vlan-ops";
 import { peekSflowState } from "../sflow/agent";
 import { getBgpConfig } from "../protocols/bgp";
-import { ospfConfig } from "../protocols/ospf-config";
 import { lagConfigs, systemMac } from "../protocols/lacp-daemon";
 import { AclState, ruleFields, sonicTableType, AclType } from "../protocols/acl-rules";
 import { SnmpState } from "../protocols/snmp-config";
@@ -38,6 +38,7 @@ import { VrrpConfig } from "../protocols/vrrp";
 import { BfdPeerConfig } from "../protocols/bfd-daemon";
 import { cpList } from "../commands/sonic-cli/config-plane";
 import { Tables, put, Row } from "./schema";
+import { projectBgp, projectPolicy, projectOspf, projectNd, projectEvpn, projectL2Protect, projectMulticast, projectL3Services } from "./config-db-features";
 
 /** Front-panel ports (PORT table): not mgmt, not logical. */
 export function frontPorts(d: Device): NetInterface[] {
@@ -149,72 +150,20 @@ export function projectConfigDb(d: Device): Tables {
     const ifname = d.interfaces.find((i) => i.id === r.interfaceId)?.name ?? "";
     const prev = t.STATIC_ROUTE?.[key];
     if (prev) {
-      // ECMP static: comma-joined nexthop/ifname lists
+      // several next hops: per-nexthop comma lists (frrcfgd.py:1963-1968 IpNextHopSet)
       prev.nexthop = `${prev.nexthop},${r.nextHop ?? "0.0.0.0"}`;
       prev.ifname = `${prev.ifname},${ifname}`;
+      prev.distance = `${prev.distance},${r.distance ?? 0}`;
+      prev.blackhole = `${prev.blackhole},false`;
       continue;
     }
     put(t, "STATIC_ROUTE", key, { nexthop: r.nextHop ?? "0.0.0.0", ifname, distance: str(r.distance ?? 0), blackhole: "false" });
   }
 
-  // BGP (sonic-bgp-global.yang, sonic-bgp-neighbor.yang)
-  if (bgp?.localAs !== undefined) {
-    const g: Row = { local_asn: str(bgp.localAs) };
-    if (bgp.routerId) g.router_id = bgp.routerId;
-    put(t, "BGP_GLOBALS", DEFAULT_VRF, g);
-    for (const n of bgp.neighbors) {
-      const row: Row = { admin_status: n.shutdown ? "down" : "up" };
-      if (n.remoteAs !== undefined) row.asn = str(n.remoteAs);
-      if (n.description) row.name = n.description;
-      const ka = n.keepalive ?? bgp.keepalive;
-      const ho = n.holdtime ?? bgp.holdtime;
-      if (ka !== undefined) row.keepalive = str(ka);
-      if (ho !== undefined) row.holdtime = str(ho);
-      if (n.connectRetry !== undefined) row.conn_retry = str(n.connectRetry);
-      if (n.ebgpMultihop !== undefined) {
-        row.ebgp_multihop = "true";
-        row.ebgp_multihop_ttl = str(n.ebgpMultihop);
-      }
-      if (n.updateSource) row.local_addr = n.updateSource;
-      if (n.bfd) row.bfd = "true";
-      put(t, "BGP_NEIGHBOR", `${DEFAULT_VRF}|${n.peer}`, row);
-      put(t, "BGP_NEIGHBOR_AF", `${DEFAULT_VRF}|${n.peer}|ipv4_unicast`, { admin_status: "true" });
-      if (n.evpn) put(t, "BGP_NEIGHBOR_AF", `${DEFAULT_VRF}|${n.peer}|l2vpn_evpn`, { admin_status: "true" });
-    }
-    put(t, "BGP_GLOBALS_AF", `${DEFAULT_VRF}|ipv4_unicast`);
-    for (const net of bgp.networks) put(t, "BGP_GLOBALS_AF_NETWORK", `${DEFAULT_VRF}|ipv4_unicast|${net}`);
-    if (bgp.redistributeConnected) put(t, "ROUTE_REDISTRIBUTE", `${DEFAULT_VRF}|connected|bgp|ipv4`);
-    if (bgp.advertiseAllVni) put(t, "BGP_GLOBALS_AF", `${DEFAULT_VRF}|l2vpn_evpn`, { "advertise-all-vni": "true" });
-  }
-
-  // OSPFv2 (sonic-ospf.yang, sonic-ospf-interface.yang)
-  const ospf = ospfConfig(d);
-  if (ospf) {
-    const r: Row = { enable: "true" };
-    if (ospf.routerId) r["router-id"] = ospf.routerId;
-    if (ospf.passiveDefault) r["passive-interface-default"] = "true";
-    if (ospf.refBandwidth !== undefined) r["auto-cost-reference-bandwidth"] = str(ospf.refBandwidth);
-    put(t, "OSPFV2_ROUTER", DEFAULT_VRF, r);
-    const areas = new Set<string>([...ospf.areas.map((a) => a.id), ...ospf.networks.map((n) => n.area)]);
-    for (const a of areas) {
-      const type = ospf.areas.find((x) => x.id === a)?.type;
-      put(t, "OSPFV2_ROUTER_AREA", `${DEFAULT_VRF}|${a}`, type === "stub" ? { stub: "true" } : {});
-    }
-    for (const n of ospf.networks) put(t, "OSPFV2_ROUTER_AREA_NETWORK", `${DEFAULT_VRF}|${n.area}|${n.network}`);
-    for (const p of ospf.passive ?? []) put(t, "OSPFV2_ROUTER_PASSIVE_INTERFACE", `${DEFAULT_VRF}|${p}|0.0.0.0`);
-    for (const [ifname, p] of Object.entries(ospf.ifParams ?? {})) {
-      const ip = d.interfaces.find((i) => i.name === ifname)?.ipv4[0]?.address ?? "0.0.0.0";
-      const row: Row = {};
-      if (p.area) row["area-id"] = p.area;
-      if (p.cost !== undefined) row.metric = str(p.cost);
-      if (p.hello !== undefined) row["hello-interval"] = str(p.hello);
-      if (p.dead !== undefined) row["dead-interval"] = str(p.dead);
-      if (p.priority !== undefined) row.priority = str(p.priority);
-      if (p.network) row["network-type"] = p.network === "point-to-point" ? "POINT_TO_POINT_NETWORK" : "BROADCAST_NETWORK";
-      if (p.bfd) row["bfd-enable"] = "true";
-      put(t, "OSPFV2_INTERFACE", `${ifname}|${ip}`, row);
-    }
-  }
+  // BGP (all VRFs) + routing policy, OSPFv2 (all VRFs): ./config-db-features.ts
+  projectBgp(d, t);
+  projectPolicy(d, t);
+  projectOspf(d, t);
 
   // BFD (sonic-bfd.yang:252-272)
   const bfdPeers = peekFeatureState<{ peers: BfdPeerConfig[] }>(d, "bfd")?.peers ?? [];
@@ -332,6 +281,14 @@ export function projectConfigDb(d: Device): Tables {
     for (const s of ntp.servers) put(t, "NTP_SERVER", s, { association_type: "server", iburst: "on" });
   }
   for (const ns of peekFeatureState<{ nameservers: string[] }>(d, "dns")?.nameservers ?? []) put(t, "DNS_NAMESERVER", ns);
+
+  // Features whose rows extend the tables above (VRF vni, PORT trust, INTERFACE nat_zone,
+  // STATIC_ROUTE track): ./config-db-features.ts
+  projectNd(d, t);
+  projectEvpn(d, t);
+  projectL2Protect(d, t);
+  projectMulticast(d, t);
+  projectL3Services(d, t);
 
   // Generic KLISH config-plane stores (cp_banner, cp_logging, ...) are not projected:
   // their keys are KLISH command names, not CONFIG_DB fields.

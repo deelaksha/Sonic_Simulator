@@ -687,7 +687,7 @@ export class Simulation implements SimContext {
       } else {
         routerReceive(this, device, iface, frame);
       }
-    } else if (isSwitch(device.type) && iface.ipv4.length > 0 && !iface.logical) {
+    } else if (isSwitch(device.type) && (iface.ipv4.length > 0 || iface.ipv6.some((a) => !a.address.toLowerCase().startsWith("fe80"))) && !iface.logical) {
       // A front-panel port with an IP address is a routed (L3) port.
       sflowSample(this, device, iface, frame, "rx");
       routerReceive(this, device, iface, frame);

@@ -1,0 +1,23 @@
+/** One file per lab; each registers its missions and troubleshooting labs. */
+import "./ospf";
+import "./bgp";
+import "./bgp-policy";
+import "./bfd";
+import "./ospf-areas";
+import "./ipvx";
+import "./acl";
+import "./copp";
+import "./qos";
+import "./snmp";
+import "./arpnd";
+import "./evpn-irb";
+import "./multicast";
+import "./l3-services";
+import "./vrf";
+import "./vrrp";
+import "./arp";
+import "./lldp";
+import "./lacp";
+import "./mclag";
+import "./l2-protect";
+import "./vxlan";

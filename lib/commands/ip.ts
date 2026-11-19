@@ -18,6 +18,8 @@ import { NetInterface } from "../models/interface";
 import { Route } from "../models/route";
 import { broadcastAddress, isValidIpv4, isValidPrefix, networkAddress } from "../models/ip";
 import { rebuildConnectedRoutes } from "../models/factory";
+import { renderIp6Addr, renderIp6Route } from "../protocols/radv-daemon";
+import { renderMaddr } from "../protocols/mcast-host";
 
 // ---- formatting shared with other commands ----
 
@@ -276,7 +278,19 @@ export const ipCommand: CommandHandler = {
     "  Inspect and change the device's L2/L3 configuration — the same state",
     "  the GUI edits and the packet engine uses.",
   ],
-  run(args, ctx): CommandResult {
+  run(argv, ctx): CommandResult {
+    // `ip -6 addr|route [show]` (iproute2 family flag): IPv6 views incl. SLAAC/RA state.
+    if (argv[0] === "-6") {
+      const o = argv[1];
+      if (o === "a" || o === "addr" || o === "address") return { output: renderIp6Addr(ctx.device, Date.now()).map((t) => line(t)) };
+      if (o === "r" || o === "route") return { output: renderIp6Route(ctx.device, Date.now()).map((t) => line(t)) };
+      return { output: [err(`ip -6: only "addr" and "route" are supported`)] };
+    }
+    const args = argv;
+    if (args[0] === "maddr") {
+      const dev = args[args.indexOf("dev") + 1];
+      return { output: renderMaddr(ctx.device, args.includes("dev") ? dev : undefined).map((t) => line(t)) };
+    }
     const object = args[0];
     const action = args[1];
     const rest = args.slice(2);

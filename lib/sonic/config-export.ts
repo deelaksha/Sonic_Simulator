@@ -3,6 +3,7 @@
  */
 import { Device, isSwitch } from "../models/device";
 import { peekFeatureState } from "../models/feature-state";
+import { ospfConfig } from "../protocols/ospf-config";
 
 export function generateSonicRunningConfig(device: Device): string {
   if (!isSwitch(device.type)) {
@@ -94,10 +95,7 @@ export function generateSonicRunningConfig(device: Device): string {
   }
 
   // OSPF
-  const ospf = peekFeatureState<{
-    routerId?: string;
-    areas?: Array<{ area: string; networks: string[] }>;
-  }>(device, "ospf");
+  const ospf = ospfConfig(device);
 
   if (ospf) {
     lines.push(`! --- OSPF Routing ---`);
@@ -105,12 +103,11 @@ export function generateSonicRunningConfig(device: Device): string {
     if (ospf.routerId) {
       lines.push(`  router-id ${ospf.routerId}`);
     }
-    if (ospf.areas) {
-      for (const a of ospf.areas) {
-        for (const net of a.networks) {
-          lines.push(`  network ${net} area ${a.area}`);
-        }
-      }
+    for (const n of ospf.networks ?? []) {
+      lines.push(`  network ${n.network} area ${n.area}`);
+    }
+    for (const a of ospf.areas ?? []) {
+      if (a.type) lines.push(`  area ${a.id} ${a.type}${a.noSummary ? " no-summary" : ""}`);
     }
     lines.push(`!`);
   }

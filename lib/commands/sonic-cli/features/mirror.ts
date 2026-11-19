@@ -1,27 +1,28 @@
 /**
- * Mirror sessions — CONFIG-PLANE feature (no engine/packet backend; store + show).
+ * Mirror sessions (KLISH) — MIRROR_SESSION config; the data plane (SPAN copies,
+ * ERSPAN GRE encapsulation) is lib/protocols/mirror.ts.
  *
  *   sonic(config)# mirror-session Mirror1                 -> create + enter sub-view
  *   sonic(config-mirror-Mirror1)# destination Ethernet0 source Ethernet4 direction rx
  *   sonic(config-mirror-Mirror2)# destination erspan dst-ip 10.1.1.1 src-ip 11.1.1.1 \
  *                                   dscp 10 ttl 10 gre 0x88ee queue 10 source Ethernet4 direction rx
  *   sonic(config)# no mirror-session Mirror1              -> delete
- *   sonic# show mirror-session [name]                     -> render from stored config
+ *   sonic# show mirror-session [name]                     -> klish-xml/mirror.xml layout
  *
  * `mirror-session <name>` (configure-view) has its config in a DEDICATED SUB-MODE
- * (grammar view="configure-mirror-view"), so we follow the sub-mode pattern: the
- * entry handler upserts the session and returns `enter: subViewFrame(...)`, and a
- * sub-view handler stores the `destination ...` fields keyed on the session name.
+ * (grammar view="configure-mirror-view"): the entry handler upserts the session
+ * and returns `enter: subViewFrame(...)`, and a sub-view handler stores the
+ * `destination ...` fields keyed on the session name. Click `config
+ * mirror_session` (commands/sonic/mirror.ts) writes the same rows.
  *
- * Mirroring is a DATA-PLANE feature (the ASIC copies matched packets to the
- * destination). The sim cannot forward mirrored traffic, so we store + show the
- * config honestly and mark dataPlaneNotSimulated. The operational "Status" column
- * is runtime state we do not model, so it is rendered as "-" (never fabricated).
+ * Status is the STATE_DB status orchagent reports (mirrororch.cpp:15-17),
+ * computed by sessionStatus() in lib/protocols/mirror.ts.
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
+import { sessionStatus, MirrorSession } from "../../../protocols/mirror";
 
 type Session = Record<string, string>;
 
@@ -110,7 +111,6 @@ registerModal({
 
     const erspan = sessions.filter((s) => s.type === "erspan");
     const span = sessions.filter((s) => s.type !== "erspan");
-    const st = "-"; // operational status is runtime state; not simulated.
     const out: OutputLine[] = [];
 
     if (erspan.length) {
@@ -121,7 +121,7 @@ registerModal({
       for (const s of erspan) {
         out.push(
           line(
-            p(s.name, 10) + p(st, 10) + p(s.src_ip, 16) + p(s.dst_ip, 16) + p(s.gre, 7) +
+            p(s.name, 10) + p(sessionStatus(ctx.device, s as unknown as MirrorSession), 10) + p(s.src_ip, 16) + p(s.dst_ip, 16) + p(s.gre, 7) +
               p(s.dscp, 6) + p(s.ttl, 6) + p(s.queue, 8) + p("", 10) + p(s.src, 16) + (s.direction ?? ""),
           ),
         );
@@ -133,7 +133,7 @@ registerModal({
       out.push(line(SPAN_HDR));
       out.push(muted("-".repeat(SPAN_HDR.length)));
       for (const s of span) {
-        out.push(line(p(s.name, 10) + p(st, 10) + p(s.dst, 16) + p(s.src, 16) + (s.direction ?? "")));
+        out.push(line(p(s.name, 10) + p(sessionStatus(ctx.device, s as unknown as MirrorSession), 10) + p(s.dst, 16) + p(s.src, 16) + (s.direction ?? "")));
       }
     }
     return { output: out };

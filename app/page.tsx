@@ -73,7 +73,10 @@ export default function LabPage() {
 
   // hsflowd runs on wall time: poll counters / flush samples once per second.
   useEffect(() => {
-    const t = setInterval(() => useLabStore.getState().sflowTick(), 1000);
+    const t = setInterval(() => {
+      useLabStore.getState().sflowTick();
+      useLabStore.getState().missionTick(); // lab mission objectives (lib/missions)
+    }, 1000);
     return () => clearInterval(t);
   }, []);
 

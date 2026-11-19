@@ -54,6 +54,8 @@ interface LldpPortState {
   enabled: boolean;
   transmit: boolean;
   receive: boolean;
+  /** KLISH `network-policy <n>` (LLDP-MED network policy profile advertised on the port). */
+  networkPolicy?: number;
 }
 
 interface LldpState {
@@ -98,6 +100,13 @@ function parseInRange(tok: string | undefined, range: { min: number; max: number
 function portState(st: LldpState, name: string): LldpPortState {
   if (!st.interfaces[name]) st.interfaces[name] = { name, enabled: true, transmit: true, receive: true };
   return st.interfaces[name];
+}
+
+/** KLISH interface `[no] network-policy <1-128>`: bind the profile lldpd advertises as LLDP-MED. */
+export function setLldpNetworkPolicy(ctx: CommandContext, port: string, profile: number | undefined): void {
+  const p = portState(state(ctx), port);
+  if (profile === undefined) delete p.networkPolicy;
+  else p.networkPolicy = profile;
 }
 
 const config: SonicCmd[] = [
@@ -361,8 +370,41 @@ function lldpctlBlock(port: string, nb: LldpNeighbor, now: number): string[] {
   out.push("  Port:        ", `    PortID:       ${PORT_SUBTYPE[nb.portSubtype] ?? "unhandled"} ${nb.portId}`);
   if (nb.portDescr !== undefined) out.push(`    PortDescr:    ${nb.portDescr}`);
   if (nb.ttl > 0) out.push(`    TTL:          ${nb.ttl}`);
+  // Dot3 (display.c:380-470), then VLANs and LLDP-MED at the interface level (display.c:613-647, 60-140).
+  if (nb.mfs) out.push(`    MFS:          ${nb.mfs}`);
+  if (nb.aggId) out.push(`    Port is aggregated. PortAggregID: ${nb.aggId}`);
+  const mp = nb.macphy;
+  if (mp && (mp.autonegSupport || mp.autonegEnabled || mp.mau > 0)) {
+    out.push(`    PMD autoneg:  supported: ${mp.autonegSupport ? "yes" : "no"}, enabled: ${mp.autonegEnabled ? "yes" : "no"}`);
+    out.push(`      MAU oper type: ${MAU_NAMES[mp.mau] ?? "unknown"}`);
+  }
+  for (const v of nb.vlans ?? []) out.push(`  VLAN:         ${v.vid}, pvid: ${v.vid === nb.pvid ? "yes" : "no"} ${v.name}`);
+  if (nb.pvid && !(nb.vlans ?? []).some((v) => v.vid === nb.pvid)) out.push(`  VLAN:         ${nb.pvid}, pvid: yes`);
+  if (nb.medType) {
+    out.push("  LLDP-MED:     ", `    Device Type:  ${MED_TYPES[nb.medType] ?? "unknown"}`);
+    for (const [bit, name] of MED_CAPS) if ((nb.medCap ?? 0) & bit) out.push(`    Capability:   ${name}, yes`);
+    for (const p of nb.medPolicies ?? []) {
+      out.push(`    LLDP-MED Network Policy for: ${MED_APPS[p.type] ?? "unknown"}, Defined: ${p.unknown ? "no" : "yes"}`);
+      if (p.tagged) out.push(`      VLAN:         ${p.vid === 0 ? "priority" : p.vid === 4095 ? "reserved" : p.vid}`);
+      out.push(`      Priority:     ${MED_PRIO[p.priority]}`, `      PCP:          ${p.priority}`, `      DSCP Value:   ${p.dscp}`);
+    }
+  }
   return out;
 }
+
+/** lldpctl string maps (lib/atoms/port.c:60-270, chassis.c:41-46, med.c:101-127, display.c:73-79). */
+const MAU_NAMES: Record<number, string> = {
+  11: "10BaseTFD - UTP MAU, full duplex mode",
+  16: "100BaseTXFD - 2 pair category 5 UTP, full duplex mode",
+  30: "1000BaseTFD - Four-pair Category 5 UTP, full duplex mode",
+  71: "40GbaseCR4 - 40GBASE-R PCS/PMA over 4 lane shielded copper balanced cable",
+  98: "100GbaseCR4 - 100GBASE-R PCS/PMA over 4 lane shielded copper balanced cable",
+  117: "50GbaseCR - 50GBASE-R PCS/PMA over shielded copper balanced cable PMD",
+};
+const MED_TYPES: Record<number, string> = { 1: "Generic Endpoint (Class I)", 2: "Media Endpoint (Class II)", 3: "Communication Device Endpoint (Class III)", 4: "Network Connectivity Device" };
+const MED_CAPS: [number, string][] = [[0x01, "Capabilities"], [0x02, "Policy"], [0x04, "Location"], [0x08, "MDI/PSE"], [0x10, "MDI/PD"], [0x20, "Inventory"]];
+const MED_APPS: Record<number, string> = { 1: "Voice", 2: "Voice Signaling", 3: "Guest Voice", 4: "Guest Voice Signaling", 5: "Softphone Voice", 6: "Video Conferencing", 7: "Streaming Video", 8: "Video Signaling" };
+const MED_PRIO = ["Best effort", "Background", "Excellent effort", "Critical applications", "Video", "Voice", "Internetwork control", "Network control"];
 
 const LLDPCTL_SEP = "-".repeat(79);
 

@@ -13,7 +13,9 @@
  *   config snmp location del                  <- no snmp-server location
  *   config snmp contact add <text ...>        <- snmp-server contact "<text>"
  *   config snmp contact del                   <- no snmp-server contact
- *   config snmp user add <name> [ro|rw]       <- snmp-server user <name> ...
+ *   config snmp user add <user> <noAuthNoPriv|AuthNoPriv|Priv> <RO|RW> [MD5|SHA|HMAC-SHA-2 <pass>] [DES|AES <pass>]
+ *                                             (config/main.py:4457-4532; the simulator's older
+ *                                             `user add <name> [ro|rw]` form is still accepted)
  *   config snmp user del <name>               <- no snmp-server user <name>
  *   show snmp                                 <- show snmp-server
  *   show snmp community                       <- show snmp-server community
@@ -35,7 +37,7 @@
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { peekFeatureState } from "../../models/feature-state";
-import { Access, AgentAddress, SnmpState, requestSnmpRestart, snmpConfig } from "../../protocols/snmp-config";
+import { Access, AgentAddress, SnmpState, SnmpUser, requestSnmpRestart, snmpConfig } from "../../protocols/snmp-config";
 
 /** SNMP_COMMUNITY_STRING is 4-32 characters (snmp.txt TC-60). */
 const NAME_LEN = { min: 4, max: 32 };
@@ -130,11 +132,12 @@ const config: SonicCmd[] = [
   },
   {
     path: ["snmp", "user", "add"],
-    summary: "Add/update an SNMPv3 user (ro|rw, default ro)",
+    summary: "Add an SNMPv3 user: <user> <noAuthNoPriv|AuthNoPriv|Priv> <RO|RW> [MD5|SHA|HMAC-SHA-2 <pw>] [DES|AES <pw>]",
     run(args, ctx): CommandResult {
       const pos = positional(args);
       const name = pos[0];
       if (!name) return { output: [err("Usage: config snmp user add <name> [ro|rw]")] };
+      if (pos[1] && !["ro", "rw"].includes(pos[1].toLowerCase())) return addUserFull(ctx, pos);
       const permission = parseAccess(pos[1]);
       if (permission === null) return { output: [err(`config snmp user add: permission must be ro or rw (got '${pos[1]}')`)] };
       const st = state(ctx);
@@ -157,6 +160,42 @@ const config: SonicCmd[] = [
     },
   },
 ];
+
+/** sonic-utilities add_user (config/main.py:4466-4532): validation, messages, SNMP_USER row. */
+function addUserFull(ctx: CommandContext, pos: string[]): CommandResult {
+  const [name, typeTok, permTok, authType, authPw, encType, encPw] = pos;
+  const echo = (t: string): CommandResult => ({ output: [line(t)] });
+  const TYPES: Record<string, SnmpUser["type"]> = { noauthnopriv: "noAuthNoPriv", authnopriv: "AuthNoPriv", priv: "Priv" };
+  const type = TYPES[(typeTok ?? "").toLowerCase()];
+  if (!type) return echo("Invalid user type.  Must be one of these one of these three 'noauthnopriv' or 'authnopriv' or 'priv'");
+  const perm = (permTok ?? "").toUpperCase();
+  if (perm !== "RO" && perm !== "RW") return echo("Invalid community type.  Must be either RO or RW");
+  const u: SnmpUser = { name, permission: perm, type };
+  if (type === "noAuthNoPriv") {
+    if (authType) return echo("User auth type not used with 'noAuthNoPriv'.  Please use 'AuthNoPriv' or 'Priv' instead");
+  } else {
+    if (!authType) return echo("User auth type is missing.  Must be MD5, SHA, or HMAC-SHA-2");
+    const at = authType.toUpperCase();
+    if (at !== "MD5" && at !== "SHA" && at !== "HMAC-SHA-2") return echo("Invalid user authentication type. Must be one of these 'MD5', 'SHA', or 'HMAC-SHA-2'");
+    if (!authPw) return echo("User auth password is missing");
+    u.authType = at;
+    u.authPassword = authPw;
+    if (type === "AuthNoPriv" && encType) return echo("User encrypt type not used with 'AuthNoPriv'.  Please use 'Priv' instead");
+    if (type === "Priv") {
+      if (!encType) return echo("User encrypt type is missing.  Must be DES or AES");
+      const et = encType.toUpperCase();
+      if (et !== "DES" && et !== "AES") return echo("Invalid user encryption type.  Must be one of these two 'DES' or 'AES'");
+      if (!encPw) return echo("User encrypt password is missing");
+      u.encType = et;
+      u.encPassword = encPw;
+    }
+  }
+  const st = state(ctx);
+  if (st.users.some((x) => x.name === name)) return echo(`SNMP user ${name} is already configured`);
+  st.users.push(u);
+  requestSnmpRestart(ctx.device, "click");
+  return { output: [line(`SNMP user ${name} added to configuration`), line("Restarting SNMP service...")] };
+}
 
 function renderSummary(ctx: CommandContext): OutputLine[] {
   const st = peekFeatureState<SnmpState>(ctx.device, "snmp");
@@ -292,7 +331,8 @@ function runSnmp(ctx: CommandContext, which?: string): OutputLine[] {
   const [cName, ...cMail] = (st?.contact ?? "").split(" ");
   const contactRows = st?.contact !== undefined ? [[cName, cMail.join(" ")]] : [];
   const communities = [...(st?.communities ?? [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map((c) => [c.name, c.access]);
-  const users = (st?.users ?? []).map((u) => [u.name, u.permission, "Null", "Null", "Null", "Null", "Null"]);
+  // show/main.py snmp: SNMP_USER fields (an absent field prints "Null").
+  const users = (st?.users ?? []).map((u) => [u.name, u.permission, u.type ?? "Null", u.authType || "Null", u.authPassword || "Null", u.encType || "Null", u.encPassword || "Null"]);
   const userHdr = ["User", "Permission Type", "Type", "Auth Type", "Auth Password", "Encryption Type", "Encryption Password"];
   if (which === "location") return location;
   if (which === "contact") return tabulate(contactRows, ["Contact", "Contact Email"]);

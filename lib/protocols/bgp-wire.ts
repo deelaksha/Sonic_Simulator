@@ -14,8 +14,19 @@
  *                 EXT_COMMUNITIES (16, flags 0xC0, :4489) and PMSI_TUNNEL (22, 0xC0,
  *                 :4951). No NEXT_HOP attribute (bgp_attr.c:4518 — MP only).
  *                 NLRI/ext-community/PMSI bodies: ./evpn-wire.ts.
+ *   COMMUNITY     type 8, flags 0xC0 (optional transitive, bgp_attr.c bgp_packet_attribute
+ *                 after LOCAL_PREF), 4-octet values sorted ascending (community_uniq_sort).
+ *   IPv6 unicast  MP_REACH_NLRI AFI 2 / SAFI 1 (RFC 4760, RFC 2545): next-hop length
+ *                 16 (global) or 32 (global + link-local, peer on a shared network —
+ *                 bgp_updgrp_packet.c bpacket_reformat_for_peer), reserved octet,
+ *                 NLRI as <len><prefix bytes>; first in the attribute list like EVPN,
+ *                 no NEXT_HOP. Withdraws: MP_UNREACH_NLRI AFI 2 / SAFI 1 alone.
  */
 import { AFI_L2VPN, SAFI_EVPN, EvpnRoute, Pmsi, decodeEvpnNlri, decodePmsi, encodeEvpnNlri, encodePmsi, evpnPrefixStr, ecListStr } from "./evpn-wire";
+import { formatIpv6, parseIpv6 } from "../models/ipv6";
+
+export const AFI_IP6 = 2;
+export const SAFI_UNICAST = 1;
 
 export const BGP_PORT = 179;
 export const AS_TRANS = 23456; // RFC 6793
@@ -44,6 +55,8 @@ export interface PathAttrs {
   /** EXTENDED_COMMUNITIES (8-byte values, wire order). */
   extComms?: number[][];
   pmsi?: Pmsi;
+  /** COMMUNITY (RFC 1997), sorted. */
+  communities?: number[];
 }
 export interface UpdateMsg {
   type: 2;
@@ -54,6 +67,10 @@ export interface UpdateMsg {
   evpnReach?: { nextHop: string; nlri: EvpnRoute[] };
   /** MP_UNREACH_NLRI for L2VPN EVPN. */
   evpnUnreach?: EvpnRoute[];
+  /** MP_REACH_NLRI for IPv6 unicast (global next hop, optional link-local). */
+  v6Reach?: { nextHop: string; nextHopLL?: string; nlri: string[] };
+  /** MP_UNREACH_NLRI for IPv6 unicast. */
+  v6Unreach?: string[];
 }
 export interface NotificationMsg {
   type: 3;
@@ -131,9 +148,81 @@ export function encodeUpdate(u: Omit<UpdateMsg, "type">, as4: boolean): number[]
     attrs.push(0x40, 3, 4, ...ipBytes(a.nextHop));
     if (a.med !== undefined) attrs.push(0x80, 4, 4, ...u32(a.med));
     if (a.localPref !== undefined) attrs.push(0x40, 5, 4, ...u32(a.localPref));
+    attrs.push(...encodeCommunities(a.communities));
   }
   const nlri = u.nlri.flatMap(encodePrefix);
   return header(MSG.UPDATE, [...u16(wd.length), ...wd, ...u16(attrs.length), ...attrs, ...nlri]);
+}
+
+function encodeCommunities(c: number[] | undefined): number[] {
+  if (!c?.length) return [];
+  const body = c.flatMap(u32);
+  return body.length > 255 ? [0xd0, 8, ...u16(body.length), ...body] : [0xc0, 8, body.length, ...body];
+}
+
+const ip6Bytes = (ip: string): number[] => {
+  let n = parseIpv6(ip) ?? 0n;
+  const out = new Array(16).fill(0);
+  for (let i = 15; i >= 0; i--) {
+    out[i] = Number(n & 0xffn);
+    n >>= 8n;
+  }
+  return out;
+};
+const ip6Str = (b: ArrayLike<number>, o: number): string => {
+  let n = 0n;
+  for (let i = 0; i < 16; i++) n = (n << 8n) | BigInt(b[o + i] ?? 0);
+  return formatIpv6(n);
+};
+
+function encodePrefix6(cidr: string): number[] {
+  const [addr, len] = cidr.split("/");
+  const l = Number(len);
+  return [l, ...ip6Bytes(addr).slice(0, Math.ceil(l / 8))];
+}
+
+function decodePrefixes6(b: Uint8Array, o: number, end: number): string[] {
+  const out: string[] = [];
+  while (o < end) {
+    const l = b[o++];
+    const n = Math.ceil(l / 8);
+    const a = new Array(16).fill(0);
+    for (let i = 0; i < n; i++) a[i] = b[o + i];
+    o += n;
+    out.push(`${ip6Str(a, 0)}/${l}`);
+  }
+  return out;
+}
+
+/** Attributes of an IPv6 unicast UPDATE (next hop travels inside MP_REACH). */
+export interface V6Attrs {
+  origin: number;
+  asPath: number[];
+  med?: number;
+  localPref?: number;
+  communities?: number[];
+}
+
+/** UPDATE carrying IPv6 unicast routes: MP_REACH (with attrs) or MP_UNREACH (withdraw only). */
+export function encodeV6Update(u: { reach?: { nextHop: string; nextHopLL?: string; nlri: string[]; attrs: V6Attrs }; unreach?: string[] }, as4: boolean): number[] {
+  const attrs: number[] = [];
+  if (u.unreach) {
+    const body = [...u16(AFI_IP6), SAFI_UNICAST, ...u.unreach.flatMap(encodePrefix6)];
+    attrs.push(0x90, 15, ...u16(body.length), ...body);
+  }
+  if (u.reach) {
+    const a = u.reach.attrs;
+    const nh = [...ip6Bytes(u.reach.nextHop), ...(u.reach.nextHopLL ? ip6Bytes(u.reach.nextHopLL) : [])];
+    const body = [...u16(AFI_IP6), SAFI_UNICAST, nh.length, ...nh, 0, ...u.reach.nlri.flatMap(encodePrefix6)];
+    attrs.push(0x90, 14, ...u16(body.length), ...body);
+    attrs.push(0x40, 1, 1, a.origin);
+    const ap = encodeAsPath(a.asPath, as4);
+    attrs.push(0x50, 2, ...u16(ap.length), ...ap);
+    if (a.med !== undefined) attrs.push(0x80, 4, 4, ...u32(a.med));
+    if (a.localPref !== undefined) attrs.push(0x40, 5, 4, ...u32(a.localPref));
+    attrs.push(...encodeCommunities(a.communities));
+  }
+  return header(MSG.UPDATE, [0, 0, ...u16(attrs.length), ...attrs]);
 }
 
 /** Attributes of an EVPN UPDATE (no NEXT_HOP: it travels inside MP_REACH). */
@@ -200,6 +289,8 @@ function decodeUpdate(b: Uint8Array, as4: boolean): UpdateMsg {
   const a: Partial<PathAttrs> = {};
   let evpnReach: UpdateMsg["evpnReach"];
   let evpnUnreach: UpdateMsg["evpnUnreach"];
+  let v6Reach: UpdateMsg["v6Reach"];
+  let v6Unreach: UpdateMsg["v6Unreach"];
   let seen = 0;
   while (o < attrEnd) {
     const flags = b[o];
@@ -227,6 +318,11 @@ function decodeUpdate(b: Uint8Array, as4: boolean): UpdateMsg {
       const nhLen = b[o + 3];
       evpnReach = { nextHop: ipStr(b, o + 4), nlri: decodeEvpnNlri(b, o + 4 + nhLen + 1, o + len) };
     } else if (code === 15 && rd16(b, o) === AFI_L2VPN && b[o + 2] === SAFI_EVPN) evpnUnreach = decodeEvpnNlri(b, o + 3, o + len);
+    else if (code === 14 && rd16(b, o) === AFI_IP6 && b[o + 2] === SAFI_UNICAST) {
+      const nhLen = b[o + 3];
+      v6Reach = { nextHop: ip6Str(b, o + 4), ...(nhLen >= 32 ? { nextHopLL: ip6Str(b, o + 20) } : {}), nlri: decodePrefixes6(b, o + 4 + nhLen + 1, o + len) };
+    } else if (code === 15 && rd16(b, o) === AFI_IP6 && b[o + 2] === SAFI_UNICAST) v6Unreach = decodePrefixes6(b, o + 3, o + len);
+    else if (code === 8) a.communities = Array.from({ length: Math.floor(len / 4) }, (_, i) => rd32(b, o + i * 4));
     else if (code === 16) a.extComms = Array.from({ length: Math.floor(len / 8) }, (_, i) => Array.from(b.slice(o + i * 8, o + i * 8 + 8)));
     else if (code === 22 && len >= 9) a.pmsi = decodePmsi(b, o);
     seen |= 1 << code;
@@ -238,7 +334,7 @@ function decodeUpdate(b: Uint8Array, as4: boolean): UpdateMsg {
     const missing = !(seen & 2) ? 1 : !(seen & 4) ? 2 : 3;
     throw new BgpDecodeError(3, 3, `missing well-known attribute ${missing}`);
   }
-  return { type: 2, withdrawn, attrs: attrLen ? (a as PathAttrs) : undefined, nlri, ...(evpnReach ? { evpnReach } : {}), ...(evpnUnreach ? { evpnUnreach } : {}) };
+  return { type: 2, withdrawn, attrs: attrLen ? (a as PathAttrs) : undefined, nlri, ...(evpnReach ? { evpnReach } : {}), ...(evpnUnreach ? { evpnUnreach } : {}), ...(v6Reach ? { v6Reach } : {}), ...(v6Unreach ? { v6Unreach } : {}) };
 }
 
 function decodeOpen(b: Uint8Array): OpenMsg {
@@ -324,6 +420,12 @@ export function notifyText(code: number, subcode: number): string {
 const MSG_NAME: Record<number, string> = { 1: "Open", 2: "Update", 3: "Notification", 4: "Keepalive", 5: "Route Refresh" };
 const CAP_NAME: Record<number, string> = { 1: "Multiprotocol Extensions", 2: "Route Refresh", 6: "Extended Message", 65: "32-Bit AS Number", 70: "Enhanced Route Refresh", 73: "Hostname" };
 
+/** print-bgp.c bgp_attr_print BGPTYPE_COMMUNITIES. */
+function tcpdumpCommunity(v: number): string {
+  const wk: Record<number, string> = { 0xffffff01: "NO_EXPORT", 0xffffff02: "NO_ADVERTISE", 0xffffff03: "NO_EXPORT_SUBCONFED" };
+  return wk[v] ?? `${v >>> 16}:${v & 0xffff}`;
+}
+
 export function describeBgpPayload(bytes: Uint8Array, verbose: boolean): string {
   if (!verbose) return "BGP";
   const lines = ["BGP"];
@@ -351,6 +453,13 @@ export function describeBgpPayload(bytes: Uint8Array, verbose: boolean): string 
         if (nh) lines.push(`\t    nexthop: ${nh}, nh-length: 4, no SNPA`);
         lines.push(`\t    no AFI 25 / SAFI 70 decoder`, ...routes.map((r) => `\t      RD ${r.rd} ${evpnPrefixStr(r)}${r.vni !== undefined ? ` VNI ${r.vni}` : ""}`));
       };
+      const mp6 = (code: number, nlri: string[], nh?: string, ll?: string) => {
+        lines.push(`\t  Multi-Protocol ${code === 14 ? "Reach" : "Unreach"} NLRI (${code}), Flags [OE]: `, `\t    AFI: IPv6 (2), SAFI: Unicast (1)`);
+        if (nh) lines.push(`\t    nexthop: ${nh}${ll ? `, ${ll}` : ""}, nh-length: ${ll ? 32 : 16}, no SNPA`);
+        lines.push(...nlri.map((p) => `\t      ${p}`));
+      };
+      if (m.v6Unreach) mp6(15, m.v6Unreach);
+      if (m.v6Reach) mp6(14, m.v6Reach.nlri, m.v6Reach.nextHop, m.v6Reach.nextHopLL);
       if (m.evpnUnreach) mp(15, m.evpnUnreach);
       if (m.evpnReach) mp(14, m.evpnReach.nlri, m.evpnReach.nextHop);
       if (m.attrs && m.attrs.origin !== undefined) {
@@ -360,6 +469,7 @@ export function describeBgpPayload(bytes: Uint8Array, verbose: boolean): string 
         if (a.nextHop) lines.push(`\t  Next Hop (3), length: 4, Flags [T]: ${a.nextHop}`);
         if (a.med !== undefined) lines.push(`\t  Multi Exit Discriminator (4), length: 4, Flags [O]: ${a.med}`);
         if (a.localPref !== undefined) lines.push(`\t  Local Preference (5), length: 4, Flags [T]: ${a.localPref}`);
+        if (a.communities?.length) lines.push(`\t  Community (8), length: ${a.communities.length * 4}, Flags [OT]: ${a.communities.map(tcpdumpCommunity).join(", ")}`);
         if (a.extComms?.length) lines.push(`\t  Extended Community (16), length: ${a.extComms.length * 8}, Flags [OT]: ${ecListStr(a.extComms)}`);
         if (a.pmsi) {
           const label = a.pmsi.vni >> 4;
@@ -367,7 +477,7 @@ export function describeBgpPayload(bytes: Uint8Array, verbose: boolean): string 
         }
       }
       if (m.nlri.length) lines.push("\t  Updated routes:", ...m.nlri.map((p) => `\t    ${p}`));
-      if (!m.withdrawn.length && !m.attrs && !m.nlri.length && !m.evpnUnreach) lines.push("\t  End-of-Rib Marker (empty NLRI)");
+      if (!m.withdrawn.length && !m.attrs && !m.nlri.length && !m.evpnUnreach && !m.v6Unreach) lines.push("\t  End-of-Rib Marker (empty NLRI)");
     } else if (m.type === 3) {
       lines.push(`\t  ${NOTIFY_CODE[m.code] ?? "Unknown"} (${m.code}), subcode ${m.subcode}`);
     }

@@ -17,16 +17,23 @@
  * Mirrors the real box's ECMP_LOADSHARE_TABLE_* / SWITCH CONFIG_DB tables (see
  * data/device-capture/klish-xml/loadshare.xml): config is stored honestly and
  * `show ip load-share` renders exactly what was set. Nothing is fabricated —
- * unset parameters are simply not shown. The DATA plane (the actual ECMP hash
- * bucket selection / packet distribution the ASIC performs from these fields) is
- * NOT simulated; only the configuration is modelled.
+ * unset parameters are simply not shown.
+ *
+ * Data plane: the IPv4 field list, `symmetric` and the seed drive the ECMP
+ * next-hop choice of every routed packet (lib/protocols/loadshare-hash.ts, read
+ * by ipOutput). The field lists start from the SONiC default (all fields
+ * hashed), so `no ip load-share hash ipv4 ipv4-l4-src-port` removes one field
+ * from the default set. Offset, algorithm, UDF, RoCE, ingress-port and
+ * resilient hashing are stored and shown only.
  */
 import { OutputLine, line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpGet } from "../config-plane";
+import { IPV4_HASH_DEFAULT } from "../../../protocols/loadshare-hash";
 
 const IPV4_FIELDS = ["ipv4-src-ip", "ipv4-dst-ip", "ipv4-ip-proto", "ipv4-l4-src-port", "ipv4-l4-dst-port", "symmetric"];
 const IPV6_FIELDS = ["ipv6-src-ip", "ipv6-dst-ip", "ipv6-next-hdr", "ipv6-flow-label", "ipv6-l4-src-port", "ipv6-l4-dst-port", "symmetric"];
+const IPV6_HASH_DEFAULT = ["ipv6-src-ip", "ipv6-dst-ip", "ipv6-next-hdr", "ipv6-l4-src-port", "ipv6-l4-dst-port"];
 const ALL_KEYS = ["seed", "offset", "algorithm", "roce", "ingress-port", "rh-threshold", "ipv4", "ipv6", "udf", "rh"];
 
 /** Parse trailing `<key> <value>` option pairs starting at index `start`. */
@@ -103,6 +110,10 @@ registerModal({
         const fields = sub === "ipv4" ? IPV4_FIELDS : IPV6_FIELDS;
         const field = (args[3] ?? "").toLowerCase();
         if (!fields.includes(field)) return { output: [err(`% ${sub} hash field must be one of ${fields.join("|")}`)] };
+        // The first change starts from the default field set (every field hashed).
+        if (cpGet(dev, "loadshare")?.[sub] === undefined) {
+          cpSet(dev, "loadshare", sub, (sub === "ipv4" ? IPV4_HASH_DEFAULT : IPV6_HASH_DEFAULT).map((f) => ({ field: f })));
+        }
         if (isNo) {
           cpRemove(dev, "loadshare", sub, "field", field);
           return { output: [] };

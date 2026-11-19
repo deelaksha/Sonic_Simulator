@@ -32,7 +32,7 @@ MODULES = [
     "scapy.layers.snmp", "scapy.layers.tftp", "scapy.layers.rip", "scapy.layers.vrrp",
     "scapy.layers.hsrp", "scapy.layers.l2tp", "scapy.layers.sctp", "scapy.layers.radius",
     "scapy.layers.netflow",
-    "scapy.contrib.bgp", "scapy.contrib.ospf", "scapy.contrib.igmp", "scapy.contrib.mpls",
+    "scapy.contrib.bgp", "scapy.contrib.ospf", "scapy.contrib.igmp", "scapy.contrib.igmpv3", "scapy.contrib.mpls",
     "scapy.contrib.bfd", "scapy.contrib.lldp", "scapy.contrib.lacp", "scapy.contrib.pim",
     "scapy.contrib.erspan", "scapy.contrib.geneve", "scapy.contrib.stamp", "scapy.contrib.isis",
 ]

@@ -1,9 +1,10 @@
 /**
- * FBS (Flow-Based Services) SONiC feature module. Config-plane only (simulated
- * CONFIG_DB): commands mutate per-device feature state and `show fbs ...` renders
- * SOLELY from that stored state. Nothing classifies, polices or forwards real
- * traffic — that needs a packet-engine hook not present yet — so NO match/flow
- * counters or forwarding results are fabricated here; this is educational.
+ * FBS (Flow-Based Services) SONiC feature module. Commands mutate per-device
+ * feature state (simulated CONFIG_DB) and `show fbs ...` renders from it.
+ * Forwarding policies (type forwarding: set-ip-nexthop / set-interface) bound
+ * ingress are enforced on routed traffic by lib/protocols/pbr.ts, which also
+ * keeps the per-flow match counters (`show service-policy ...`, KLISH). QoS and
+ * monitoring actions (set-dscp, set-pcp, police) are stored and shown only.
  *
  * FBS has three objects (class-maps / policy-maps / service-policy bindings),
  * mirrored from fbs.txt and wrapped as click-style `config fbs ...` / `show
@@ -19,6 +20,11 @@
  *   config fbs policy flow add <policy> <cls> <pri> <- class <cls> priority <pri>
  *   config fbs policy flow del <policy> <cls>       <- no class <cls>
  *   config fbs policy flow action <policy> <cls> <a> ... <- set dscp|set pcp|police cir <n> cbs <n>
+ *   config fbs policy flow action <policy> <cls> set-ip-nexthop <ip> [vrf <v>] [priority <n>]
+ *                                                   <- set ip next-hop <ip> [vrf <v>] [priority <n>]
+ *   config fbs policy flow action <policy> <cls> set-interface <if|null> [priority <n>]
+ *                                                   <- set interface <if>|null [priority <n>]
+ *   config fbs policy flow no-action <policy> <cls> <a> [<target>] <- no set ...
  *   config fbs bind <policy> <iface> <in|out>       <- interface <i>; service-policy type <t> <in|out> <p>
  *   config fbs unbind <policy> <iface> <in|out>     <- no service-policy type <t> <in|out> <p>
  *   show fbs classifier [name]                      <- show class-map [name]
@@ -28,7 +34,8 @@
  *
  * Match fields / ranges taken from fbs.txt: dscp 0-63, pcp 0-7, vlan 1-4094,
  * ip-protocol 0-255 (`match ip protocol <n>`), src-ip/dst-ip CIDR
- * (`match source-address ip <cidr>` / `match destination-address ip <cidr>`).
+ * (`match source-address ip <cidr>` / `match destination-address ip <cidr>`),
+ * src-port/dst-port <n> or <a>-<b> (`match l4-port source|destination eq|range`).
  * Flow actions: set-dscp 0-63, set-pcp 0-7, police cir <n> cbs <n> (uint32).
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
@@ -50,43 +57,50 @@ const RATE = { min: 1, max: 4294967295 }; // uint32 (police cir/cbs)
 const CIDR = /^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/;
 
 /** Match fields the classifier accepts, with their `show class-map` rendering. */
-const MATCH_FIELDS = ["dscp", "pcp", "vlan", "ip-protocol", "src-ip", "dst-ip"] as const;
-type MatchField = (typeof MATCH_FIELDS)[number];
+const MATCH_FIELDS = ["dscp", "pcp", "vlan", "ip-protocol", "src-ip", "dst-ip", "src-port", "dst-port"] as const;
+export type MatchField = (typeof MATCH_FIELDS)[number];
 
-interface FbsMatch {
+export interface FbsMatch {
   field: MatchField;
   value: string;
 }
 
-interface FbsClassifier {
+export interface FbsClassifier {
   name: string;
   matches: FbsMatch[];
+  description?: string;
 }
 
-interface FbsFlowAction {
-  name: "set-dscp" | "set-pcp" | "police";
-  detail: string; // rendered value, e.g. "46" or "cir 1000 cbs 10000"
+export interface FbsFlowAction {
+  name: "set-dscp" | "set-pcp" | "police" | "set-ip-nexthop" | "set-interface";
+  detail: string; // rendered value, e.g. "46" or "cir 1000 cbs 10000" or "10.0.13.2 priority 10"
+  /** set-ip-nexthop: the next-hop IP; set-interface: the interface name or "null". */
+  target?: string;
+  vrf?: string;
+  priority?: number;
 }
 
-interface FbsFlow {
+export interface FbsFlow {
   classifier: string;
   priority: number;
   actions: FbsFlowAction[];
+  description?: string;
 }
 
-interface FbsPolicy {
+export interface FbsPolicy {
   name: string;
   type: PolicyType;
   flows: FbsFlow[];
+  description?: string;
 }
 
-interface FbsBinding {
+export interface FbsBinding {
   policy: string;
   iface: string;
   direction: "in" | "out";
 }
 
-interface FbsState {
+export interface FbsState {
   classifiers: FbsClassifier[];
   policies: FbsPolicy[];
   bindings: FbsBinding[];
@@ -123,6 +137,14 @@ function validateMatch(field: MatchField, value: string | undefined): { value: s
     case "dst-ip":
       if (!CIDR.test(value)) return { error: `% Error: Invalid input — ${field} must be an IPv4 CIDR (e.g. 10.0.0.0/24)` };
       return { value };
+    case "src-port":
+    case "dst-port": {
+      const m = /^(\d+)(?:-(\d+))?$/.exec(value);
+      if (!m || +m[1] > 65535 || (m[2] !== undefined && (+m[2] > 65535 || +m[2] < +m[1]))) {
+        return { error: `% Error: Invalid input — ${field} must be 0-65535 or <begin>-<end>` };
+      }
+      return { value };
+    }
   }
 }
 
@@ -141,7 +163,17 @@ function matchText(m: FbsMatch): string {
       return `source-address ip ${m.value}`;
     case "dst-ip":
       return `destination-address ip ${m.value}`;
+    case "src-port":
+      return m.value.includes("-") ? `l4-port source range ${m.value.replace("-", " ")}` : `l4-port source eq ${m.value}`;
+    case "dst-port":
+      return m.value.includes("-") ? `l4-port destination range ${m.value.replace("-", " ")}` : `l4-port destination eq ${m.value}`;
   }
+}
+
+/** `<key> <value>` option after a positional, e.g. optAfter(["priority","10"], "priority"). */
+function optAfter(rest: string[], key: string): string | undefined {
+  const i = rest.indexOf(key);
+  return i >= 0 ? rest[i + 1] : undefined;
 }
 
 const config: SonicCmd[] = [
@@ -319,13 +351,51 @@ const config: SonicCmd[] = [
           entry = { name: "police", detail: [`cir ${upd.cir}`, upd.cbs !== undefined ? `cbs ${upd.cbs}` : ""].filter(Boolean).join(" ") };
           break;
         }
+        case "set-ip-nexthop":
+        case "set-interface": {
+          if (p.type !== "forwarding") return { output: [err(`% Error: ${action} is only valid in a forwarding policy`)] };
+          const target = pos[3];
+          const rest = pos.slice(4);
+          if (!target) return { output: [err(`Usage: config fbs policy flow action <policy> <classifier> ${action} <${action === "set-interface" ? "ifname|null" : "ip"}> [priority <n>]`)] };
+          if (action === "set-ip-nexthop" && !/^\d{1,3}(\.\d{1,3}){3}$/.test(target)) return { output: [err("% Error: Invalid input — next-hop must be an IPv4 address")] };
+          if (action === "set-interface" && target !== "null" && !interfaceByName(ctx.device, target)) {
+            return { output: [err(`config fbs policy flow action: interface '${target}' not found on ${ctx.device.name}`)] };
+          }
+          const prioTok = optAfter(rest, "priority");
+          const prio = prioTok === undefined ? undefined : parseUint(prioTok);
+          if (prio === null || (prio !== undefined && (prio < 1 || prio > 65535))) return { output: [err("% Error: Invalid input — priority must be 1-65535")] };
+          const vrf = action === "set-ip-nexthop" ? optAfter(rest, "vrf") : undefined;
+          entry = {
+            name: action,
+            target,
+            ...(vrf ? { vrf } : {}),
+            ...(prio !== undefined ? { priority: prio } : {}),
+            detail: [target, vrf ? `vrf ${vrf}` : "", prio !== undefined ? `priority ${prio}` : ""].filter(Boolean).join(" "),
+          };
+          break;
+        }
         default:
-          return { output: [err(`% Error: Invalid input — unknown action '${action}' (expected set-dscp|set-pcp|police)`)] };
+          return { output: [err(`% Error: Invalid input — unknown action '${action}' (expected set-dscp|set-pcp|police|set-ip-nexthop|set-interface)`)] };
       }
-      const idx = f.actions.findIndex((a) => a.name === entry.name);
-      if (idx >= 0) f.actions[idx] = entry; // re-set overrides same action
+      // Re-set overrides the same action (forwarding actions: the same target).
+      const idx = f.actions.findIndex((a) => a.name === entry.name && a.target === entry.target);
+      if (idx >= 0) f.actions[idx] = entry;
       else f.actions.push(entry);
       return { output: [muted(`FBS policy ${policyName} flow ${classifier}: ${entry.name} ${entry.detail}`)] };
+    },
+  },
+  {
+    path: ["fbs", "policy", "flow", "no-action"],
+    summary: "Remove a flow action (no set ...); forwarding actions take the target",
+    run(args, ctx): CommandResult {
+      const pos = positional(args);
+      const [policyName, classifier, action, target] = pos;
+      if (!policyName || !classifier || !action) return { output: [err("Usage: config fbs policy flow no-action <policy> <classifier> <action> [<target>]")] };
+      const f = state(ctx).policies.find((x) => x.name === policyName)?.flows.find((x) => x.classifier === classifier);
+      if (!f) return { output: [err(`config fbs policy flow no-action: flow '${classifier}' not in policy '${policyName}'`)] };
+      const before = f.actions.length;
+      f.actions = f.actions.filter((a) => !(a.name === action && (target === undefined || a.target === target)));
+      return { output: [muted(f.actions.length < before ? `FBS policy ${policyName} flow ${classifier}: removed ${action}` : `FBS policy ${policyName} flow ${classifier}: ${action} not set (no-op)`)] };
     },
   },
   {

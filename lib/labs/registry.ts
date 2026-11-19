@@ -4,11 +4,13 @@
  */
 export interface LabApi {
   newLab(): void;
-  addDevice(type: "pc" | "server" | "switch" | "router", pos: { x: number; y: number }, ports?: number): string;
+  addDevice(type: "pc" | "server" | "switch" | "router" | "dhcp-server", pos: { x: number; y: number }, ports?: number): string;
   setInterfaceIp(deviceId: string, ifaceId: string, address: string, prefix: number): void;
   setDefaultGateway(deviceId: string, gateway: string | undefined): void;
   connect(aDev: string, aIf: string, bDev: string, bIf: string): void;
   setAccessVlan(deviceId: string, ifaceId: string, vlan: number): void;
+  /** Id of the device with this name ("" if none) — for missions/faults that act on a loaded lab. */
+  deviceId(name: string): string;
   /** Rename a device (also its hostname). */
   rename(deviceId: string, name: string): void;
   /** Set the speed (Mbps) of every front-panel port of a switch. */

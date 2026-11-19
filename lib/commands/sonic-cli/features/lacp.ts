@@ -16,8 +16,8 @@
  * teammgrd only applies min_links/fallback at LAG creation, teammgr.cpp:259 —
  * the simulator applies them live).
  *
- * Not wired: the single-line `interface PortChannel 1 min-links 2 fallback fast_rate`
- * form (the core `interface` parser in sonic-cli.ts only accepts the name).
+ * The single-line `interface PortChannel 1 [mode active|on] [min-links 2] [fallback]
+ * [fast_rate]` form is parsed by the core `interface` handler in sonic-cli.ts.
  */
 import { OutputLine, err, line } from "../../types";
 import { registerModal } from "../registry";
@@ -89,7 +89,7 @@ function showSummary(d: Device): OutputLine[] {
   for (const lag of lags) {
     const oper = interfaceByName(d, lag.name)?.operState === "up" ? "U" : "D";
     const members = lag.members.map((m) => `${m}(${rt?.lags[lag.name]?.ports[m]?.enabled ? "P" : "D"})`).join(", ");
-    out.push(line(fmt([lag.name.replace("PortChannel", ""), 10], [lag.name, 20], [`Eth (${oper})`, 15], ["LACP", 15], [members, 25])));
+    out.push(line(fmt([lag.name.replace("PortChannel", ""), 10], [lag.name, 20], [`Eth (${oper})`, 15], [lag.static ? "STATIC" : "LACP", 15], [members, 25])));
   }
   return out;
 }
@@ -108,7 +108,7 @@ function showDetail(d: Device, name: string): OutputLine[] {
   const lr = lacpRuntime(d)?.lags[name];
   const mac = pc.mac.toLowerCase();
   const out: string[] = [
-    `${name} is ${pc.adminState}, line protocol is ${pc.operState}, mode LACP`,
+    `${name} is ${pc.adminState}, line protocol is ${pc.operState}, mode ${lag.static ? "static" : "LACP"}`,
     `Hardware is PortChannel, address is ${mac}`,
     `Minimum number of links to bring PortChannel up is ${lag.minLinks ?? 1}`,
   ];
@@ -119,12 +119,12 @@ function showDetail(d: Device, name: string): OutputLine[] {
   out.push("MTU 9100");
   const members = lag.members.filter((m) => interfaceByName(d, m));
   out.push(`LineSpeed ${lineSpeed(members.reduce((s, m) => s + (interfaceByName(d, m)?.speed ?? 0), 0))}`);
-  out.push(`LACP mode ACTIVE interval ${lag.fastRate ? "FAST" : "SLOW"} priority 65535 address ${mac}`);
+  if (!lag.static) out.push(`LACP mode ACTIVE interval ${lag.fastRate ? "FAST" : "SLOW"} priority 65535 address ${mac}`);
   if (members.length) {
     out.push(`Members in this channel: ${members.join(" ")}`);
     for (const m of members) {
       const p = lr?.ports[m];
-      if (!p) continue;
+      if (!p || lag.static) continue;
       out.push(`LACP Actor port ${p.actor.port}  address ${p.actor.system.toLowerCase()} key ${p.actor.key}`);
       out.push(`LACP Partner port ${p.partner.port}  address ${p.partner.system.toLowerCase()} key ${p.partner.key}`);
     }

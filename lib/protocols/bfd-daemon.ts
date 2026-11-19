@@ -45,7 +45,25 @@
  *   - Interface oper-down does not tear the session down directly — as in FRR,
  *     which only reacts to interface deletion (ptm_adapter.c:838-839); sends
  *     fail (Tx fail counter) and the detection timer brings it Down (diag 1).
- *   - No echo function, no authentication, no demand mode, default VRF only.
+ *   - No authentication, no demand mode, default VRF only.
+ *
+ * Echo function (RFC 5880 §6.4, FRR bfdd, `echo-mode` + `echo-interval` on the peer):
+ *   bs_echo_timer_handler (bfd.c:1376-1418), run after every control packet and
+ *   on config: only for single hop sessions in Up with echo-mode; the remote's
+ *   Required Min Echo RX 0 stops it; echo interval = max(remote required min echo
+ *   rx, our desired min echo tx); starting sets echo detect = remote detect mult ×
+ *   echo interval (ptm_bfd_echo_start, bfd.c:546) and sends at once.
+ *   ptm_bfd_echo_fp_snd (bfd_packet.c:215-283, the BFD_LINUX path): IPv4 with
+ *   source = destination = our own address, UDP 3785→3785, TTL 255, sent to the
+ *   peer's MAC, so the peer's forwarding plane routes it straight back (TTL 254);
+ *   bfdd never answers echoes itself. Received echo (ptm_bfd_process_echo_pkt,
+ *   bfd_packet.c:349-412): session by my_discr, rx counter, RTT sample, echo
+ *   detection timer restarted. Expiry → Down, diag 2 "echo function failed"
+ *   (bfd_echo_recvtimer_cb, bfd.c:820-836); going Down stops echo (bfd.c:607-609).
+ *
+ * Feature: bfdd runs in the bgp container (docker-fpm-frr supervisord.conf.j2:98);
+ * `config feature state bgp disabled` kills it — sessions vanish without an
+ * AdminDown (peers time out) — and re-enabling rebuilds them from config.
  */
 import { Device } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
@@ -58,19 +76,21 @@ import { setBfdImpl, BfdClient, BfdSessionKey, BfdState } from "../control/bfd-a
 import { sendIpv4, transmitIpv4, l4Payload, ownsAddress } from "../control/packet";
 import { resolveArp } from "./arp";
 import {
-  BFD_PKT_LEN, BFD_VERSION, BFD_PORT_SINGLEHOP, BFD_PORT_MULTIHOP,
-  ST_ADMIN_DOWN, ST_DOWN, ST_INIT, ST_UP, encodeBfd, decodeBfd, tcpdumpBfd,
+  BFD_PKT_LEN, BFD_VERSION, BFD_PORT_SINGLEHOP, BFD_PORT_MULTIHOP, BFD_PORT_ECHO,
+  ST_ADMIN_DOWN, ST_DOWN, ST_INIT, ST_UP, encodeBfd, decodeBfd, tcpdumpBfd, encodeBfdEcho, decodeBfdEcho,
 } from "./bfd-packet";
+import { featureEnabled } from "./cpu-features";
 
 // --- defaults (bfd.h:434-445) ----------------------------------------------
-export const BFD_DEFAULTS = { detectMult: 3, minTx: 300, minRx: 300, echoRx: 50, slowTx: 1000, mhTtl: 254 };
+export const BFD_DEFAULTS = { detectMult: 3, minTx: 300, minRx: 300, echoRx: 50, echoTx: 50, slowTx: 1000, mhTtl: 254 };
+const RTT_SAMPLES = 8; // BFD_RTT_SAMPLE, bfd.h:324
 const BFD_TTL = 255;
 const BFD_TOS = 0xc0;
 const SRCPORT_INIT = 49152;
 const SRCPORT_MAX = 65535;
 
 /** Diagnostic codes (RFC 5880 §4.1, bfd.h:205-218). */
-export const DIAG = { NONE: 0, CONTROL_EXPIRED: 1, NEIGHBOR_DOWN: 3, PATH_DOWN: 5, ADMIN_DOWN: 7 } as const;
+export const DIAG = { NONE: 0, CONTROL_EXPIRED: 1, ECHO_FAILED: 2, NEIGHBOR_DOWN: 3, PATH_DOWN: 5, ADMIN_DOWN: 7 } as const;
 
 /** Configured peer as stored by the CLI (features.bfd.peers). */
 export interface BfdPeerConfig {
@@ -82,6 +102,9 @@ export interface BfdPeerConfig {
   txInterval?: number;
   multiplier?: number;
   shutdown?: boolean;
+  /** `echo-mode`; `echo-interval <ms>` sets both echo tx and rx (FRR bfdd_cli.c echo-interval). */
+  echoMode?: boolean;
+  echoInterval?: number;
 }
 
 export interface BfdSession {
@@ -101,6 +124,16 @@ export interface BfdSession {
   desiredMinTx: number;
   requiredMinRx: number;
   requiredMinEchoRx: number;
+  desiredMinEchoTx: number;
+  /** Echo function: configured (echo-mode) / active (echo packets being sent). */
+  echoMode: boolean;
+  echoActive: boolean;
+  echoXmtTO: number;
+  echoDetectTO: number;
+  nextEchoTx?: number;
+  echoDetectAt?: number;
+  /** Echo round-trip samples, microseconds (bfd->rtt). */
+  rtt: number[];
   /** In-use ("cur_timers") values, ms. */
   curTx: number;
   curRx: number;
@@ -123,7 +156,7 @@ export interface BfdSession {
   pktLocal?: string;
   srcPort: number;
   mhTtl: number;
-  stats: { rxCtrl: number; txCtrl: number; up: number; down: number; zebra: number; txFail: number };
+  stats: { rxCtrl: number; txCtrl: number; rxEcho: number; txEcho: number; up: number; down: number; zebra: number; txFail: number };
 }
 
 interface BfdRuntime {
@@ -174,6 +207,12 @@ function newSession(rt: BfdRuntime, key: BfdSessionKey, now: number): BfdSession
     desiredMinTx: D.minTx,
     requiredMinRx: D.minRx,
     requiredMinEchoRx: D.echoRx,
+    desiredMinEchoTx: D.echoTx,
+    echoMode: false,
+    echoActive: false,
+    echoXmtTO: 0,
+    echoDetectTO: 0,
+    rtt: [],
     curTx: D.slowTx,
     curRx: D.slowTx,
     remoteDesiredTx: D.slowTx,
@@ -188,7 +227,7 @@ function newSession(rt: BfdRuntime, key: BfdSessionKey, now: number): BfdSession
     downtime: now,
     srcPort: rt.nextSrcPort,
     mhTtl: D.mhTtl,
-    stats: { rxCtrl: 0, txCtrl: 0, up: 0, down: 0, zebra: 0, txFail: 0 },
+    stats: { rxCtrl: 0, txCtrl: 0, rxEcho: 0, txEcho: 0, up: 0, down: 0, zebra: 0, txFail: 0 },
   };
   rt.nextSrcPort = rt.nextSrcPort >= SRCPORT_MAX ? SRCPORT_INIT : rt.nextSrcPort + 1;
   s.detectAt = now + s.detectTO;
@@ -250,7 +289,34 @@ function sessDown(s: BfdSession, diag: number, now: number, out: Pending[]): voi
   slowTimers(s);
   if (old === ST_UP) s.stats.zebra++;
   if (old !== ST_DOWN) s.stats.down++;
+  if (s.echoActive) echoStop(s); // bfd.c:607-609
   s.pktLocal = undefined;
+}
+
+/** ptm_bfd_echo_stop (bfd.c:536). */
+function echoStop(s: BfdSession): void {
+  s.echoXmtTO = 0;
+  s.echoDetectTO = 0;
+  s.echoActive = false;
+  s.nextEchoTx = s.echoDetectAt = undefined;
+}
+
+/** bs_echo_timer_handler (bfd.c:1376-1418) + ptm_bfd_echo_start (bfd.c:546). */
+function echoTimerHandler(s: BfdSession, now: number): void {
+  if (!s.echoMode || s.multihop || s.state !== ST_UP) return;
+  if (s.remoteEchoRx === 0) {
+    if (s.echoActive) echoStop(s);
+    return;
+  }
+  const old = s.echoXmtTO;
+  s.echoXmtTO = Math.max(s.remoteEchoRx, s.desiredMinEchoTx);
+  if (!s.echoActive || old !== s.echoXmtTO) {
+    s.echoDetectTO = s.remoteDetectMult * s.echoXmtTO;
+    if (s.echoDetectTO > 0) {
+      s.echoDetectAt = now + s.echoDetectTO;
+      s.nextEchoTx = now; // ptm_bfd_echo_xmt_TO sends right away
+    }
+  }
 }
 
 /** bs_state_handler (bfd.c:1297) — `n` is the state the peer just sent. */
@@ -302,12 +368,23 @@ function setShutdown(s: BfdSession, down: boolean, now: number): void {
 }
 
 /** bfd_session_apply (bfd.c:145) for the configured parameters. */
-function applyConfig(s: BfdSession, p: { multiplier?: number; txInterval?: number; rxInterval?: number; shutdown?: boolean }, now: number): void {
+function applyConfig(s: BfdSession, p: { multiplier?: number; txInterval?: number; rxInterval?: number; shutdown?: boolean; echoMode?: boolean; echoInterval?: number }, now: number): void {
   const oldTx = s.desiredMinTx;
   const oldRx = s.requiredMinRx;
   s.detectMult = p.multiplier ?? BFD_DEFAULTS.detectMult;
   s.desiredMinTx = p.txInterval ?? BFD_DEFAULTS.minTx;
   s.requiredMinRx = p.rxInterval ?? BFD_DEFAULTS.minRx;
+  // Echo options apply to single hop sessions only (bfd.c:171-190).
+  if (!s.multihop) {
+    s.requiredMinEchoRx = p.echoInterval ?? BFD_DEFAULTS.echoRx;
+    s.desiredMinEchoTx = p.echoInterval ?? BFD_DEFAULTS.echoTx;
+    const echo = !!p.echoMode;
+    if (echo !== s.echoMode) {
+      s.echoMode = echo; // bfd_set_echo (bfd.c:1486)
+      if (echo) echoTimerHandler(s, now);
+      else echoStop(s);
+    } else if (echo) echoTimerHandler(s, now);
+  }
   setShutdown(s, !!p.shutdown, now);
   if (s.state === ST_UP && (s.desiredMinTx !== oldTx || s.requiredMinRx !== oldRx)) s.polling = true;
 }
@@ -318,6 +395,7 @@ function applyConfig(s: BfdSession, p: { multiplier?: number; txInterval?: numbe
  * by tick() whenever the stored config differs from what was last applied.
  */
 export function reconcileBfd(device: Device, now: number): void {
+  if (!featureEnabled(device, "bgp")) return; // bfdd not running
   const peers = configPeers(device);
   const sig = JSON.stringify(peers);
   const existing = peekFeatureState<BfdRuntime>(device, RT);
@@ -375,6 +453,20 @@ function transmit(ctx: SimContext, device: Device, s: BfdSession, bytes: number[
   transmitIpv4(ctx, device, iface, mac, { src, dst: s.peer, ttl: BFD_TTL, tos: BFD_TOS, udp: { sport: s.srcPort, dport: BFD_PORT_SINGLEHOP }, payload: bytes, summary });
 }
 
+/** ptm_bfd_echo_fp_snd (bfd_packet.c:215-283): src = dst = our address, to the peer's MAC. */
+function transmitEcho(ctx: SimContext, device: Device, s: BfdSession, now: number): void {
+  const iface = boundInterface(device, s);
+  const src = s.local ?? s.pktLocal ?? (iface && primaryIpv4(iface)?.address);
+  if (!iface || !src || iface.adminState !== "up" || iface.operState !== "up") return;
+  const mac = resolveArp(ctx, device, iface, s.peer); // bfd->peer_hw_addr (BFD_SESS_FLAG_MAC_SET)
+  if (!mac) return;
+  s.stats.txEcho++;
+  transmitIpv4(ctx, device, iface, mac, {
+    src, dst: src, ttl: BFD_TTL, tos: BFD_TOS, udp: { sport: BFD_PORT_ECHO, dport: BFD_PORT_ECHO },
+    payload: encodeBfdEcho(s.myDisc, now), summary: `BFD Echo ${s.myDisc}`,
+  });
+}
+
 function flush(ctx: SimContext, device: Device, out: Pending[]): void {
   for (const p of out.splice(0)) transmit(ctx, device, p.s, p.bytes);
 }
@@ -389,8 +481,11 @@ function wallNow(ctx: SimContext): number {
 function receive(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): boolean {
   const ip = frame.ipv4;
   const udp = frame.udp;
-  if (!ip || !udp || (udp.dstPort !== BFD_PORT_SINGLEHOP && udp.dstPort !== BFD_PORT_MULTIHOP)) return false;
+  if (!ip || !udp) return false;
+  if (udp.dstPort === BFD_PORT_ECHO) return receiveEcho(ctx, device, frame);
+  if (udp.dstPort !== BFD_PORT_SINGLEHOP && udp.dstPort !== BFD_PORT_MULTIHOP) return false;
   if (!ownsAddress(device, ip.dstIp)) return false; // transit (e.g. multihop) — let it be forwarded
+  if (!featureEnabled(device, "bgp")) return false; // bfdd not running: no socket
   const rt = peekFeatureState<BfdRuntime>(device, RT);
   const data = l4Payload(frame);
   if (!rt || !data) return true;
@@ -425,6 +520,7 @@ function receive(ctx: SimContext, device: Device, ingress: NetInterface, frame: 
   }
   s.detectTO = s.remoteDetectMult * Math.max(s.curRx, s.remoteDesiredTx);
   if (!s.shutdown) s.detectAt = now + s.detectTO;
+  echoTimerHandler(s, now); // bfd_packet.c:1092
   if (p.poll) {
     finalHandler(s, now);
     out.push({ s, bytes: packet(s, true) });
@@ -433,21 +529,50 @@ function receive(ctx: SimContext, device: Device, ingress: NetInterface, frame: 
   return true;
 }
 
+/**
+ * UDP 3785 to one of our addresses: an echo we sent, looped back by the peer
+ * (ptm_bfd_process_echo_pkt, bfd_packet.c:349-412). Echoes for someone else are
+ * forwarded by the data plane (that is the peer's half of the echo function).
+ */
+function receiveEcho(ctx: SimContext, device: Device, frame: Frame): boolean {
+  if (!ownsAddress(device, frame.ipv4!.dstIp)) return false;
+  const rt = peekFeatureState<BfdRuntime>(device, RT);
+  const data = l4Payload(frame);
+  if (!rt || !data || !featureEnabled(device, "bgp")) return true;
+  const e = decodeBfdEcho(data);
+  if (!e || e.myDisc === 0) return true;
+  const s = rt.sessions.find((x) => x.myDisc === e.myDisc);
+  if (!s || !s.echoActive) return true; // "no matching session" / "echo disabled"
+  const now = wallNow(ctx);
+  s.rtt = [...s.rtt, Math.max(0, Math.round((now - e.sentMs) * 1000))].slice(-RTT_SAMPLES);
+  s.stats.rxEcho++;
+  s.echoDetectTO = s.remoteDetectMult * s.echoXmtTO;
+  if (s.echoDetectTO > 0) s.echoDetectAt = now + s.echoDetectTO;
+  return true;
+}
+
 // --- daemon -----------------------------------------------------------------
 
 function nextDue(device: Device, now: number): number | undefined {
   const rt = peekFeatureState<BfdRuntime>(device, RT);
   const peers = configPeers(device);
+  if (!featureEnabled(device, "bgp")) return rt ? now : undefined; // bfdd killed
   if (!rt) return peers.length ? now : undefined;
   if (JSON.stringify(peers) !== rt.applied) return now;
   let due: number | undefined;
   for (const s of rt.sessions) {
-    for (const t of [s.nextTx, s.detectAt]) if (t !== undefined && (due === undefined || t < due)) due = t;
+    for (const t of [s.nextTx, s.detectAt, s.nextEchoTx, s.echoDetectAt]) if (t !== undefined && (due === undefined || t < due)) due = t;
   }
   return due;
 }
 
 function tick(ctx: SimContext, device: Device, now: number): boolean {
+  if (!featureEnabled(device, "bgp")) {
+    // docker-fpm-frr stopped: bfdd is gone with its sessions (no AdminDown is sent).
+    if (!peekFeatureState<BfdRuntime>(device, RT)) return false;
+    delete device.config.features![RT];
+    return true;
+  }
   const rt0 = peekFeatureState<BfdRuntime>(device, RT);
   if (!rt0 || JSON.stringify(configPeers(device)) !== rt0.applied) reconcileBfd(device, now);
   const rt = peekFeatureState<BfdRuntime>(device, RT);
@@ -458,7 +583,16 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
       s.detectAt = undefined;
       if (s.state === ST_INIT || s.state === ST_UP) sessDown(s, DIAG.CONTROL_EXPIRED, now, out);
     }
+    if (s.echoDetectAt !== undefined && s.echoDetectAt <= now) {
+      s.echoDetectAt = undefined;
+      if (s.state === ST_INIT || s.state === ST_UP) sessDown(s, DIAG.ECHO_FAILED, now, out);
+    }
     flush(ctx, device, out);
+    if (s.nextEchoTx !== undefined && s.nextEchoTx <= now && s.echoXmtTO > 0) {
+      s.echoActive = true; // set by the first ptm_bfd_echo_fp_snd
+      transmitEcho(ctx, device, s, now);
+      s.nextEchoTx = now + s.echoXmtTO;
+    }
     if (s.nextTx !== undefined && s.nextTx <= now) {
       transmit(ctx, device, s, packet(s, false));
       // AdminDown: bfdd sent its single AdminDown packet and stopped the timer.
@@ -470,6 +604,7 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
 
 function describe(frame: Frame, verbose: boolean): string | undefined {
   const udp = frame.udp;
+  if (frame.ipv4 && udp?.dstPort === BFD_PORT_ECHO) return `BFD, Echo, length ${(l4Payload(frame) ?? []).length}`;
   if (!frame.ipv4 || !udp || (udp.dstPort !== BFD_PORT_SINGLEHOP && udp.dstPort !== BFD_PORT_MULTIHOP)) return undefined;
   const data = l4Payload(frame);
   const p = data && decodeBfd(data);
@@ -485,6 +620,7 @@ const API_STATE: BfdState[] = ["admin-down", "down", "init", "up"];
 
 setBfdImpl({
   register(device, key, client) {
+    if (!featureEnabled(device, "bgp")) return; // no bfdd to register with
     const rt = runtime(device);
     let s = rt.sessions.find((x) => x.peer === key.peer);
     if (!s) s = newSession(rt, key, Date.now());

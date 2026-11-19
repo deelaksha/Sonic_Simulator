@@ -98,6 +98,8 @@ registerLab("vrrp", (api) => {
     "Bring S1 back (no shutdown): it preempts after its own Master_Down_Interval (3.53 s).",
     "Fast handover: on S1 `interface Vlan 10` → `vrrp 10 address-family ipv4` → `shutdown`",
     "  (or `no vrrp 10 address-family ipv4`): S1 sends priority 0, S2 takes over after Skew_Time (0.6 s).",
+    "Tracking: in the vrrp sub-mode `track-interface Ethernet 1 weight 30`, then shut Ethernet 1 → S1 advertises 90, S2 takes over.",
+    "IPv6: `vrrp 10 address-family ipv6` → `vip 2001:db8:10::1` on S1 and S2 → show vrrp6 (vMAC 00:00:5e:00:02:0a, unsolicited NA).",
   ]);
   api.finish("VRRP Lab — S1 (Master) / S2 (Backup) share gateway 192.168.10.1", s1);
 });

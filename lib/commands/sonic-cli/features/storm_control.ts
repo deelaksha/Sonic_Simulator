@@ -1,9 +1,9 @@
 /**
- * Storm-control (BUM rate limiting) — CONFIG-PLANE feature. There is no Click
- * module and no packet/engine backend, so we STORE exactly what is configured
- * (per interface, per storm-type, in kbps) and RENDER it back on `show`, the way
- * the real box keeps it in CONFIG_DB (PORT_STORM_CONTROL). Nothing is fabricated;
- * no operational counters or drop stats are invented.
+ * Storm-control (BUM rate limiting) — KLISH config. We STORE exactly what is
+ * configured (per interface, per storm-type, in kbps) and RENDER it back on
+ * `show`, the way the real box keeps it in CONFIG_DB (PORT_STORM_CONTROL); Click
+ * `config interface storm-control add|del` (commands/sonic/storm-control.ts)
+ * writes the same rows.
  *
  * Wired from data/device-capture/klish-xml/storm_control.xml:
  *
@@ -18,8 +18,9 @@
  *   show storm-control                        render all stored entries
  *   show storm-control interface Ethernet <n> render entries for one interface
  *
- * NOTE: the rate limit is stored and shown but NOT enforced on simulated traffic
- * (no data-plane) — dataPlaneNotSimulated.
+ * The rate is enforced on ingress by lib/protocols/storm-control.ts (one
+ * token-bucket policer per port and type, as policerorch.cpp programs them);
+ * its drops show up in the port drop counters (reason STORM_CONTROL).
  */
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";

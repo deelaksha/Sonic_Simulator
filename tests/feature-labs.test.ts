@@ -33,10 +33,12 @@ describe("SONiC feature labs (loadFeatureLab)", () => {
     expect(new Simulation(net()).runPing(h1.id, "192.168.3.10", { count: 1 }).received).toBe(1);
   });
 
-  it("ipv6 lab: ping6 between the two PCs works", () => {
+  it("ipv6 lab builds the dual-stacked triangle (SLAAC/OSPFv3 ping6: tests/ipv6-dualstack.test.ts)", () => {
     S().loadFeatureLab("ipvx");
-    const pc1 = firstPc();
-    expect(new Simulation(net()).runPing6(pc1.id, "2001:db8::2", { count: 1 }).received).toBe(1);
+    const names = Object.values(net().devices).map((d) => d.name);
+    expect(names).toEqual(expect.arrayContaining(["S1", "S2", "S3", "H1", "H3"]));
+    const s1 = Object.values(net().devices).find((d) => d.name === "S1")!;
+    expect(s1.interfaces.some((i) => i.ipv6.some((a) => !a.address.startsWith("fe80")))).toBe(true);
   });
 
   it("ntp lab: client syncs to the ntp-server", () => {

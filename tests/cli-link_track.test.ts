@@ -41,7 +41,7 @@ describe("sonic-cli link state tracking (config-plane)", () => {
     const text = run(state, device, s, "show link state tracking").text;
     expect(text).toContain("Name: FooBar");
     expect(text).toContain("Description: mlag-uplinks");
-    expect(text).toContain("Timeout: 120 seconds");
+    expect(text).toContain("Timeout: 120");
     expect(text).toContain("Downstream: all-mclag");
     expect(text).toContain("Threshold: type percentage up 70 down 40");
   });

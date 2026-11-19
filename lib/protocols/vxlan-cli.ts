@@ -17,6 +17,17 @@
  *                                   zebra_evpn.c:86-190 zebra_evpn_print (detail)
  *   show evpn mac vni <vni>|all     zebra_vxlan.c:3212-3218 / :461-467 headers,
  *                                   zebra_evpn_mac.c:861 local / :918 remote rows
+ *   show evpn vni <l3vni>           zebra_vxlan.c:731 zl3vni_print; L3 rows :801
+ *   show evpn rmac vni <vni>|all    zebra_vxlan.c:2638 / :682 headers, :715 row
+ *   show evpn next-hops vni <vni>|all  zebra_vxlan.c:2744 / :628 headers, :583 row
+ *   show evpn arp-cache vni <vni>|all  zebra_vxlan.c:2930 / :250, zebra_evpn_neigh.c:1842
+ *                                   header, :1895 local / :1918 remote rows
+ *   show evpn es                    zebra_evpn_mh.c:3269-3271 header, :3134 row
+ *
+ * Click config added for symmetric IRB / ARP suppression:
+ *   config vrf add_vrf_vni_map <vrf> <vni> | del_vrf_vni_map <vrf>  (config/main.py:7387-7435)
+ *   config neigh_suppress enable|disable <vlan_id>  (upstream sonic-utilities vxlan.py;
+ *                                   not in this tree — writes SUPPRESS_VLAN_NEIGH)
  *
  * The Click commands are contributed through the BGP module's command list
  * (lib/commands/sonic/bgp.ts) until lib/commands/sonic/index.ts lists a VXLAN
@@ -28,8 +39,11 @@ import { cpList, cpRemove, cpUpsert } from "../commands/sonic-cli/config-plane";
 import { Device } from "../models/device";
 import { longestPrefixMatch } from "../models/route";
 import { isValidIpv4 } from "../models/ip";
-import { VxlanConfig, vxlanConfig, vxlanNetdev } from "./vxlan";
-import { floodList, peekVxlanRuntime } from "./vxlan-daemon";
+import { VxlanConfig, l2Maps, vxlanConfig, vxlanNetdev } from "./vxlan";
+import { floodList, l3Vnis, peekVxlanRuntime } from "./vxlan-daemon";
+import { vrfOf } from "../models/vrf";
+import { sviFor } from "./switch";
+import { esPeers, isDf, localEss } from "./evpn-mh";
 
 type Row = Record<string, string>;
 
@@ -101,7 +115,8 @@ export function remoteVteps(device: Device): { name: string; sip: string; dip: s
   const cfg = vxlanConfig(device);
   const rt = peekVxlanRuntime(device);
   if (!cfg || !rt) return [];
-  return Object.keys(rt.vteps)
+  // L2 flood-list VTEPs plus L3 VNI next hops (vxlanorch creates EVPN_<dip> for both).
+  return [...new Set([...Object.keys(rt.vteps), ...Object.keys(rt.nhs ?? {})])]
     .sort(natural)
     .map((dip) => ({ name: `EVPN_${dip}`, sip: cfg.sourceIp, dip, src: "EVPN", oper: longestPrefixMatch(device.routingTable, dip) ? "up" : "down" }));
 }
@@ -175,20 +190,29 @@ interface VniView {
   local: { mac: string; port: string; seq: number }[];
   remote: { mac: string; vtep: string; seq: number }[];
   vteps: string[];
+  svi: string;
+  vrf: string;
+  neighs: { ip: string; mac: string; type: "local" | "remote"; vtep: string }[];
 }
 
 function vniViews(device: Device, cfg: VxlanConfig): VniView[] {
   const rt = peekVxlanRuntime(device);
-  return [...cfg.maps]
+  return [...l2Maps(cfg)]
     .sort((a, b) => a.vni - b.vni)
     .map((m) => {
+      const svi = sviFor(device, m.vlan);
+      const ip4 = (ip: string) => ip.split(".").reduce((n, o) => n * 256 + Number(o), 0);
+      const neighs = [
+        ...device.arpTable.filter((a) => svi && a.interfaceId === svi.id && a.state !== "incomplete").map((a) => ({ ip: a.ip, mac: a.mac.toLowerCase(), type: "local" as const, vtep: "" })),
+        ...Object.entries(rt?.neighs ?? {}).filter(([, n]) => n.vni === m.vni).map(([k, n]) => ({ ip: k.split("|")[1], mac: n.mac.toLowerCase(), type: "remote" as const, vtep: n.vtep })),
+      ].sort((a, b) => ip4(a.ip) - ip4(b.ip));
       const local = device.macTable
         .filter((e) => e.vlan === m.vlan && !e.interfaceId.startsWith("vtep:"))
         .map((e) => ({ mac: e.mac.toLowerCase(), port: device.interfaces.find((i) => i.id === e.interfaceId)?.name ?? "-", seq: rt?.seq[`${m.vni}|${e.mac.toUpperCase()}`] ?? 0 }));
       const remote = Object.entries(rt?.macs ?? {})
         .filter(([, r]) => r.vni === m.vni)
         .map(([k, r]) => ({ mac: k.split("|")[1].toLowerCase(), vtep: r.vtep, seq: r.seq }));
-      return { vni: m.vni, vid: m.vlan, ifname: vxlanNetdev(cfg, m.vlan), local, remote, vteps: floodList(rt, m.vni) };
+      return { vni: m.vni, vid: m.vlan, ifname: vxlanNetdev(cfg, m.vlan), local, remote, vteps: floodList(rt, m.vni), svi: svi?.name ?? "", vrf: svi ? vrfOf(device, svi) : "default", neighs };
     });
 }
 
@@ -198,29 +222,117 @@ function evpnEnabled(device: Device): VxlanConfig | undefined {
 }
 
 function vniDetail(cfg: VxlanConfig, v: VniView): string[] {
-  const out = [`VNI: ${v.vni}`, " Type: L2", ` Vlan: ${v.vid}`, " Bridge: Bridge", " Tenant VRF: default", ` VxLAN interface: ${v.ifname}`, ` VxLAN ifIndex: 0`, " SVI interface: ", " SVI ifIndex: 0", ` Local VTEP IP: ${cfg.sourceIp}`, " Mcast group: 0.0.0.0"];
+  const out = [`VNI: ${v.vni}`, " Type: L2", ` Vlan: ${v.vid}`, " Bridge: Bridge", ` Tenant VRF: ${v.vrf}`, ` VxLAN interface: ${v.ifname}`, ` VxLAN ifIndex: 0`, ` SVI interface: ${v.svi}`, " SVI ifIndex: 0", ` Local VTEP IP: ${cfg.sourceIp}`, " Mcast group: 0.0.0.0"];
   if (!v.vteps.length) out.push(" No remote VTEPs known for this VNI");
   else out.push(" Remote VTEPs for this VNI:", ...v.vteps.map((ip) => `  ${ip} flood: HER`));
   out.push(
     ` Number of MACs (local and remote) known for this VNI: ${v.local.length + v.remote.length}`,
-    " Number of ARPs (IPv4 and IPv6, local and remote) known for this VNI: 0",
+    ` Number of ARPs (IPv4 and IPv6, local and remote) known for this VNI: ${v.neighs.length}`,
     " Advertise-gw-macip: No",
     " Advertise-svi-macip: No",
   );
   return out;
 }
 
+/** zl3vni_print (zebra_vxlan.c:731). */
+function l3Detail(device: Device, cfg: VxlanConfig, vni: number): string[] {
+  const l = l3Vnis(device, cfg).find((x) => x.vni === vni)!;
+  const l2 = vniViews(device, cfg).filter((v) => v.vrf === l.vrf).map((v) => `${v.vni} `).join("");
+  return [
+    `VNI: ${l.vni}`,
+    "  Type: L3",
+    `  Tenant VRF: ${l.vrf}`,
+    `  Vlan: ${l.vid}`,
+    "  Bridge: Bridge",
+    `  Local Vtep Ip: ${cfg.sourceIp}`,
+    `  Vxlan-Intf: ${vxlanNetdev(cfg, l.vid)}`,
+    `  SVI-If: ${l.svi?.name ?? "None"}`,
+    `  State: ${l.up ? "Up" : "Down"}`,
+    "  VNI Filter: none",
+    `  System MAC: ${l.rmac || "00:00:00:00:00:00"}`,
+    `  Router MAC: ${l.rmac || "00:00:00:00:00:00"}`,
+    `  L2 VNIs: ${l2}`,
+  ];
+}
+
 export function renderEvpnVni(device: Device, arg?: string): string[] {
   const cfg = evpnEnabled(device);
   if (!cfg) return [];
   const views = vniViews(device, cfg);
-  if (arg === "detail") return views.flatMap((v, i) => [...(i ? [""] : []), ...vniDetail(cfg, v)]);
+  const l3s = l3Vnis(device, cfg);
+  if (arg === "detail") return [...views.map((v) => vniDetail(cfg, v)), ...l3s.map((l) => l3Detail(device, cfg, l.vni))].flatMap((b, i) => [...(i ? [""] : []), ...b]);
   if (arg !== undefined) {
     const v = views.find((x) => x.vni === Number(arg));
-    return v ? vniDetail(cfg, v) : [`% VNI ${arg} does not exist`];
+    if (v) return vniDetail(cfg, v);
+    return l3s.some((l) => l.vni === Number(arg)) ? l3Detail(device, cfg, Number(arg)) : [`% VNI ${arg} does not exist`];
   }
+  const rt = peekVxlanRuntime(device);
   const f = (c: string[]) => `${c[0].padEnd(10)} ${c[1].padEnd(4)} ${c[2].padEnd(21)} ${c[3].padEnd(8)} ${c[4].padEnd(8)} ${c[5].padEnd(15)} ${c[6].padEnd(37)}`;
-  return [f(["VNI", "Type", "VxLAN IF", "# MACs", "# ARPs", "# Remote VTEPs", "Tenant VRF"]), ...views.map((v) => f([String(v.vni), "L2", v.ifname, String(v.local.length + v.remote.length), "0", String(v.vteps.length), "default"]))];
+  const l3Rows = l3s.map((l) => {
+    const rmacs = Object.keys(rt?.rmacs ?? {}).filter((k) => k.startsWith(`${l.vrf}|`)).length;
+    const nhs = Object.keys(rt?.nhs ?? {}).filter((ip) => rt!.rmacs[`${l.vrf}|${ip}`]).length;
+    return f([String(l.vni), "L3", vxlanNetdev(cfg, l.vid), String(rmacs), String(nhs), "n/a", l.vrf]);
+  });
+  return [f(["VNI", "Type", "VxLAN IF", "# MACs", "# ARPs", "# Remote VTEPs", "Tenant VRF"]), ...views.map((v) => f([String(v.vni), "L2", v.ifname, String(v.local.length + v.remote.length), String(v.neighs.length), String(v.vteps.length), v.vrf])), ...l3Rows];
+}
+
+/** show evpn rmac vni <vni>|all. */
+export function renderEvpnRmac(device: Device, vniArg: string): string[] {
+  const cfg = evpnEnabled(device);
+  if (!cfg) return [];
+  const rt = peekVxlanRuntime(device);
+  const l3s = l3Vnis(device, cfg);
+  const rows = (vrf: string) => Object.entries(rt?.rmacs ?? {}).filter(([k]) => k.startsWith(`${vrf}|`)).map(([k, mac]) => `${mac.padEnd(17)} ${k.split("|")[1].padEnd(21)}`);
+  if (vniArg === "all") return l3s.flatMap((l) => (rows(l.vrf).length ? ["", `VNI ${l.vni} #RMACs ${rows(l.vrf).length}`, "", `${"RMAC".padEnd(17)} ${"Remote VTEP".padEnd(21)}`, ...rows(l.vrf)] : []));
+  const l = l3s.find((x) => x.vni === Number(vniArg));
+  if (!l) return [`% L3-VNI ${vniArg} does not exist`];
+  const r = rows(l.vrf);
+  return r.length ? [`Number of Remote RMACs known for this VNI: ${r.length}`, `${"MAC".padEnd(17)} ${"Remote VTEP".padEnd(21)}`, ...r] : [];
+}
+
+/** show evpn next-hops vni <vni>|all. */
+export function renderEvpnNextHops(device: Device, vniArg: string): string[] {
+  const cfg = evpnEnabled(device);
+  if (!cfg) return [];
+  const rt = peekVxlanRuntime(device);
+  const l3s = l3Vnis(device, cfg);
+  const rows = (vrf: string) => Object.entries(rt?.nhs ?? {}).filter(([ip]) => rt!.rmacs[`${vrf}|${ip}`]).map(([ip, n]) => `${ip.padEnd(15)} ${n.rmac.toLowerCase().padEnd(17)}`);
+  if (vniArg === "all") return l3s.flatMap((l) => (rows(l.vrf).length ? ["", `VNI ${l.vni} #Next-Hops ${rows(l.vrf).length}`, "", `${"IP".padEnd(15)} ${"RMAC".padEnd(17)}`, ...rows(l.vrf)] : []));
+  const l = l3s.find((x) => x.vni === Number(vniArg));
+  if (!l) return [`% L3-VNI ${vniArg} does not exist`];
+  const r = rows(l.vrf);
+  return r.length ? [`Number of NH Neighbors known for this VNI: ${r.length}`, `${"IP".padEnd(15)} ${"RMAC".padEnd(17)}`, ...r] : [];
+}
+
+/** show evpn arp-cache vni <vni>|all (zebra neighbour table: local SVI neighbours + type-2 MAC+IP). */
+export function renderEvpnArpCache(device: Device, vniArg: string): string[] {
+  const cfg = evpnEnabled(device);
+  if (!cfg) return [];
+  const views = vniViews(device, cfg);
+  const block = (v: VniView) => {
+    const w = Math.max(15, ...v.neighs.map((n) => n.ip.length));
+    return [
+      "Flags: I=local-inactive, P=peer-active, X=peer-proxy",
+      `${"Neighbor".padEnd(w)} ${"Type".padEnd(6)} ${"Flags".padEnd(5)} ${"State".padEnd(8)} ${"MAC".padEnd(17)} ${"Remote ES/VTEP".padEnd(30)} Seq #'s`,
+      ...v.neighs.map((n) => `${n.ip.padEnd(w)} ${n.type.padEnd(6)} ${"".padEnd(5)} ${"active".padEnd(8)} ${n.mac.padEnd(17)} ${n.vtep.padEnd(30)} 0/0`),
+    ];
+  };
+  if (vniArg === "all") return views.flatMap((v) => (v.neighs.length ? ["", `VNI ${v.vni} #ARP (IPv4 and IPv6, local and remote) ${v.neighs.length}`, "", ...block(v)] : []));
+  const v = views.find((x) => x.vni === Number(vniArg));
+  if (!v) return [`% VNI ${vniArg} does not exist`];
+  return v.neighs.length ? [`Number of ARPs (local and remote) known for this VNI: ${v.neighs.length}`, ...block(v)] : [];
+}
+
+/** show evpn es (zebra_evpn_mh.c:3269, :3134). */
+export function renderEvpnEs(device: Device): string[] {
+  const local = localEss(device);
+  const out = ["Type: B bypass, L local, R remote, N non-DF", `${"ESI".padEnd(30)} ${"Type".padEnd(4)} ${"ES-IF".padEnd(21)} VTEPs`];
+  for (const e of [...local].sort((a, b) => a.esi.localeCompare(b.esi))) {
+    const peers = Object.keys(esPeers(device, e.esi)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const type = `L${peers.length ? "R" : ""}${isDf(device, e) ? "" : "N"}`;
+    out.push(`${e.esi.padEnd(30)} ${type.padEnd(4)} ${e.ifname.padEnd(21)} ${peers.join(",")}`);
+  }
+  return out;
 }
 
 function macRows(v: VniView): string[] {
@@ -272,7 +384,47 @@ function mapAdd(ctx: CommandContext, vtep: string, vlan: string, vni: string): C
 
 const ok: CommandResult = { output: [] };
 
+const vrfExists = (device: Device, name: string) => !!(device.config.features?.vrf as { vrfs?: { name: string }[] } | undefined)?.vrfs?.some((v) => v.name === name);
+
 export const vxlanClickConfig: SonicCmd[] = [
+  {
+    path: ["vrf", "add_vrf_vni_map"],
+    summary: "Map a VRF to its L3 VNI (config vrf add_vrf_vni_map <vrf-name> <vni>)",
+    run(a, ctx) {
+      const [vrf, vni] = a;
+      if (!vrf || !vni) return { output: [err("Usage: config vrf add_vrf_vni_map [OPTIONS] <vrf-name> <vni>")] };
+      if (!vrfExists(ctx.device, vrf)) return fail(`vrf ${vrf} doesnt exists`);
+      if (!/^\d+$/.test(vni)) return fail(`Invalid VNI ${vni}. Only valid VNI is accepted`);
+      if (Number(vni) < 1 || Number(vni) > 16777215) return fail(`Invalid VNI ${vni}. Valid range [1 to 16777215].`);
+      if (!(cpList(ctx.device, "vxlan", "vlanmap") as Row[]).some((m) => m.vni === vni)) return fail("VLAN VNI not mapped. Please create VLAN VNI map entry first");
+      const other = (cpList(ctx.device, "vxlan", "vrfmap") as Row[]).find((m) => m.vni === vni && m.vrf !== vrf);
+      if (other) return fail(`VNI already mapped to vrf ${other.vrf}`);
+      cpUpsert(ctx.device, "vxlan", "vrfmap", { vrf, vni }, "vrf");
+      return ok;
+    },
+  },
+  {
+    path: ["vrf", "del_vrf_vni_map"],
+    summary: "Remove a VRF's L3 VNI",
+    run(a, ctx) {
+      if (!a[0]) return { output: [err("Usage: config vrf del_vrf_vni_map [OPTIONS] <vrf-name>")] };
+      if (!vrfExists(ctx.device, a[0])) return fail(`vrf ${a[0]} doesnt exists`);
+      cpRemove(ctx.device, "vxlan", "vrfmap", "vrf", a[0]);
+      return ok;
+    },
+  },
+  {
+    path: ["neigh_suppress"],
+    summary: "ARP/ND suppression on a VLAN (config neigh_suppress enable|disable <vlan_id>)",
+    run(a, ctx) {
+      const [op, vid] = a;
+      if ((op !== "enable" && op !== "disable") || !vid) return { output: [err("Usage: config neigh_suppress enable|disable <vlan_id>")] };
+      if (!vlanExists(ctx.device, Number(vid))) return fail(`Vlan${vid} not configured`);
+      if (op === "enable") cpUpsert(ctx.device, "vxlan", "suppress", { name: `Vlan${vid}`, suppress: "on" }, "name");
+      else cpRemove(ctx.device, "vxlan", "suppress", "name", `Vlan${vid}`);
+      return ok;
+    },
+  },
   {
     path: ["vxlan", "add"],
     summary: "Add the VTEP (config vxlan add <vxlan_name> <src_ip>)",
@@ -401,4 +553,20 @@ export const vxlanClickShow: SonicCmd[] = [
     summary: "Show EVPN MACs of a VNI (FRR zebra)",
     run: (a, ctx) => (a[0] ? { output: toLines(renderEvpnMac(ctx.device, a[0])) } : { output: [muted("% Command incomplete: show evpn mac vni <1-16777215|all>")] }),
   },
+  {
+    path: ["evpn", "rmac", "vni"],
+    summary: "Show remote router MACs of an L3 VNI (FRR zebra)",
+    run: (a, ctx) => (a[0] ? { output: toLines(renderEvpnRmac(ctx.device, a[0])) } : { output: [muted("% Command incomplete: show evpn rmac vni <1-16777215|all>")] }),
+  },
+  {
+    path: ["evpn", "next-hops", "vni"],
+    summary: "Show remote VTEP next hops of an L3 VNI (FRR zebra)",
+    run: (a, ctx) => (a[0] ? { output: toLines(renderEvpnNextHops(ctx.device, a[0])) } : { output: [muted("% Command incomplete: show evpn next-hops vni <1-16777215|all>")] }),
+  },
+  {
+    path: ["evpn", "arp-cache", "vni"],
+    summary: "Show the EVPN neighbour (ARP) cache of a VNI (FRR zebra)",
+    run: (a, ctx) => (a[0] ? { output: toLines(renderEvpnArpCache(ctx.device, a[0])) } : { output: [muted("% Command incomplete: show evpn arp-cache vni <1-16777215|all>")] }),
+  },
+  showCmd(["evpn", "es"], "Show EVPN Ethernet segments (FRR zebra)", (_a, d) => renderEvpnEs(d)),
 ];

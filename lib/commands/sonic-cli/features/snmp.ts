@@ -67,8 +67,21 @@ registerModal({
     if (sub === "user") {
       const name = rest[0];
       if (!name) return { output: [err("% SNMP user name required.")] };
-      // group/auth/priv parameters are not modelled; the user is still created.
-      return applied(ctx, errorsOnly(delegate(`config snmp user ${isNo ? "del" : "add"} ${name}`)));
+      if (isNo) return applied(ctx, errorsOnly(delegate(`config snmp user del ${name}`)));
+      // `auth md5|sha auth-password P [priv des|aes-128 priv-password Q]` → SNMP_USER type/auth/priv
+      // (the `group` VACM binding is not modelled: the user gets read-only access).
+      const authIdx = rest.findIndex((a) => a.toLowerCase() === "auth");
+      const authProto = authIdx >= 0 ? rest[authIdx + 1]?.toLowerCase() : undefined;
+      const authPw = kw(rest, "auth-password");
+      const privIdx = rest.findIndex((a) => a.toLowerCase() === "priv");
+      const privProto = privIdx >= 0 ? rest[privIdx + 1]?.toLowerCase() : undefined;
+      const privPw = kw(rest, "priv-password");
+      const st = snmpConfig(ctx.device);
+      st.users = st.users.filter((u) => u.name !== name);
+      if (!authProto || authProto === "noauth" || !authPw) return applied(ctx, errorsOnly(delegate(`config snmp user add ${name} noAuthNoPriv RO`)));
+      const a = authProto === "sha" ? "SHA" : "MD5";
+      if (!privProto || !privPw) return applied(ctx, errorsOnly(delegate(`config snmp user add ${name} AuthNoPriv RO ${a} ${authPw}`)));
+      return applied(ctx, errorsOnly(delegate(`config snmp user add ${name} Priv RO ${a} ${authPw} ${privProto.startsWith("aes") ? "AES" : "DES"} ${privPw}`)));
     }
 
     if (sub === "host") {
@@ -82,12 +95,14 @@ registerModal({
         st.trapHosts = hosts.filter((h) => !(h.ip === ip && h.port === port));
         return applied(ctx);
       }
-      const version = kw(rest, "version");
+      const community = kw(rest, "community");
+      const user = kw(rest, "user");
+      // Grammar form `community <c> traps v1|v2c` / `user <u> traps ...` (snmp.xml) or `version v2c|v3`.
+      let version = kw(rest, "version") ?? (user ? "v3" : kw(rest, "traps") ?? kw(rest, "informs") ? "v2c" : undefined);
+      if (version === "v1") version = "v2c"; // SNMP_TRAP rows are rendered as trap2sink unless v3 (snmpd.conf.j2:272-306)
       if (version !== undefined && version !== "v2c" && version !== "v3") return { output: [err(`% Invalid version "${version}" (v2c or v3).`)] };
       const h: TrapHost = { ip: ip!, port };
       if (version) h.version = version as TrapHost["version"];
-      const community = kw(rest, "community");
-      const user = kw(rest, "user");
       const src = kw(rest, "source-interface");
       if (community) h.community = community;
       if (user) h.user = user;

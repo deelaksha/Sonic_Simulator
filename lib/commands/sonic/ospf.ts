@@ -14,8 +14,16 @@
  *   config router ospf no router-id              <- no ospf router-id
  *   config router ospf network <cidr> area <id>  <- network <cidr> area <id>   (ospf.txt:279-281)
  *   config router ospf no network <cidr> area <id>
- *   config router ospf area <id> [stub|nssa]     <- area <id> [stub|nssa]
- *   config router ospf no area <id> [stub|nssa]
+ *   config router ospf area <id> [stub|nssa] [no-summary]   <- area <id> stub|nssa [no-summary]
+ *   config router ospf area <id> range <cidr> [not-advertise|advertise|cost <n>]
+ *   config router ospf area <id> default-cost <n>
+ *   config router ospf no area <id> [stub|nssa [no-summary]|range <cidr>|default-cost]
+ *   config router ospf redistribute connected|static|bgp|kernel [metric <n>] [metric-type 1|2]
+ *   config router ospf no redistribute <proto>
+ *   config router ospf default-information originate [always] [metric <n>] [metric-type 1|2]
+ *   config router ospf no default-information originate
+ *   config router ospf log-adjacency-changes [detail]  /  no log-adjacency-changes [detail]
+ *   config router ospf vrf <name> <any of the above>  <- `router ospf vrf <name>` (ospf.xml:15)
  *   config router ospf passive-interface <if>|default        <- passive-interface (ospf.xml:1001)
  *   config router ospf no passive-interface <if>|default
  *   config router ospf auto-cost reference-bandwidth <n>     <- auto-cost reference-bandwidth
@@ -27,18 +35,25 @@
  * From ospf.txt: `ospf router-id 0.0.0.0` is rejected with "%Error: Router ID
  * must be a non-zero IPv4 address" (TC-128); area ids given as an integer are
  * stored dotted (`area 9` -> 0.0.0.9).
+ *
+ * `show ip ospf vrf <name> <sub>` renders an instance with FRR's "VRF Name:"
+ * header (ospf_vty.c:161 ospf_show_vrf_name).
  */
 import { CommandContext, CommandResult, line, err, muted } from "../types";
-import { SonicCmd, SonicFeatureModule, positional } from "./types";
+import { SonicCmd, SonicFeatureModule, positional, matchSonic } from "./types";
 import { featureState } from "../../models/feature-state";
-import { isValidIpv4, isValidPrefix, intToIp } from "../../models/ip";
-import { OspfConfig, OspfIfParams } from "../../protocols/ospf-config";
+import { isValidIpv4, isValidPrefix, intToIp, networkAddress } from "../../models/ip";
+import { DEFAULT_VRF } from "../../models/vrf";
+import { OspfConfig, OspfIfParams, OspfArea, RedistProto, ospfCfgKey } from "../../protocols/ospf-config";
 import { renderOspfSummary, renderNeighbors, renderInterfaces, renderDatabase, renderRoutes } from "../../protocols/ospf-show";
 
 type OspfState = OspfConfig;
 
+/** Instance the current command applies to (set by `config router ospf vrf <name> …`). */
+let curVrf = DEFAULT_VRF;
+
 function state(ctx: CommandContext): OspfState {
-  return featureState<OspfState>(ctx.device, "ospf", () => ({
+  return featureState<OspfState>(ctx.device, ospfCfgKey(curVrf), () => ({
     routerId: undefined as string | undefined,
     networks: [],
     areas: [],
@@ -89,6 +104,22 @@ const rangeNum = (tok: string | undefined, lo: number, hi: number) => {
   const n = Number(tok);
   return tok !== undefined && /^\d+$/.test(tok) && n >= lo && n <= hi ? n : null;
 };
+
+/** `[metric <0-16777214>] [metric-type 1|2]` (ospf.xml:1057 RANGE_0_16777214 / RANGE_1_2). */
+function metricOpts(toks: string[]): { metric?: number; metricType?: 1 | 2 } | string {
+  const out: { metric?: number; metricType?: 1 | 2 } = {};
+  for (let i = 0; i < toks.length; i += 2) {
+    if (toks[i] === "metric") {
+      const n = rangeNum(toks[i + 1], 0, 16777214);
+      if (n === null) return "metric must be 0-16777214";
+      out.metric = n;
+    } else if (toks[i] === "metric-type") {
+      if (toks[i + 1] !== "1" && toks[i + 1] !== "2") return "metric-type must be 1 or 2";
+      out.metricType = Number(toks[i + 1]) as 1 | 2;
+    } else return `unknown option '${toks[i]}'`;
+  }
+  return out;
+}
 
 function setIfParam(ctx: CommandContext, args: string[]): CommandResult {
   const r = ifaceName(ctx, positional(args));
@@ -206,7 +237,7 @@ const config: SonicCmd[] = [
     path: ["router", "ospf", "disable"],
     summary: "Remove the OSPF instance and all its configuration (no router ospf)",
     run(_args, ctx): CommandResult {
-      if (ctx.device.config.features) delete ctx.device.config.features.ospf;
+      if (ctx.device.config.features) delete ctx.device.config.features[ospfCfgKey(curVrf)];
       return { output: [] };
     },
   },
@@ -257,28 +288,63 @@ const config: SonicCmd[] = [
   },
   {
     path: ["router", "ospf", "area"],
-    summary: "Configure an area (area <id> [stub|nssa])",
+    summary: "Configure an area (area <id> [stub|nssa [no-summary]] | range <cidr> [...] | default-cost <n>)",
     run(args, ctx): CommandResult {
       const pos = positional(args);
       const area = normalizeArea(pos[0]);
       if (!area) return { output: [err(`config router ospf area: invalid area "${pos[0] ?? ""}"`)] };
       const typeTok = pos[1];
-      if (typeTok !== undefined && typeTok !== "stub" && typeTok !== "nssa") {
-        return { output: [err(`config router ospf area: type must be stub or nssa (got '${typeTok}')`)] };
-      }
       const st = state(ctx);
-      let entry = st.areas.find((a) => a.id === area);
-      if (!entry) {
-        entry = { id: area };
-        st.areas.push(entry);
+      const entry = (): OspfArea => {
+        let e = st.areas.find((a) => a.id === area);
+        if (!e) {
+          e = { id: area };
+          st.areas.push(e);
+        }
+        return e;
+      };
+      if (typeTok === "range") {
+        const cidr = parseCidr(pos[2]);
+        if (!cidr) return { output: [err(`config router ospf area range: invalid prefix "${pos[2] ?? ""}"`)] };
+        const [addr, len] = cidr.split("/");
+        const prefix = `${networkAddress(addr, Number(len))}/${len}`;
+        let notAdvertise: boolean | undefined;
+        let cost: number | undefined;
+        const opt = pos[3];
+        if (opt === "not-advertise") notAdvertise = true;
+        else if (opt === "cost") {
+          const n = rangeNum(pos[4], 0, 16777215);
+          if (n === null) return { output: [err("% Invalid range cost (0-16777215)")] };
+          cost = n;
+        } else if (opt !== undefined && opt !== "advertise") return { output: [err(`config router ospf area range: unknown option '${opt}'`)] };
+        const e = entry();
+        e.ranges = [...(e.ranges ?? []).filter((r) => r.prefix !== prefix), { prefix, ...(notAdvertise ? { notAdvertise } : {}), ...(cost !== undefined ? { cost } : {}) }];
+        return { output: [muted(`area ${area} range ${prefix} configured`)] };
       }
-      if (typeTok !== undefined) entry.type = typeTok;
-      return { output: [muted(`area ${area}${typeTok ? ` ${typeTok}` : ""} configured`)] };
+      if (typeTok === "default-cost") {
+        const n = rangeNum(pos[2], 0, 16777215);
+        if (n === null) return { output: [err("% Invalid default-cost (0-16777215)")] };
+        entry().defaultCost = n;
+        return { output: [] };
+      }
+      if (typeTok !== undefined && typeTok !== "stub" && typeTok !== "nssa") {
+        return { output: [err(`config router ospf area: type must be stub, nssa, range or default-cost (got '${typeTok}')`)] };
+      }
+      // VTY_GET_OSPF_AREA_ID_NO_BB (ospfd/ospf_vty.h:20).
+      if (typeTok !== undefined && area === "0.0.0.0") return { output: [err(`% You can't configure ${typeTok} to backbone`)] };
+      const extra = pos[2];
+      if (extra !== undefined && extra !== "no-summary") return { output: [err(`config router ospf area: unknown option '${extra}'`)] };
+      const e = entry();
+      if (typeTok !== undefined) {
+        e.type = typeTok;
+        e.noSummary = extra === "no-summary" || undefined;
+      }
+      return { output: [muted(`area ${area}${typeTok ? ` ${typeTok}` : ""}${extra ? ` ${extra}` : ""} configured`)] };
     },
   },
   {
     path: ["router", "ospf", "no", "area"],
-    summary: "Remove an area or clear its type (no area <id> [stub|nssa])",
+    summary: "Remove an area or one of its settings (no area <id> [stub|nssa [no-summary]|range <cidr>|default-cost])",
     run(args, ctx): CommandResult {
       const pos = positional(args);
       const area = normalizeArea(pos[0]);
@@ -286,12 +352,93 @@ const config: SonicCmd[] = [
       const st = state(ctx);
       const entry = st.areas.find((a) => a.id === area);
       if (!entry) return { output: [muted(`area ${area} not configured (no-op)`)] };
+      if (pos[1] === "range") {
+        const cidr = parseCidr(pos[2]);
+        if (!cidr) return { output: [err(`config router ospf no area range: invalid prefix "${pos[2] ?? ""}"`)] };
+        const [addr, len] = cidr.split("/");
+        const prefix = `${networkAddress(addr, Number(len))}/${len}`;
+        entry.ranges = (entry.ranges ?? []).filter((r) => r.prefix !== prefix);
+        if (!entry.ranges.length) entry.ranges = undefined;
+        return { output: [muted(`area ${area} range ${prefix} removed`)] };
+      }
+      if (pos[1] === "default-cost") {
+        entry.defaultCost = undefined;
+        return { output: [] };
+      }
       if (pos[1] !== undefined) {
-        entry.type = undefined;
-        return { output: [muted(`area ${area} ${pos[1]} cleared`)] };
+        // `no area X stub no-summary` keeps the stub area and only re-enables summaries.
+        if (pos[2] === "no-summary") entry.noSummary = undefined;
+        else {
+          entry.type = undefined;
+          entry.noSummary = undefined;
+        }
+        return { output: [muted(`area ${area} ${pos.slice(1).join(" ")} cleared`)] };
       }
       st.areas = st.areas.filter((a) => a.id !== area);
       return { output: [muted(`area ${area} removed`)] };
+    },
+  },
+  {
+    path: ["router", "ospf", "redistribute"],
+    summary: "Redistribute routes into OSPF as type-5 LSAs (connected|static|bgp|kernel [metric <n>] [metric-type 1|2])",
+    run(args, ctx): CommandResult {
+      const pos = positional(args);
+      const proto = pos[0] as RedistProto;
+      if (!["connected", "static", "bgp", "kernel"].includes(proto)) return { output: [err(`config router ospf redistribute: protocol must be connected, static, bgp or kernel (got '${pos[0] ?? ""}')`)] };
+      const m = metricOpts(pos.slice(1));
+      if (typeof m === "string") return { output: [err(`config router ospf redistribute: ${m}`)] };
+      const st = state(ctx);
+      st.redistribute = [...(st.redistribute ?? []).filter((r) => r.protocol !== proto), { protocol: proto, ...m }];
+      return { output: [] };
+    },
+  },
+  {
+    path: ["router", "ospf", "no", "redistribute"],
+    summary: "Stop redistributing a protocol",
+    run(args, ctx): CommandResult {
+      const st = state(ctx);
+      const proto = positional(args)[0];
+      st.redistribute = (st.redistribute ?? []).filter((r) => r.protocol !== proto);
+      if (!st.redistribute.length) st.redistribute = undefined;
+      return { output: [] };
+    },
+  },
+  {
+    path: ["router", "ospf", "default-information", "originate"],
+    summary: "Originate a type-5 default route ([always] [metric <n>] [metric-type 1|2])",
+    run(args, ctx): CommandResult {
+      const pos = positional(args);
+      const always = pos[0] === "always";
+      const m = metricOpts(always ? pos.slice(1) : pos);
+      if (typeof m === "string") return { output: [err(`config router ospf default-information originate: ${m}`)] };
+      state(ctx).defaultInfo = { ...(always ? { always } : {}), ...m };
+      return { output: [] };
+    },
+  },
+  {
+    path: ["router", "ospf", "no", "default-information", "originate"],
+    summary: "Stop originating the default route",
+    run(_args, ctx): CommandResult {
+      state(ctx).defaultInfo = undefined;
+      return { output: [] };
+    },
+  },
+  {
+    path: ["router", "ospf", "log-adjacency-changes"],
+    summary: "Log neighbour adjacency changes ([detail]: every state change)",
+    run(args, ctx): CommandResult {
+      state(ctx).logAdjacencyChanges = positional(args)[0] === "detail" ? "detail" : true;
+      return { output: [] };
+    },
+  },
+  {
+    path: ["router", "ospf", "no", "log-adjacency-changes"],
+    summary: "Stop logging adjacency changes (no … detail: only the detail)",
+    run(args, ctx): CommandResult {
+      const st = state(ctx);
+      // ospf_vty.c:2196-2206: `no log-adjacency-changes detail` keeps the basic logging.
+      st.logAdjacencyChanges = positional(args)[0] === "detail" && st.logAdjacencyChanges ? true : undefined;
+      return { output: [] };
     },
   },
   { path: ["router", "ospf", "passive-interface"], summary: "Suppress Hellos on an interface (or default)", run: (a, ctx) => passive(ctx, a, true) },
@@ -318,16 +465,54 @@ const config: SonicCmd[] = [
   { path: ["router", "ospf", "no", "interface"], summary: "Clear an interface parameter (or all)", run: (a, ctx) => clearIfParam(ctx, a) },
 ];
 
+// `config router ospf vrf <name> <sub-command…>`: the same commands on the VRF's instance.
+config.push({
+  path: ["router", "ospf", "vrf"],
+  summary: "Configure the OSPF instance of a VRF (router ospf vrf <name>)",
+  run(args, ctx): CommandResult {
+    const [name, ...rest] = args;
+    if (!name) return { output: [err("Usage: config router ospf vrf <name> [enable|disable|<sub-command>]")] };
+    const m = matchSonic(config.filter((c) => c.path[2] !== "vrf"), ["router", "ospf", ...(rest.length ? rest : ["enable"])]);
+    if (!m) return { output: [err(`config router ospf vrf ${name}: unknown sub-command '${rest.join(" ")}'`)] };
+    curVrf = name;
+    try {
+      return m.cmd.run(m.rest, ctx);
+    } finally {
+      curVrf = DEFAULT_VRF;
+    }
+  },
+});
+
 const now = () => Date.now();
 const lines = (l: string[]) => ({ output: l.map((t) => line(t)) });
 
 const show: SonicCmd[] = [
-  { path: ["ip", "ospf", "neighbor"], summary: "Show OSPF neighbors", run: (a, ctx) => lines(renderNeighbors(ctx.device, now(), positional(a).join("") || undefined)) },
-  { path: ["ip", "ospf", "interface"], summary: "Show OSPF interfaces", run: (a, ctx) => lines(renderInterfaces(ctx.device, now(), positional(a).join("") || undefined)) },
-  { path: ["ip", "ospf", "database"], summary: "Show the OSPF link-state database", run: (a, ctx) => lines(renderDatabase(ctx.device, now(), positional(a))) },
-  { path: ["ip", "ospf", "route"], summary: "Show the OSPF routing table", run: (_a, ctx) => lines(renderRoutes(ctx.device)) },
-  { path: ["ip", "ospf"], summary: "Show the OSPF process", run: (_a, ctx) => lines(renderOspfSummary(ctx.device, now())) },
+  { path: ["ip", "ospf", "neighbor"], summary: "Show OSPF neighbors", run: (a, ctx) => lines(renderNeighbors(ctx.device, now(), positional(a).join("") || undefined, curShowVrf)) },
+  { path: ["ip", "ospf", "interface"], summary: "Show OSPF interfaces", run: (a, ctx) => lines(renderInterfaces(ctx.device, now(), positional(a).join("") || undefined, curShowVrf)) },
+  { path: ["ip", "ospf", "database"], summary: "Show the OSPF link-state database", run: (a, ctx) => lines(renderDatabase(ctx.device, now(), positional(a), curShowVrf)) },
+  { path: ["ip", "ospf", "route"], summary: "Show the OSPF routing table", run: (_a, ctx) => lines(renderRoutes(ctx.device, curShowVrf)) },
+  { path: ["ip", "ospf"], summary: "Show the OSPF process", run: (_a, ctx) => lines(renderOspfSummary(ctx.device, now(), curShowVrf)) },
 ];
+
+/** VRF named by `show ip ospf vrf <name> …` (undefined: the default instance, no "VRF Name:" header). */
+let curShowVrf: string | undefined;
+
+show.push({
+  path: ["ip", "ospf", "vrf"],
+  summary: "Show an OSPF instance of a VRF (show ip ospf vrf <name> [neighbor|interface|database|route])",
+  run(args, ctx): CommandResult {
+    const [name, ...rest] = args;
+    if (!name) return { output: [err("Usage: show ip ospf vrf <name> [neighbor|interface|database|route]")] };
+    const m = matchSonic(show.filter((c) => c.path[2] !== "vrf"), ["ip", "ospf", ...rest]);
+    if (!m) return { output: [err(`show ip ospf vrf ${name}: unknown sub-command '${rest.join(" ")}'`)] };
+    curShowVrf = name;
+    try {
+      return m.cmd.run(m.rest, ctx);
+    } finally {
+      curShowVrf = undefined;
+    }
+  },
+});
 
 export const ospfModule: SonicFeatureModule = { id: "ospf", config, show };
 

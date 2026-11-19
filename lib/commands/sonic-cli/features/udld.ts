@@ -1,11 +1,7 @@
 /**
- * UDLD — CONFIG-PLANE feature (no engine/packet backend; store + show).
- *
- * UDLD (UniDirectional Link Detection) exchanges protocol frames to detect
- * one-way links and can err-disable ports. The simulator has no packet backend
- * for it, so we model only CONFIG_DB honestly: config commands write to the
- * config-plane store and `show udld ...` renders exactly what was configured.
- * Operational data (neighbors, link status, frame counters) is NEVER fabricated.
+ * UDLD (KLISH) — config + show. The protocol (PDUs, echo, unidirectional
+ * detection → err-disable) runs in lib/protocols/udld-daemon.ts; the show
+ * commands render its per-port state in the layouts of the udld.xml examples.
  *
  * Grammar: data/device-capture/klish-xml/udld.xml
  *
@@ -21,15 +17,15 @@
  *
  * enable-view:
  *   show udld [global]          render global config
- *   show udld interface <if>    render per-port configured state (no neighbors)
- *   show udld neighbors|statistics  operational — not simulated
+ *   show udld neighbors         neighbours heard on every UDLD port
+ *   show udld interface <if>    port config + status + neighbour entries
+ *   show udld statistics [interface <if>]  PDU counters
  */
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpGet, cpUpsert, cpRemove, cpList } from "../config-plane";
-
-const DEFAULT_MSG_TIME = 1;
-const DEFAULT_MULTIPLIER = 3;
+import { DEFAULT_MSG_TIME, DEFAULT_MULTIPLIER, aggressive, peekUdld, udldDeviceId } from "../../../protocols/udld-daemon";
+import { OutputLine } from "../../types";
 
 // configure-view (global) + interface views: `udld ...`
 registerModal({
@@ -113,24 +109,64 @@ registerModal({
       };
     }
 
-    if (sub === "interface") {
-      const name = args[2] ?? "";
-      const port = cpList(ctx.device, "udld", "ports").find((e) => e.ifname === name);
-      if (!port) return { output: [muted(`UDLD not configured on ${name || "interface"}`)] };
-      return {
-        output: [
-          line(`UDLD information for ${name}`),
-          line(`  UDLD Admin State:                  ${port.admin_enable === true ? "Enabled" : "Disabled"}`),
-          line(`  Mode:                              ${port.aggressive === true ? "Aggressive" : "Normal"}`),
-          line(`  Message time:                      ${msgTime}`),
-          line(`  Timeout interval:                  ${msgTime * mult}`),
-          muted("  (neighbor / link-status data not simulated)"),
-        ],
-      };
+    const ports = peekUdld(ctx.device)?.ports ?? {};
+
+    if (sub === "neighbors") {
+      const out: OutputLine[] = [
+        line(`${"Port".padEnd(15)}${"Device Name".padEnd(16)}${"Device ID".padEnd(18)}${"Port ID".padEnd(16)}Neighbor State`),
+        line("-".repeat(81)),
+      ];
+      for (const [name, ps] of Object.entries(ports)) {
+        for (const n of Object.values(ps.neighbors)) {
+          out.push(line(`${name.padEnd(15)}${n.name.padEnd(16)}${n.deviceId.padEnd(18)}${n.portId.padEnd(16)}${ps.status}`));
+        }
+      }
+      return { output: out };
     }
 
-    if (sub === "neighbors" || sub === "statistics") {
-      return { output: [muted(`UDLD ${sub}: operational data not simulated`)] };
+    if (sub === "interface") {
+      const name = args.slice(2).join("");
+      const port = cpList(ctx.device, "udld", "ports").find((e) => e.ifname === name);
+      if (!port) return { output: [muted(`UDLD not configured on ${name || "interface"}`)] };
+      const ps = ports[name];
+      const out: OutputLine[] = [
+        line(`UDLD information for ${name}`),
+        line(`  UDLD Admin State:                  ${port.admin_enable === true ? "Enabled" : "Disabled"}`),
+        line(`  Mode:                              ${aggressive(ctx.device, name) ? "Aggressive" : "Normal"}`),
+        line(`  Status:                            ${ps?.status ?? "Undetermined"}`),
+        line(`  Local device id:                   ${udldDeviceId(ctx.device)}`),
+        line(`  Local port id :                    ${name}`),
+        line(`  Local device name:                 ${ctx.device.config.hostname}`),
+        line(`  Message time:                      ${msgTime}`),
+        line(`  Timeout interval:                  ${msgTime * mult}`),
+      ];
+      Object.values(ps?.neighbors ?? {}).forEach((n, i) => {
+        out.push(
+          line(`    Neighbor Entry ${i + 1}`),
+          line(`    ${"-".repeat(88)}`),
+          line(`    Neighbor device id:         ${n.deviceId}`),
+          line(`    Neighbor port id:           ${n.portId}`),
+          line(`    Neighbor device name:       ${n.name}`),
+          line(`    Neighbor message time:      ${n.msgTime}`),
+          line(`    Neighbor timeout interval:  ${n.timeout}`),
+        );
+      });
+      return { output: out };
+    }
+
+    if (sub === "statistics") {
+      const only = args[2]?.toLowerCase() === "interface" ? args.slice(3).join("") : undefined;
+      const out: OutputLine[] = [];
+      for (const [name, ps] of Object.entries(ports)) {
+        if (only && name !== only) continue;
+        out.push(
+          line(`UDLD Interface statistics for ${name}`),
+          line(`Frames transmitted:         ${ps.tx}`),
+          line(`Frames received:            ${ps.rx}`),
+          line(`Frames with error:          ${ps.err}`),
+        );
+      }
+      return { output: out };
     }
 
     return { output: [muted(`% Unknown 'show udld ${sub}'`)] };

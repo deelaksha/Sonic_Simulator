@@ -14,6 +14,7 @@ import { ntpdateCommand, dhclientCommand } from "./udpclients";
 import { nslookupCommand } from "./nslookup";
 import { vrrpCommand } from "./vrrp";
 import { ping6Command } from "./ping6";
+import { traceroute6Command } from "./ping6";
 import { ospfCommand } from "./ospfctl";
 import { bgpCommand } from "./bgpctl";
 import { configCommand, showCommand } from "./sonic";
@@ -28,6 +29,8 @@ import { SNMP_CLIENT_COMMANDS } from "./snmpclient";
 import { ssCommand } from "./ss";
 import { curlCommand } from "./curl";
 import { trafficCommand } from "./traffic";
+import { mcastCommand } from "./mcast";
+import { mclagdctlCommand } from "./mclagdctl";
 
 const sudoCommand: CommandHandler = {
   name: "sudo",
@@ -80,6 +83,7 @@ export const COMMANDS: CommandHandler[] = [
   sonicClearCommand,
   pingCommand,
   ping6Command,
+  traceroute6Command,
   tracerouteCommand,
   ipCommand,
   arpCommand,
@@ -96,6 +100,8 @@ export const COMMANDS: CommandHandler[] = [
   ssCommand,
   curlCommand,
   trafficCommand,
+  mcastCommand,
+  mclagdctlCommand,
   hostnameCommand,
   clearCommand,
   helpCommand,

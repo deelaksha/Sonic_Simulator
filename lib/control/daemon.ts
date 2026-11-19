@@ -47,7 +47,8 @@ export function controlDaemons(): readonly ControlDaemon[] {
 
 /** IEEE 802.1D reserved link-local group (01:80:C2:00:00:00-0F): never bridged. */
 export function isLinkLocalControl(mac: string): boolean {
-  return /^01:80:C2:00:00:0[0-9A-F]$/i.test(mac);
+  // IEEE 802.1D reserved range, plus the Cisco UDLD/CDP address (never bridged).
+  return /^01:80:C2:00:00:0[0-9A-F]$/i.test(mac) || /^01:00:0C:CC:CC:CC$/i.test(mac);
 }
 
 export function dispatchL2(ctx: SimContext, device: Device, ingress: NetInterface, frame: Frame): boolean {

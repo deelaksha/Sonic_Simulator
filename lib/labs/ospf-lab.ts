@@ -3,6 +3,8 @@
  * as point-to-point, the usual choice for /30 fabric links) and on the host
  * subnets (passive, no Hellos towards hosts). Explicit router-ids 1.1.1.1 /
  * 2.2.2.2 / 3.3.3.3. Every link is 25G, so FRR's auto-cost gives cost 4.
+ * `log-adjacency-changes` is configured explicitly (off by default in SONiC's
+ * FRR build) so the AdjChg lines show up in `show logging`.
  */
 import { registerLab } from "./registry";
 import { routedTriangle } from "./topologies";
@@ -12,6 +14,7 @@ export const OSPF_LAB_SCRIPTS: Record<"S1" | "S2" | "S3", string[]> = {
     "configure terminal",
     "router ospf",
     "ospf router-id 1.1.1.1",
+    "log-adjacency-changes",
     "network 10.0.12.0/30 area 0",
     "network 10.0.13.0/30 area 0",
     "network 192.168.1.0/24 area 0",
@@ -28,6 +31,7 @@ export const OSPF_LAB_SCRIPTS: Record<"S1" | "S2" | "S3", string[]> = {
     "configure terminal",
     "router ospf",
     "ospf router-id 2.2.2.2",
+    "log-adjacency-changes",
     "network 10.0.12.0/30 area 0",
     "network 10.0.23.0/30 area 0",
     "exit",
@@ -42,6 +46,7 @@ export const OSPF_LAB_SCRIPTS: Record<"S1" | "S2" | "S3", string[]> = {
     "configure terminal",
     "router ospf",
     "ospf router-id 3.3.3.3",
+    "log-adjacency-changes",
     "network 10.0.13.0/30 area 0",
     "network 10.0.23.0/30 area 0",
     "network 192.168.3.0/24 area 0",

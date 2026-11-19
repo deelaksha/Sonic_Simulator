@@ -19,6 +19,8 @@
  *   config bfd peer transmit-interval <ip> <ms> <- transmit-interval <ms>         (TC-61,62)
  *   config bfd peer shutdown    <ip>  <- shutdown                                 (TC-17)
  *   config bfd peer no-shutdown <ip>  <- no shutdown                              (TC-18)
+ *   config bfd peer echo-mode <ip> | no-echo-mode <ip>   <- [no] echo-mode
+ *   config bfd peer echo-interval <ip> <10-60000>        <- echo-interval <ms>
  *   show bfd peers [brief|counters]   <- show bfd peers [brief|counters]
  *   show bfd peer <ip> [counters]     <- show bfd peer <ip> [counters]
  *
@@ -44,6 +46,8 @@ interface BfdPeer {
   txInterval?: number;
   multiplier?: number;
   shutdown?: boolean;
+  echoMode?: boolean;
+  echoInterval?: number;
 }
 
 interface BfdState {
@@ -148,6 +152,21 @@ const config: SonicCmd[] = [
     run: (a, c) => applyNumeric(c, a, "transmit-interval", 1, undefined, (p, n) => (p.txInterval = n)),
   },
   {
+    path: ["bfd", "peer", "echo-interval"],
+    summary: "Set a peer's echo transmit + receive interval (ms, 10-60000)",
+    run: (a, c) => applyNumeric(c, a, "echo-interval", 10, 60000, (p, n) => (p.echoInterval = n)),
+  },
+  {
+    path: ["bfd", "peer", "echo-mode"],
+    summary: "Enable the BFD echo function for a peer",
+    run: (a, c) => setEcho(c, a, true),
+  },
+  {
+    path: ["bfd", "peer", "no-echo-mode"],
+    summary: "Disable the BFD echo function for a peer",
+    run: (a, c) => setEcho(c, a, false),
+  },
+  {
     path: ["bfd", "peer", "shutdown"],
     summary: "Administratively disable a BFD peer",
     run: (a, c) => setAdmin(c, a, true),
@@ -182,6 +201,18 @@ function applyNumeric(
   }
   set(peer, n);
   return { output: [muted(`BFD peer ${ip} ${label} set to ${n}`)] };
+}
+
+/** `[no] echo-mode` (FRR bfdd_cli.c "echo-mode"; single hop only, bfd.c:171). */
+function setEcho(ctx: CommandContext, args: string[], on: boolean): CommandResult {
+  const verb = on ? "echo-mode" : "no-echo-mode";
+  const ip = args[0];
+  if (!ip) return { output: [err(`Usage: config bfd peer ${verb} <peer-ip>`)] };
+  const peer = findPeer(state(ctx), ip);
+  if (!peer) return { output: [err(`config bfd peer ${verb}: BFD peer ${ip} not configured`)] };
+  if (on && peer.multihop) return { output: [err("% Echo mode is only available for single hop sessions.")] };
+  peer.echoMode = on || undefined;
+  return { output: [muted(`BFD peer ${ip} echo mode ${on ? "enabled" : "disabled"}`)] };
 }
 
 /** Set a peer's admin state (shutdown / no-shutdown). */
@@ -251,13 +282,13 @@ function frrPeer(s: BfdSession, now: number): OutputLine[] {
     `\t\tDiagnostics: ${diag2str(s.localDiag)}`,
     `\t\tRemote diagnostics: ${diag2str(s.remoteDiag)}`,
     `\t\tPeer Type: ${s.configured ? "configured" : "dynamic"}`,
-    "\t\tRTT min/avg/max: 0/0/0 usec", // echo-measured RTT; echo is not simulated
+    `\t\tRTT min/avg/max: ${rttStats(s)} usec`,
     "\t\tLocal timers:",
     `\t\t\tDetect-multiplier: ${s.detectMult}`,
     `\t\t\tReceive interval: ${s.requiredMinRx}ms`,
     `\t\t\tTransmission interval: ${s.desiredMinTx}ms`,
     s.requiredMinEchoRx ? `\t\t\tEcho receive interval: ${s.requiredMinEchoRx}ms` : "\t\t\tEcho receive interval: disabled",
-    "\t\t\tEcho transmission interval: disabled",
+    s.echoMode ? `\t\t\tEcho transmission interval: ${s.desiredMinEchoTx}ms` : "\t\t\tEcho transmission interval: disabled",
     "\t\tRemote timers:",
     `\t\t\tDetect-multiplier: ${s.remoteDetectMult}`,
     `\t\t\tReceive interval: ${s.remoteRequiredRx}ms`,
@@ -268,14 +299,21 @@ function frrPeer(s: BfdSession, now: number): OutputLine[] {
   return o.map((t) => line(t));
 }
 
+/** _display_rtt (bfdd_vty.c): min/avg/max over the valid echo RTT samples. */
+export function rttStats(s: BfdSession): string {
+  if (!s.rtt.length) return "0/0/0";
+  const sum = s.rtt.reduce((a, b) => a + b, 0);
+  return `${Math.min(...s.rtt)}/${Math.floor(sum / s.rtt.length)}/${Math.max(...s.rtt)}`;
+}
+
 /** _display_peer_counter (bfdd_vty.c:520). */
 function frrCounters(s: BfdSession): OutputLine[] {
   return [
     frrHeader(s),
     `\t\tControl packet input: ${s.stats.rxCtrl} packets`,
     `\t\tControl packet output: ${s.stats.txCtrl} packets`,
-    "\t\tEcho packet input: 0 packets",
-    "\t\tEcho packet output: 0 packets",
+    `\t\tEcho packet input: ${s.stats.rxEcho} packets`,
+    `\t\tEcho packet output: ${s.stats.txEcho} packets`,
     `\t\tSession up events: ${s.stats.up}`,
     `\t\tSession down events: ${s.stats.down}`,
     `\t\tZebra notifications: ${s.stats.zebra}`,

@@ -11,6 +11,8 @@
  *                      way FRR computes it: lib/checksum.c fletcher_checksum,
  *                      ospfd/ospf_lsa.c:164 ospf_lsa_checksum)
  *   Router-LSA         A.4.2      Network-LSA           A.4.3
+ *   Summary-LSA        A.4.4 (type 3 network / type 4 ASBR, mask 0.0.0.0)
+ *   AS-external-LSA    A.4.5 (type 5; type 7 NSSA-LSA, RFC 3101 A.2, same body)
  */
 import { inetChecksum } from "../sflow/wire";
 
@@ -27,14 +29,26 @@ export const PACKET_NAMES: Record<number, string> = { 1: "Hello", 2: "Database D
 
 export const LSA_ROUTER = 1;
 export const LSA_NETWORK = 2;
+export const LSA_SUMMARY = 3;
+export const LSA_ASBR_SUMMARY = 4;
+export const LSA_EXTERNAL = 5;
+export const LSA_NSSA = 7;
+/** LSInfinity (RFC 2328 Appendix B; OSPF_LS_INFINITY lib/libospf.h). */
+export const LS_INFINITY = 0xffffff;
 
 /** DD flags (A.3.3). */
 export const DD_I = 0x04;
 export const DD_M = 0x02;
 export const DD_MS = 0x01;
 
-/** Options: E-bit (external routing capability). */
+/** Options: E-bit (external routing capability), N/P-bit (NSSA, RFC 3101 A.1). */
 export const OPT_E = 0x02;
+export const OPT_NP = 0x08;
+
+/** Router-LSA flags (A.4.2; ospf_lsa.h ROUTER_LSA_*): B = ABR, E = ASBR, Nt = NSSA translator. */
+export const RTR_B = 0x01;
+export const RTR_E = 0x02;
+export const RTR_NT = 0x10;
 
 export const MAX_AGE = 3600; // OSPF_LSA_MAXAGE (lib/libospf.h:34)
 export const MAX_AGE_DIFF = 900;
@@ -215,6 +229,33 @@ export function decodeNetworkBody(lsa: number[]): { mask: string; routers: strin
   return { mask: rdip(lsa, 20), routers };
 }
 
+// --- Summary-LSA body (A.4.4): mask, 0, 24-bit metric ---
+export function encodeSummaryBody(mask: string, metric: number): number[] {
+  return [...ipb(mask), 0, (metric >> 16) & 0xff, (metric >> 8) & 0xff, metric & 0xff];
+}
+
+export function decodeSummaryBody(lsa: number[]): { mask: string; metric: number } {
+  return { mask: rdip(lsa, 20), metric: ((lsa[25] << 16) | (lsa[26] << 8) | lsa[27]) >>> 0 };
+}
+
+// --- AS-external / NSSA-external body (A.4.5): mask, E|0, 24-bit metric, forwarding address, tag ---
+export interface ExternalBody {
+  mask: string;
+  /** Metric type 2 (E-bit set). */
+  e2: boolean;
+  metric: number;
+  fwd: string;
+  tag: number;
+}
+
+export function encodeExternalBody(x: ExternalBody): number[] {
+  return [...ipb(x.mask), x.e2 ? 0x80 : 0, (x.metric >> 16) & 0xff, (x.metric >> 8) & 0xff, x.metric & 0xff, ...ipb(x.fwd), ...u32(x.tag)];
+}
+
+export function decodeExternalBody(lsa: number[]): ExternalBody {
+  return { mask: rdip(lsa, 20), e2: (lsa[24] & 0x80) !== 0, metric: ((lsa[25] << 16) | (lsa[26] << 8) | lsa[27]) >>> 0, fwd: rdip(lsa, 28), tag: rd32(lsa, 32) };
+}
+
 // --- Database Description (A.3.3) ---
 export interface Dbd {
   mtu: number;
@@ -326,7 +367,8 @@ export function describeOspf(payload: ArrayLike<number>, verbose: boolean): stri
 }
 
 function lsaTypeName(t: number): string {
-  return t === 1 ? "Router" : t === 2 ? "Network" : t === 3 ? "Summary" : t === 5 ? "External" : `Type-${t}`;
+  // print-ospf.c lsa_values[]
+  return t === 1 ? "Router" : t === 2 ? "Network" : t === 3 ? "Summary" : t === 4 ? "ASBR Summary" : t === 5 ? "External" : t === 7 ? "NSSA" : `Type-${t}`;
 }
 
 function lsaHeaderText(h: LsaHeader): string {

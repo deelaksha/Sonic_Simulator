@@ -16,6 +16,8 @@
  */
 import { Device } from "../models/device";
 import { featureState, peekFeatureState } from "../models/feature-state";
+import { SecLevel, UsmUser } from "./snmp-usm";
+import { systemMac } from "./lacp-daemon";
 
 export type Access = "RO" | "RW";
 
@@ -24,9 +26,16 @@ export interface SnmpCommunity {
   access: Access;
 }
 
+/** SNMP_USER row (Click `config snmp user add`, config/main.py:4457-4532). */
 export interface SnmpUser {
   name: string;
   permission: Access;
+  /** SNMP_USER_TYPE (absent on rows written by the simulator's older `user add <n> ro|rw`). */
+  type?: "noAuthNoPriv" | "AuthNoPriv" | "Priv";
+  authType?: "MD5" | "SHA" | "HMAC-SHA-2";
+  authPassword?: string;
+  encType?: "DES" | "AES";
+  encPassword?: string;
 }
 
 /** SNMP_TRAP_CONFIG row (Click `config snmptrap modify <ver> <ip>`). */
@@ -87,6 +96,35 @@ export interface AppliedConfig {
   listen: { ip: string; port: number }[];
   /** authtrapenable 1 (snmpd.conf.j2:310). */
   authTraps: boolean;
+  /** trapsink lines (SNMPv1 Trap-PDUs): v1TrapDest and — as the template renders it — v3TrapDest. */
+  v1Sinks: { ip: string; port: number; community: string }[];
+  /** trapsess -v 3 lines for SNMP_TRAP v3 rows (snmpd.conf.j2:272-300). */
+  v3Sinks: { ip: string; port: number; user: string; level: SecLevel; usm: UsmUser }[];
+  /** USM users: rouser/rwuser <user> <level> + CreateUser (snmpd.conf.j2:153-172). */
+  users: AppliedUser[];
+  /** exactEngineID (snmpd.conf.j2:68-72): 0x8000013703 + the system MAC. */
+  engineId: number[];
+}
+
+export interface AppliedUser {
+  name: string;
+  permission: Access;
+  /** Minimum security level of the rouser/rwuser line. */
+  minLevel: SecLevel;
+  usm: UsmUser;
+}
+
+const LEVEL: Record<string, SecLevel> = { noAuthNoPriv: "noAuthNoPriv", AuthNoPriv: "authNoPriv", Priv: "authPriv" }; // snmp_linktrapd SECURITY_LEVEL_MAP
+
+/** CreateUser credentials net-snmp can use here (HMAC-SHA-2 → SHA-256 and DES are not modelled). */
+function usmOf(u: SnmpUser): UsmUser {
+  const auth = u.authType === "MD5" || u.authType === "SHA" ? u.authType : undefined;
+  return { name: u.name, authProto: auth, authPassword: u.authPassword, privProto: auth && u.encType ? u.encType : undefined, privPassword: u.encPassword };
+}
+
+/** sonic-cfggen snmp_engine_id(mac, "default") = 0x8000013703 + MAC (sonic-cfggen:368-375). */
+export function snmpEngineId(device: Device): number[] {
+  return [0x80, 0x00, 0x01, 0x37, 0x03, ...systemMac(device).split(":").map((x) => parseInt(x, 16))];
 }
 
 export const DEFAULT_CONTACT = "Azure Cloud Switch vteam <linuxnetdev@microsoft.com>";
@@ -94,19 +132,35 @@ export const DEFAULT_CONTACT = "Azure Cloud Switch vteam <linuxnetdev@microsoft.
 export function renderApplied(device: Device): AppliedConfig {
   const c = peekSnmpConfig(device);
   const sinks: AppliedConfig["sinks"] = [];
-  // snmpd.conf.j2:248-256 — SNMP_TRAP_CONFIG v2TrapDest -> trap2sink. (v1TrapDest and
-  // v3TrapDest render `trapsink`, i.e. SNMPv1 traps — not modelled here.)
+  // snmpd.conf.j2:248-256 — SNMP_TRAP_CONFIG v2TrapDest -> trap2sink (v1TrapDest and
+  // v3TrapDest render `trapsink`, i.e. SNMPv1 traps: v1Sinks below).
   if (c?.trapConfig?.v2) sinks.push({ ip: c.trapConfig.v2.ip, port: c.trapConfig.v2.port, community: c.trapConfig.v2.community });
-  // snmpd.conf.j2:272-306 — SNMP_TRAP: v3 -> trapsess (not modelled), anything else -> trap2sink.
+  // snmpd.conf.j2:272-306 — SNMP_TRAP: v3 -> trapsess (v3Sinks below), anything else -> trap2sink.
   for (const h of c?.trapHosts ?? []) if (h.version !== "v3") sinks.push({ ip: h.ip, port: h.port, community: h.community ?? "public" });
   // snmpd.conf.j2:41-66 — only local (or wildcard) agent addresses are emitted; none -> udp:161.
   const local = new Set(device.interfaces.flatMap((i) => i.ipv4.map((a) => a.address)));
   const listen = (c?.agentAddresses ?? [])
     .filter((a) => ["0.0.0.0", "::", "::0", ""].includes(a.ip) || local.has(a.ip))
     .map((a) => ({ ip: a.ip, port: a.port ? Number(a.port) : 161 }));
+  const users: AppliedUser[] = (c?.users ?? []).map((u) => ({ name: u.name, permission: u.permission, minLevel: LEVEL[u.type ?? "noAuthNoPriv"] ?? "noAuthNoPriv", usm: usmOf(u) }));
+  const v1Sinks: AppliedConfig["v1Sinks"] = [];
+  for (const d of [c?.trapConfig?.v1, c?.trapConfig?.v3]) if (d) v1Sinks.push({ ip: d.ip, port: d.port, community: d.community });
+  // trapsess only when the referenced user's credentials fit its level (snmpd.conf.j2:272-300).
+  const v3Sinks: AppliedConfig["v3Sinks"] = [];
+  for (const h of c?.trapHosts ?? []) {
+    if (h.version !== "v3" || !h.user) continue;
+    const u = users.find((x) => x.name === h.user);
+    if (!u) continue;
+    const ok = u.minLevel === "noAuthNoPriv" || (u.usm.authProto && u.usm.authPassword && (u.minLevel === "authNoPriv" || (u.usm.privProto && u.usm.privPassword)));
+    if (ok) v3Sinks.push({ ip: h.ip, port: h.port, user: u.name, level: u.minLevel, usm: u.usm });
+  }
   return {
     // snmpd.conf.j2:131-151 — only communities with TYPE RO/RW get com2sec/group/access.
     communities: (c?.communities ?? []).map((x) => ({ ...x })),
+    v1Sinks,
+    v3Sinks,
+    users,
+    engineId: snmpEngineId(device),
     location: c?.location ?? "public",
     contact: c?.contact ?? DEFAULT_CONTACT,
     sinks,
@@ -140,6 +194,8 @@ export interface AgentRuntime {
   stats: Record<string, number>;
   /** Ephemeral source-port / request-id generators. */
   seq: number;
+  /** snmpEngineBoots (persisted by net-snmp, +1 at every snmpd start). */
+  engineBoots?: number;
 }
 
 export const peekAgent = (device: Device): AgentRuntime | undefined => peekFeatureState<AgentRuntime>(device, "snmp-agent");

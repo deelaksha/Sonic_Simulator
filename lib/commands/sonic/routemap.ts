@@ -1,7 +1,9 @@
 /**
- * Route-map SONiC feature module. Config-plane only (simulated CONFIG_DB):
- * commands mutate per-device feature state and `show route-map` renders SOLELY
- * from that stored state. Nothing touches a real FRR/vtysh — this is educational.
+ * Route-map SONiC feature module (simulated CONFIG_DB): commands mutate
+ * per-device feature state and `show route-map` renders from that stored state.
+ * The stored clauses are evaluated by the BGP policy engine
+ * (lib/protocols/bgp-policy.ts applyRouteMap) wherever bgpd references the map:
+ * `neighbor X route-map NAME in|out`, `redistribute ... route-map NAME`, `table-map`.
  *
  * The authoritative CLI forms are the KLISH route-map grammar in routemap.txt.
  * In FRR/klish you enter route-map config mode and issue clause lines; this

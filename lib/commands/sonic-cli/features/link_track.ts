@@ -1,5 +1,7 @@
 /**
- * Link state tracking (link_track) — CONFIG-PLANE clone (store + show, no engine).
+ * Link state tracking (link_track) — KLISH config + show; the runtime effect
+ * (upstream all down → downstream ports down, restored after the timeout) is
+ * lib/protocols/link-track.ts.
  *
  *   sonic(config)# link state track <group>          -> create group + enter sub-view
  *   sonic(config-link-track)# description <text>
@@ -11,16 +13,17 @@
  *   sonic# show link state tracking [group]           -> render stored config
  *
  * Mirrors CONFIG_DB LINK_STATE_TRACKING on the real box: we store exactly what
- * was configured (a dedicated sub-mode, like bgp.ts) and render it back on show.
- * The runtime effect — a group bringing downstream links up/down based on
- * upstream link state, and per-interface Up/Down — is a data-plane behaviour this
- * simulator does not model, so it is never fabricated here.
+ * was configured (a dedicated sub-mode, like bgp.ts). `show link state tracking`
+ * prints Name / Description / Timeout as show_link_state_tracking.j2 does
+ * (timeout default 60, sonic-link-state-tracking.yang), then the other stored
+ * fields and each bound interface with its current oper state.
  */
 import { line, err, muted, OutputLine } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
-import { Device } from "../../../models/device";
+import { Device, interfaceByName } from "../../../models/device";
+import { DEFAULT_LST_TIMEOUT } from "../../../protocols/link-track";
 
 const ID = "link_track";
 // LST_GROUP_NAME: begins with a letter/digit, then up to 62 of [-a-zA-Z0-9_].
@@ -37,6 +40,8 @@ interface Group {
   upstreamIfs?: string[];
   downstreamIfs?: string[];
 }
+
+const operOf = (device: Device, name: string) => (interfaceByName(device, name)?.operState === "up" ? "Up" : "Down");
 
 function group(device: Device, name: string): Group | undefined {
   return cpList(device, ID, "groups").find((g) => g.name === name) as Group | undefined;
@@ -205,8 +210,8 @@ registerModal({
     const out: OutputLine[] = [];
     for (const g of groups) {
       out.push(line(`Name: ${g.name}`));
-      if (g.description) out.push(line(`Description: ${g.description}`));
-      if (g.timeout !== undefined) out.push(line(`Timeout: ${g.timeout} seconds`));
+      out.push(line(`Description:${g.description ? ` ${g.description}` : ""}`));
+      out.push(line(`Timeout: ${g.timeout ?? DEFAULT_LST_TIMEOUT}`));
       if (g.downstream) out.push(line(`Downstream: ${g.downstream}`));
       if (g.thresholdType || g.thresholdUp !== undefined || g.thresholdDown !== undefined) {
         const parts: string[] = [];
@@ -217,14 +222,13 @@ registerModal({
       }
       if (g.upstreamIfs?.length) {
         out.push(line("Upstream Interfaces:"));
-        for (const i of g.upstreamIfs) out.push(line(`    ${i}`));
+        for (const i of g.upstreamIfs) out.push(line(`    ${i} (${operOf(ctx.device, i)})`));
       }
       if (g.downstreamIfs?.length) {
         out.push(line("Downstream Interfaces:"));
-        for (const i of g.downstreamIfs) out.push(line(`    ${i}`));
+        for (const i of g.downstreamIfs) out.push(line(`    ${i} (${operOf(ctx.device, i)})`));
       }
     }
-    out.push(muted("(per-interface operational up/down state is a data-plane effect not simulated in this lab)"));
     return { output: out };
   },
 });

@@ -149,6 +149,9 @@ Features that change forwarding register a `DataPlaneHook`
 | `allowEgress` | bridge flooding/forwarding | MCLAG peer-link isolation |
 | `flood` / `forwardVirtual` + `bridgeInput()` | VLAN flood / MAC entry on a virtual port / decap input | VXLAN (`vtep:<ip>` ports) |
 | `isLocalMac` | SVI punt | VRRP virtual MAC |
+| `l3Ingress` via `runL3Ingress()` | `routerReceive`, after daemons, before local delivery/forwarding (replace / consume the frame) | NAT, FBS/PBR (`nat-daemon.ts`), PIM multicast forwarding |
+| `hostIngress` | `hostReceive`, before the NIC filter | multicast receivers (`mcast-host.ts`) |
+| `portIngress` / `allowEgress` (L2 features) | as above | SPAN/ERSPAN, storm control, DHCP snooping, IGMP snooping, EVPN ARP suppression |
 | `toCpu` via `trapToCpu()` | link-local control frames; ARP / multicast / IP-to-me / TTL≤1 in `routerReceive` | CoPP (`lib/protocols/cpu-daemon.ts`: trap groups, CPU queues, policers) |
 
 **VRF**: membership comes from the VRF config (`lib/models/vrf.ts`); every
@@ -184,4 +187,34 @@ protocol, ports) in `longestPrefixMatch(…, flowHash)`; one flow keeps one path
   (timeline "Protocol traffic" view).
 - **Host TCP** — `lib/protocols/tcp-stack.ts` (listeners, handshake, data, FIN/RST)
   behind `nc`, `hping3`, `arping`, `mtr` (`lib/commands/nettools.ts`).
+
+## Protocol depth (round 13)
+
+| Area | Files | Lab |
+|---|---|---|
+| IPv6: radvd RA/SLAAC, OSPFv3, ICMPv6 errors, `ip -6` | `radv-*.ts`, `ospf6-*.ts`, `ipv6.ts` | `ipvx` |
+| OSPFv2 multi-area, stub/NSSA, ranges, redistribution, VRF instances (`features["ospf:<vrf>"]`) | `ospf*.ts` | `ospf-areas` |
+| BGP policy (prefix/community/as-path lists, route-maps), best path, multipath, IPv6 unicast, VRF instances | `bgp-policy.ts`, `bgp*.ts` | `bgp-policy` |
+| EVPN symmetric IRB (L3VNI, type-5), SAG, ARP suppression, multihoming | `vxlan*.ts`, `evpn-*.ts`, `sag.ts` | `evpn-irb` |
+| SPAN/ERSPAN, storm control, DHCP snooping, UDLD, errdisable, link tracking | `mirror.ts`, `storm-control.ts`, `dhcp-snooping.ts`, `udld-daemon.ts`, `errdisable.ts`, `link-track.ts` | `l2-protect` |
+| IGMP (hosts + snooping), PIM-SM with RP/SPT | `mcast-*.ts`, `igmp-snooping.ts`, `pim-daemon.ts` | `multicast` |
+| NAT/NAPT, FBS/PBR, IP SLA + tracked statics, load-share hash | `nat*.ts`, `pbr.ts`, `ipsla-daemon.ts`, `loadshare-hash.ts` | `l3-services` |
+
+Routed multicast data is not trapped to the CPU (only 224.0.0.x and IGMP/PIM are);
+IPv6 forwarding is per VRF (`longestPrefixMatch6(table, dst, vrf)`).
+
+## Lab missions and troubleshooting labs
+
+`lib/missions`: a `Mission` (`types.ts`) runs on a registered lab. Kind `mission`
+= guided objectives that latch once met; kind `troubleshoot` = `inject(api)` breaks
+the freshly loaded lab through a *silent* `LabApi` (nothing echoed), and the ticket
+states only the symptom; solved when every objective holds at once. Objectives are
+checked every second (`missionTick`, from `app/page.tsx`) through `CheckCtx`
+(`check.ts`): ping / show-command probes run on a deep copy, so checking never
+changes the learner's network. Each mission carries a reference `solution`
+(shown on request) and an `explanation`. Content: one file per lab in
+`lib/missions/content/`. UI: the inspector's Missions tab
+(`components/inspector/MissionsPanel.tsx`); solved missions are kept per viewer
+in browser storage. `tests/missions-all.test.ts` proves every mission starts
+unsolved and is solved by its own solution.
 

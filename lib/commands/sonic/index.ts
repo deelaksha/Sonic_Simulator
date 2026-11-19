@@ -44,6 +44,11 @@ import { syslogModule } from "./syslog";
 import { servicesModule } from "./services";
 import { sonicdbModule } from "./sonicdb";
 import { qosrateModule } from "./qos-rate";
+import { mirrorModule } from "./mirror";
+import { stormControlModule } from "./storm-control";
+import { natModule } from "./nat";
+import { mcastModule } from "../../protocols/mcast-show";
+import { mclagModule } from "./mclag";
 const MODULES: SonicFeatureModule[] = [
   countersModule,
   syslogModule,
@@ -82,6 +87,11 @@ const MODULES: SonicFeatureModule[] = [
   pboModule,
   ipv6Module,
   stpModule,
+  mirrorModule,
+  stormControlModule,
+  natModule,
+  mcastModule,
+  mclagModule,
 ];
 
 const CONFIG_CMDS: SonicCmd[] = MODULES.flatMap((m) => m.config);

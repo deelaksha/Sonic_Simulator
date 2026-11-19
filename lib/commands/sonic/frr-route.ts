@@ -39,6 +39,8 @@ interface Entry {
   metric: number;
   nextHop: string | null;
   ifName: string;
+  /** Next hop outside every subnet of the egress interface (EVPN/VXLAN): FRR prints "onlink". */
+  onlink?: boolean;
   since: number;
   vrf: string;
 }
@@ -55,6 +57,7 @@ function entries(device: Device, nowMs: number): Entry[] {
       metric: r.metric,
       nextHop: r.nextHop,
       ifName: ifName(r.interfaceId),
+      onlink: !!r.nextHop && !(findInterface(device, r.interfaceId)?.ipv4 ?? []).some((a) => networkAddress(a.address, a.prefix) === networkAddress(r.nextHop!, a.prefix)),
       since: r.installedAtMs ?? nowMs,
       vrf: r.vrf ?? "default",
     });
@@ -105,7 +108,7 @@ export function renderFrrRoutes(
       const showDm = head.type !== "connected" && head.type !== "local";
       const prefixText = `${CODE[head.type]}${selected ? ">" : " "}${selected ? "*" : " "} ${k}${showDm ? ` [${head.distance}/${head.metric}]` : ""}`;
       set.forEach((e, i) => {
-        const nh = e.nextHop ? ` via ${e.nextHop}, ${e.ifName}, weight 1` : ` is directly connected, ${e.ifName}`;
+        const nh = e.nextHop ? ` via ${e.nextHop}, ${e.ifName}${e.onlink ? " onlink" : ""}, weight 1` : ` is directly connected, ${e.ifName}`;
         const lead = i === 0 ? prefixText : `  ${selected ? "*" : " "}${" ".repeat(Math.max(1, prefixText.length - 3))}`;
         lines.push(`${lead}${nh}, ${frrUptime(nowMs - e.since)}`);
       });

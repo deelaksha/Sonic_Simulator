@@ -46,6 +46,27 @@
  * (last reset "Interface down"). BFD (`neighbor X bfd`): up→down stops the
  * session with Cease/BFD Down (bgp_bfd.c:66-72).
  *
+ * Policy (./bgp-policy.ts): per neighbour and address family, inbound prefix-list,
+ * filter-list, weight and route-map (bgp_input_filter / bgp_input_modifier) are
+ * applied to the raw Adj-RIB-In when the table is built, so a policy change takes
+ * effect at once like FRR's automatic soft reconfiguration on route-map /
+ * prefix-list updates; outbound filters and route-maps run per peer
+ * (subgroup_announce_check). Well-known communities no-advertise / no-export /
+ * local-AS are honoured outbound. Multipath (bgp_mpath.c): `maximum-paths`
+ * (default multipath_num = 256 — bgpd.c:3489-3493, SONiC debian/rules:70
+ * --enable-multipath=256) equal-cost paths are installed as ECMP routes.
+ *
+ * IPv6 unicast (RFC 4760 / RFC 2545): `address-family ipv6 unicast` →
+ * `neighbor X activate` adds MP capability AFI 2 / SAFI 1; routes travel in
+ * MP_REACH/MP_UNREACH over the IPv4 session and are installed into
+ * device.routingTable6 (type "bgp", distance 20/200).
+ *
+ * VRF instances (`router bgp <as> vrf <name>`): each has its own peers, runtime
+ * (feature "bgpd:<vrf>"), TCP sessions sourced/routed in the VRF and routes
+ * tagged Route.vrf. Redistribution: `redistribute connected|static|ospf
+ * [route-map R] [metric N]` per address family; `table-map R` filters/sets on
+ * RIB install.
+ *
  * L2VPN EVPN (RFC 7432 / RFC 8365) — `address-family l2vpn evpn`:
  *   `neighbor X activate` adds the MP capability AFI 25 / SAFI 70 to the OPEN
  *   (bgp_open.c bgp_open_capability: every activated AF, IPv4 unicast first); the
@@ -65,15 +86,19 @@
 import { Device, findInterface, isRouter, isSwitch, interfaceByName } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
 import { Frame, TcpHeader } from "../models/packet";
-import { Route, longestPrefixMatch } from "../models/route";
-import { networkAddress } from "../models/ip";
+import { Route, longestPrefixMatch, longestPrefixMatch6 } from "../models/route";
+import { cidrContains, networkAddress } from "../models/ip";
+import { isLinkLocal6, networkAddress6, sameSubnet6 } from "../models/ipv6";
+import { vrfOf } from "../models/vrf";
+import { ipOutput } from "./ipv4";
 import { featureState, peekFeatureState } from "../models/feature-state";
 import { SimContext } from "../engine/context";
 import { registerDaemon } from "../control/daemon";
-import { sendIpv4, l4Payload, ownsAddress } from "../control/packet";
+import { sendIpv4, l4Payload, ownsAddress, ipv4Packet, tcpSegment } from "../control/packet";
 import { bfd } from "../control/bfd-api";
 import { logEvent } from "../control/syslog";
-import { BgpConfig, BgpNeighbor, BgpSummary, getBgpConfig } from "./bgp";
+import { BgpConfig, BgpNeighbor, BgpSummary, RedistProto, afConfig, bgpVrfNames, getBgpConfig } from "./bgp";
+import { Af, COMMUNITY, applyRouteMap, asPathListPermits, policySig, prefixListPermits, sortCommunities } from "./bgp-policy";
 import {
   BGP_PORT,
   BgpDecodeError,
@@ -94,16 +119,21 @@ import {
   encodeOpen,
   encodeUpdate,
   encodeEvpnUpdate,
+  encodeV6Update,
   EvpnAttrs,
   notifyText,
   openAs,
   openHostname,
 } from "./bgp-wire";
 import { AFI_L2VPN, SAFI_EVPN, EvpnRoute, Pmsi, evpnKey, sortEcs } from "./evpn-wire";
+import { featureEnabled } from "./cpu-features";
+
+/** bgpd runs in the bgp container: while `config feature state bgp disabled` it has no config (sessions torn down, routes withdrawn). */
+const liveBgpConfig = (d: Device, vrf?: string) => (featureEnabled(d, "bgp") ? getBgpConfig(d, vrf) : undefined);
 
 // ---------------------------------------------------------------------------
 // Defaults (sources in the module comment)
-export const BGP_DEFAULTS = { keepalive: 60, holdtime: 180, connectRetry: 30, maxConnectRetry: 120, openHold: 240, idleHold: 1, localPref: 100 };
+export const BGP_DEFAULTS = { keepalive: 60, holdtime: 180, connectRetry: 30, maxConnectRetry: 120, openHold: 240, idleHold: 1, localPref: 100, maxPaths: 256 };
 const SYN_WINDOW = 64240;
 const DATA_WINDOW = 502;
 
@@ -132,6 +162,16 @@ export interface BgpPath {
   ebgp: boolean;
   local?: "network" | "redistribute";
   sinceMs: number;
+  /** COMMUNITY attribute (sorted). */
+  communities?: number[];
+  /** IPv6: link-local next hop from a 32-byte MP_REACH next hop. */
+  nextHopLL?: string;
+  /** IGP cost to the next hop (best-path step 8), filled when the table is built. */
+  igpMetric?: number;
+  /** Neighbour AS (eBGP multipath needs the same one). */
+  peerAs?: number;
+  /** Redistributed route's source protocol. */
+  proto?: string;
 }
 
 /** An L2VPN EVPN path (route + attributes). */
@@ -188,6 +228,12 @@ export interface PeerRt {
   evpnIn?: Record<string, EvpnPath>;
   /** L2VPN EVPN Adj-RIB-Out: RD|prefix → attribute signature + route (for withdraws). */
   evpnOut?: Record<string, { sig: string; route: EvpnRoute }>;
+  /** IPv6 unicast Adj-RIB-In / Adj-RIB-Out (signatures). */
+  adjIn6?: Record<string, BgpPath>;
+  adjOut6?: Record<string, string>;
+  /** Advertised paths as `show ... advertised-routes` displays them (post-policy). */
+  advOut?: Record<string, BgpPath>;
+  advOut6?: Record<string, BgpPath>;
 }
 
 export interface BgpRt {
@@ -202,6 +248,10 @@ export interface BgpRt {
   dirty?: boolean;
   /** EVPN Loc-RIB: RD|prefix → "peer|signature" of the selected path. */
   evpnBest?: Record<string, string>;
+  /** IPv6 unicast Loc-RIB. */
+  best6?: Record<string, string>;
+  /** Signature of the BGP routes this instance installed (re-install when something else wiped them). */
+  installed?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -219,23 +269,49 @@ export interface EvpnProvider {
   localRoutes(device: Device, cfg: BgpConfig, routerId: string): EvpnLocalRoute[];
   /** The EVPN Loc-RIB changed (best paths, local ones included): import into VNIs. */
   ribChanged(ctx: SimContext, device: Device, best: EvpnPath[]): void;
+  /** VRF routes imported from EVPN (symmetric IRB): owned by the provider, not by a VRF instance's install. */
+  ownsRoute?(device: Device, r: Route): boolean;
 }
 
 let evpnProvider: EvpnProvider | undefined;
 export function setEvpnProvider(p: EvpnProvider): void {
   evpnProvider = p;
 }
+const evpnOwned = (device: Device, r: Route) => !!evpnProvider?.ownsRoute?.(device, r);
 
 /** EVPN negotiated with this peer: activated locally and the peer sent MP 25/70. */
 export function evpnUp(nb: BgpNeighbor | undefined, p: PeerRt | undefined): boolean {
   return !!nb?.evpn && !!p && (p.mpRcvd ?? []).includes(`${AFI_L2VPN}/${SAFI_EVPN}`);
 }
 
+/** IPv6 unicast negotiated: activated locally and the peer sent MP 2/1. */
+export function v6Up(nb: BgpNeighbor | undefined, p: PeerRt | undefined): boolean {
+  return !!nb?.ipv6 && !!p && (p.mpRcvd ?? []).includes("2/1");
+}
+
 const zero = (): MsgCounters => ({ open: 0, update: 0, notify: 0, keepalive: 0, refresh: 0 });
 export const totalMsgs = (c: MsgCounters) => c.open + c.update + c.notify + c.keepalive + c.refresh;
 
-export function peekBgpRuntime(device: Device): BgpRt | undefined {
-  return peekFeatureState<BgpRt>(device, "bgpd");
+const rtKey = (vrf: string | undefined) => (!vrf || vrf === "default" ? "bgpd" : `bgpd:${vrf}`);
+
+export function peekBgpRuntime(device: Device, vrf = "default"): BgpRt | undefined {
+  return peekFeatureState<BgpRt>(device, rtKey(vrf));
+}
+
+/** VRFs with a BGP instance configured or still running (default first). */
+function instanceVrfs(device: Device): string[] {
+  const live = Object.keys(device.config.features ?? {})
+    .filter((k) => k.startsWith("bgpd:"))
+    .map((k) => k.slice(5));
+  return [...new Set(["default", ...bgpVrfNames(device), ...live])];
+}
+
+const vrfOfCfg = (cfg: BgpConfig | undefined) => cfg?.vrf ?? "default";
+
+/** Signature of the BGP routes installed for one VRF (both tables). */
+function installedSig(device: Device, vrf: string): string {
+  const mine = (r: Route) => r.type === "bgp" && (r.vrf ?? "default") === vrf && !evpnOwned(device, r);
+  return [...device.routingTable.filter(mine), ...(device.routingTable6 ?? []).filter(mine)].map((r) => `${r.destination}/${r.prefix}>${r.nextHop}`).join(",");
 }
 
 const runsBgp = (d: Device) => (isRouter(d.type) || isSwitch(d.type)) && d.state !== "down";
@@ -254,7 +330,7 @@ function hash32(s: string): number {
 /** Router-id: configured, else the highest interface address (zebra router-id). */
 export function bgpRouterId(device: Device, cfg: BgpConfig): string {
   if (cfg.routerId) return cfg.routerId;
-  const ips = device.interfaces.flatMap((i) => i.ipv4.map((a) => a.address));
+  const ips = device.interfaces.filter((i) => vrfOf(device, i) === vrfOfCfg(cfg)).flatMap((i) => i.ipv4.map((a) => a.address));
   if (!ips.length) return "0.0.0.0";
   return ips.reduce((a, b) => (ipInt(b) > ipInt(a) ? b : a));
 }
@@ -266,31 +342,32 @@ function nbCfg(cfg: BgpConfig, peer: string): BgpNeighbor | undefined {
 }
 
 /** Non-BGP route used to reach an address (connected/static/OSPF), with its egress interface. */
-function igpLookup(device: Device, ip: string): { route: Route; iface: NetInterface } | undefined {
+function igpLookup(device: Device, ip: string, vrf = "default"): { route: Route; iface: NetInterface } | undefined {
   const m = longestPrefixMatch(
     device.routingTable.filter((r) => r.type !== "bgp"),
     ip,
+    vrf,
   );
   const iface = m ? findInterface(device, m.route.interfaceId) : undefined;
   return m && iface ? { route: m.route, iface } : undefined;
 }
 
-function nextHopUsable(device: Device, nh: string): NetInterface | undefined {
-  const r = igpLookup(device, nh);
+function nextHopUsable(device: Device, nh: string, vrf = "default"): NetInterface | undefined {
+  const r = igpLookup(device, nh, vrf);
   return r && r.iface.operState === "up" && r.iface.adminState === "up" ? r.iface : undefined;
 }
 
 function inputSig(device: Device, cfg: BgpConfig | undefined): string {
-  const routes = device.routingTable
+  const routes = [...device.routingTable, ...(device.routingTable6 ?? [])]
     .filter((r) => r.type !== "bgp")
-    .map((r) => `${r.destination}/${r.prefix}:${r.metric}:${r.interfaceId}`)
+    .map((r) => `${r.vrf ?? ""}:${r.destination}/${r.prefix}:${r.metric}:${r.interfaceId}:${r.type}:${r.nextHop}`)
     .join(",");
-  const links = device.interfaces.map((i) => `${i.id}:${i.operState}:${i.adminState}:${i.ipv4.map((a) => a.address).join("+")}`).join(",");
-  return JSON.stringify([cfg ?? null, routes, links]);
+  const links = device.interfaces.map((i) => `${i.id}:${i.operState}:${i.adminState}:${i.ipv4.map((a) => a.address).join("+")}:${i.ipv6.map((a) => a.address).join("+")}:${vrfOf(device, i)}`).join(",");
+  return JSON.stringify([cfg ?? null, routes, links, cfg ? policySig(device) : ""]);
 }
 
 function peerCfgSig(_cfg: BgpConfig, nb: BgpNeighbor): string {
-  return JSON.stringify([nb.remoteAs, nb.updateSource, nb.ebgpMultihop, !!nb.evpn]);
+  return JSON.stringify([nb.remoteAs, nb.updateSource, nb.ebgpMultihop, !!nb.evpn, !!nb.ipv6]);
 }
 
 function newPeer(cfg: BgpConfig, nb: BgpNeighbor, now: number): PeerRt {
@@ -372,19 +449,26 @@ function sendSegment(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNei
     window: syn ? SYN_WINDOW : DATA_WINDOW,
   };
   if (!syn) tcb.sndNxt = (tcb.sndNxt + payload.length + (flags.includes("FIN") ? 1 : 0)) >>> 0;
-  const r = sendIpv4(ctx, device, { src: tcb.localIp, dst: nb.peer, ttl: ttlFor(cfg, nb), tos: 0xc0, tcp, payload, summary: `BGP ${summary} [${tcpFlagText(flags)}] ${tcb.localIp}:${tcb.localPort} → ${nb.peer}:${tcb.remotePort}` });
+  const r = sendTcp(ctx, device, vrfOfCfg(cfg), { src: tcb.localIp, dst: nb.peer, ttl: ttlFor(cfg, nb), tos: 0xc0, tcp, payload, summary: `BGP ${summary} [${tcpFlagText(flags)}] ${tcb.localIp}:${tcb.localPort} → ${nb.peer}:${tcb.remotePort}` });
   return r.ok;
 }
 
+/** sendIpv4, routed in the instance's VRF (lib/control/packet sendIpv4 has no VRF option). */
+function sendTcp(ctx: SimContext, device: Device, vrf: string, o: { src: string; dst: string; ttl: number; tos: number; tcp: TcpHeader; payload: number[]; summary: string }) {
+  if (vrf === "default") return sendIpv4(ctx, device, o);
+  const rawL3 = ipv4Packet({ src: o.src, dst: o.dst, proto: 6, ttl: o.ttl, tos: o.tos, payload: tcpSegment(o.src, o.dst, o.tcp, o.payload) });
+  return ipOutput(ctx, device, { srcIp: o.src, dstIp: o.dst, ttl: o.ttl, protocol: "TCP", identification: 0, tcp: o.tcp, rawL3, upperBytes: 0, summary: o.summary, vrf });
+}
+
 /** Bare RST for a segment that matches no connection (RFC 793 reset generation). */
-function sendRst(ctx: SimContext, device: Device, frame: Frame, payloadLen: number): void {
+function sendRstVrf(ctx: SimContext, device: Device, frame: Frame, payloadLen: number, vrf = "default"): void {
   const ip = frame.ipv4!;
   const t = frame.tcp!;
   const hasAck = t.flags.includes("ACK");
   const tcp: TcpHeader = hasAck
     ? { srcPort: t.dstPort, dstPort: t.srcPort, seq: t.ack, ack: 0, flags: ["RST"], window: 0 }
     : { srcPort: t.dstPort, dstPort: t.srcPort, seq: 0, ack: (t.seq + payloadLen + (t.flags.includes("SYN") ? 1 : 0)) >>> 0, flags: ["RST", "ACK"], window: 0 };
-  sendIpv4(ctx, device, { src: ip.dstIp, dst: ip.srcIp, ttl: 64, tcp, payload: [], summary: `TCP RST ${ip.dstIp}:${t.dstPort} → ${ip.srcIp}:${t.srcPort}` });
+  sendTcp(ctx, device, vrf, { src: ip.dstIp, dst: ip.srcIp, ttl: 64, tos: 0, tcp, payload: [], summary: `TCP RST ${ip.dstIp}:${t.dstPort} → ${ip.srcIp}:${t.srcPort}` });
 }
 
 function sendMsg(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNeighbor, p: PeerRt, bytes: number[], kind: keyof MsgCounters, now: number): boolean {
@@ -398,8 +482,8 @@ function sendMsg(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNeighbo
 // ---------------------------------------------------------------------------
 // FSM actions
 
-function localAddressFor(device: Device, nb: BgpNeighbor): { ip: string; iface: NetInterface } | undefined {
-  const route = igpLookup(device, nb.peer);
+function localAddressFor(device: Device, nb: BgpNeighbor, vrf = "default"): { ip: string; iface: NetInterface } | undefined {
+  const route = igpLookup(device, nb.peer, vrf);
   if (nb.updateSource) {
     const byName = interfaceByName(device, nb.updateSource);
     const iface = byName ?? device.interfaces.find((i) => i.ipv4.some((a) => a.address === nb.updateSource));
@@ -418,9 +502,9 @@ function startConnect(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNe
     p.state = "Active";
     p.connectAt = now + p.vConnect * 1000;
   };
-  const local = localAddressFor(device, nb);
+  const local = localAddressFor(device, nb, vrfOfCfg(cfg));
   // eBGP single-hop needs a directly connected peer (FRR: "not directly connected").
-  const route = igpLookup(device, nb.peer);
+  const route = igpLookup(device, nb.peer, vrfOfCfg(cfg));
   if (!local || local.iface.operState !== "up" || (isEbgp(cfg, nb) && !nb.ebgpMultihop && route?.route.nextHop)) return fail();
   const iss = hash32(`${device.id}|${nb.peer}|${now}|iss`);
   const tcb: Tcb = { state: "SYN_SENT", localIp: local.ip, localPort: 32768 + (hash32(`${device.id}|${nb.peer}|${now}`) % 28232), remotePort: BGP_PORT, sndNxt: (iss + 1) >>> 0, rcvNxt: 0, ifaceId: local.iface.id };
@@ -441,7 +525,7 @@ function tcpEstablished(ctx: SimContext, device: Device, cfg: BgpConfig, nb: Bgp
     myAs: cfg.localAs!,
     holdTime: hold,
     bgpId: bgpRouterId(device, cfg),
-    caps: [capMp(1, 1), ...(nb.evpn ? [capMp(AFI_L2VPN, SAFI_EVPN)] : []), capRefresh(), capEnhancedRr(), capAs4(cfg.localAs!), capExtMessage(), capFqdn(device.config.hostname || device.name)],
+    caps: [capMp(1, 1), ...(nb.ipv6 ? [capMp(2, 1)] : []), ...(nb.evpn ? [capMp(AFI_L2VPN, SAFI_EVPN)] : []), capRefresh(), capEnhancedRr(), capAs4(cfg.localAs!), capExtMessage(), capFqdn(device.config.hostname || device.name)],
   });
   emit(ctx, device, "BGP_OPEN", `BGP OPEN AS${cfg.localAs} id ${bgpRouterId(device, cfg)} hold ${hold}s → ${nb.peer} (TCP/179)`);
   sendMsg(ctx, device, cfg, nb, p, open, "open", now);
@@ -481,12 +565,16 @@ function stopPeer(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, p
   p.adjOut = {};
   p.evpnIn = {};
   p.evpnOut = {};
+  p.adjIn6 = {};
+  p.adjOut6 = {};
+  p.advOut = {};
+  p.advOut6 = {};
   p.connectAt = !nb || nb.shutdown || nb.remoteAs === undefined ? undefined : now + BGP_DEFAULTS.idleHold * 1000;
-  const rt = peekBgpRuntime(device);
+  const rt = peekBgpRuntime(device, vrfOfCfg(cfg));
   if (rt) rt.dirty = true;
   if (wasUp) emit(ctx, device, "BGP_ESTABLISHED", `BGP neighbor ${p.peer} Down ${o.reason}${notify ? ` (${notifyText(notify.code, notify.subcode)})` : ""}`);
   // bgp_fsm.c:1383-1395 (bgp log-neighbor-changes, set by SONiC's bgpd.main.conf.j2:72): "%pBP" = host(hostname|Unknown).
-  if (wasUp) logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf default Down ${o.reason}`);
+  if (wasUp) logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf ${vrfOfCfg(cfg)} Down ${o.reason}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -534,9 +622,9 @@ function handleKeepalive(ctx: SimContext, device: Device, cfg: BgpConfig, nb: Bg
   p.uptimeMs = now;
   p.vConnect = nb.connectRetry ?? BGP_DEFAULTS.connectRetry;
   emit(ctx, device, "BGP_ESTABLISHED", `BGP neighbor ${p.peer} (AS${p.remoteAs}) Up — Established`);
-  logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf default Up`); // bgp_fsm.c:2172-2178
-  peekBgpRuntime(device)!.dirty = true;
-  converge(ctx, device, now);
+  logEvent(device, now, "INFO", "bgp#bgpd", `%ADJCHANGE: neighbor ${p.peer}(${p.remoteHost ?? "Unknown"}) in vrf ${vrfOfCfg(cfg)} Up`); // bgp_fsm.c:2172-2178
+  peekBgpRuntime(device, vrfOfCfg(cfg))!.dirty = true;
+  converge(ctx, device, now, vrfOfCfg(cfg));
 }
 
 function handleUpdate(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNeighbor, p: PeerRt, m: UpdateMsg, now: number): void {
@@ -556,8 +644,28 @@ function handleUpdate(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNe
         continue;
       }
       const old = p.adjIn[pfx];
-      const sameAttrs = old && attrSig(old) === attrSig({ ...a, weight: 0 });
-      p.adjIn[pfx] = { origin: a.origin, asPath: a.asPath, nextHop: a.nextHop, med: a.med, localPref: a.localPref, weight: 0, peer: p.peer, peerRid: p.remoteId ?? p.peer, ebgp: isEbgp(cfg, nb), sinceMs: sameAttrs ? old.sinceMs : now };
+      const comms = a.communities?.length ? sortCommunities(a.communities) : undefined;
+      const sameAttrs = old && attrSig(old) === attrSig({ ...a, communities: comms, weight: 0 });
+      p.adjIn[pfx] = { origin: a.origin, asPath: a.asPath, nextHop: a.nextHop, med: a.med, localPref: a.localPref, communities: comms, weight: 0, peer: p.peer, peerRid: p.remoteId ?? p.peer, peerAs: p.remoteAs, ebgp: isEbgp(cfg, nb), sinceMs: sameAttrs ? old.sinceMs : now };
+    }
+  }
+  if ((m.v6Reach || m.v6Unreach) && v6Up(nb, p)) {
+    const in6 = (p.adjIn6 ??= {});
+    for (const w of m.v6Unreach ?? []) delete in6[w];
+    if (m.v6Reach && m.attrs) {
+      const a = m.attrs;
+      for (const pfx of m.v6Reach.nlri) {
+        if (a.asPath.includes(cfg.localAs!)) {
+          p.aspathLoop++;
+          delete in6[pfx];
+          continue;
+        }
+        const comms = a.communities?.length ? sortCommunities(a.communities) : undefined;
+        const path: BgpPath = { origin: a.origin, asPath: a.asPath, nextHop: m.v6Reach.nextHop, nextHopLL: m.v6Reach.nextHopLL, med: a.med, localPref: a.localPref, communities: comms, weight: 0, peer: p.peer, peerRid: p.remoteId ?? p.peer, peerAs: p.remoteAs, ebgp: isEbgp(cfg, nb), sinceMs: now };
+        const old = in6[pfx];
+        if (old && attrSig(old) === attrSig(path)) path.sinceMs = old.sinceMs;
+        in6[pfx] = path;
+      }
     }
   }
   if ((m.evpnReach || m.evpnUnreach) && evpnUp(nb, p)) {
@@ -581,9 +689,10 @@ function handleUpdate(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNe
     }
   }
   const nEvpn = (m.evpnReach?.nlri.length ?? 0) + (m.evpnUnreach?.length ?? 0);
-  emit(ctx, device, "BGP_UPDATE", `BGP UPDATE from ${p.peer}: ${nEvpn ? `${m.evpnReach?.nlri.length ?? 0} EVPN route(s)${m.evpnUnreach?.length ? `, ${m.evpnUnreach.length} withdrawn` : ""}` : `${m.nlri.length} prefix(es)${m.withdrawn.length ? `, ${m.withdrawn.length} withdrawn` : ""}`}`);
-  peekBgpRuntime(device)!.dirty = true;
-  converge(ctx, device, now);
+  const n6 = (m.v6Reach?.nlri.length ?? 0) + (m.v6Unreach?.length ?? 0);
+  emit(ctx, device, "BGP_UPDATE", `BGP UPDATE from ${p.peer}: ${n6 ? `${m.v6Reach?.nlri.length ?? 0} IPv6 prefix(es)${m.v6Unreach?.length ? `, ${m.v6Unreach.length} withdrawn` : ""}` : nEvpn ? `${m.evpnReach?.nlri.length ?? 0} EVPN route(s)${m.evpnUnreach?.length ? `, ${m.evpnUnreach.length} withdrawn` : ""}` : `${m.nlri.length} prefix(es)${m.withdrawn.length ? `, ${m.withdrawn.length} withdrawn` : ""}`}`);
+  peekBgpRuntime(device, vrfOfCfg(cfg))!.dirty = true;
+  converge(ctx, device, now, vrfOfCfg(cfg));
 }
 
 function handleMessage(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpNeighbor, p: PeerRt, m: BgpMsg, now: number): void {
@@ -599,17 +708,20 @@ function handleMessage(ctx: SimContext, device: Device, cfg: BgpConfig, nb: BgpN
     stopPeer(ctx, device, cfg, p, now, { reason: "BGP Notification received", received: { code: m.code, subcode: m.subcode } });
   } else if (m.type === 5 && p.state === "Established") {
     for (const k of Object.keys(p.adjOut)) delete p.adjOut[k];
-    converge(ctx, device, now);
+    p.adjOut6 = {};
+    converge(ctx, device, now, vrfOfCfg(cfg));
   }
 }
 
 function processSegment(ctx: SimContext, device: Device, ingressId: string, frame: Frame): void {
-  const cfg = getBgpConfig(device);
   const ip = frame.ipv4!;
+  const vrf = vrfOf(device, device.interfaces.find((i) => i.ipv4.some((a) => a.address === ip.dstIp)));
+  const cfg = liveBgpConfig(device, vrf);
   const t = frame.tcp!;
   const payload = l4Payload(frame) ?? new Uint8Array();
   const now = Math.floor(ctx.wallNow());
   const has = (f: string) => t.flags.includes(f);
+  const sendRst = (c: SimContext, d: Device, f: Frame, len: number) => sendRstVrf(c, d, f, len, vrf);
   if (!cfg) {
     if (!has("RST")) sendRst(ctx, device, frame, payload.length);
     return;
@@ -701,135 +813,352 @@ function processSegment(ctx: SimContext, device: Device, ingressId: string, fram
 // ---------------------------------------------------------------------------
 // RIB
 
-function attrSig(a: PathAttrs & { weight?: number }): string {
-  return `${a.origin}|${a.asPath.join(" ")}|${a.nextHop}|${a.med ?? ""}|${a.localPref ?? ""}`;
+function attrSig(a: PathAttrs & { weight?: number; nextHopLL?: string }): string {
+  return `${a.origin}|${a.asPath.join(" ")}|${a.nextHop}|${a.med ?? ""}|${a.localPref ?? ""}|${(a.communities ?? []).join(",")}|${a.nextHopLL ?? ""}`;
 }
 
-/** FRR bgp_path_info_cmp (bgp_route.c:722): negative when `a` is better. */
-export function comparePaths(a: BgpPath, b: BgpPath): number {
-  if (a.weight !== b.weight) return b.weight - a.weight; // 1
+/**
+ * FRR bgp_path_info_cmp (bgp_route.c:722): negative when `a` is better. `reason`
+ * receives the deciding step (bgp_path_selection_reason2str, bgp_route.c:9497).
+ */
+export function comparePaths(a: BgpPath, b: BgpPath, reason?: { r: string }): number {
+  const why = (r: string, v: number) => {
+    if (reason) reason.r = r;
+    return v;
+  };
+  if (a.weight !== b.weight) return why("Weight", b.weight - a.weight); // 1
   const lpA = a.localPref ?? BGP_DEFAULTS.localPref;
   const lpB = b.localPref ?? BGP_DEFAULTS.localPref;
-  if (lpA !== lpB) return lpB - lpA; // 2
+  if (lpA !== lpB) return why("Local Pref", lpB - lpA); // 2
   const la = a.peer === "0.0.0.0" ? 1 : 0;
   const lb = b.peer === "0.0.0.0" ? 1 : 0;
-  if (la !== lb) return lb - la; // 3
-  if (a.asPath.length !== b.asPath.length) return a.asPath.length - b.asPath.length; // 4
-  if (a.origin !== b.origin) return a.origin - b.origin; // 5
-  if ((a.asPath[0] ?? 0) === (b.asPath[0] ?? 0) && (a.med ?? 0) !== (b.med ?? 0)) return (a.med ?? 0) - (b.med ?? 0); // 6
-  if (a.ebgp !== b.ebgp) return a.ebgp ? -1 : 1; // 7 (8: IGP metric equal)
-  if (a.ebgp && b.ebgp && a.sinceMs !== b.sinceMs) return a.sinceMs - b.sinceMs; // 12 oldest external
-  if (a.peerRid !== b.peerRid) return ipInt(a.peerRid) - ipInt(b.peerRid); // 13
-  return ipInt(a.peer) - ipInt(b.peer); // 15
+  if (la !== lb) return why("Local Route", lb - la); // 3
+  if (a.asPath.length !== b.asPath.length) return why("AS Path", a.asPath.length - b.asPath.length); // 4
+  if (a.origin !== b.origin) return why("Origin", a.origin - b.origin); // 5
+  if ((a.asPath[0] ?? 0) === (b.asPath[0] ?? 0) && (a.med ?? 0) !== (b.med ?? 0)) return why("MED", (a.med ?? 0) - (b.med ?? 0)); // 6
+  if (a.ebgp !== b.ebgp) return why("Peer Type", a.ebgp ? -1 : 1); // 7
+  if ((a.igpMetric ?? 0) !== (b.igpMetric ?? 0)) return why("IGP Metric", (a.igpMetric ?? 0) - (b.igpMetric ?? 0)); // 8
+  if (a.ebgp && b.ebgp && a.sinceMs !== b.sinceMs) return why("Older Path", a.sinceMs - b.sinceMs); // 12 oldest external
+  if (a.peerRid !== b.peerRid) return why("Router ID", ipInt(a.peerRid) - ipInt(b.peerRid)); // 13
+  return why("Neighbor IP", a.peer.includes(":") || b.peer.includes(":") ? a.peer.localeCompare(b.peer) : ipInt(a.peer) - ipInt(b.peer)); // 15
+}
+
+/**
+ * Multipath candidate (bgp_route.c:1405-1445): equal with the best through the
+ * IGP-metric step, and — without `bgp bestpath as-path multipath-relax` — an
+ * identical AS_PATH (iBGP) or the same neighbour AS (eBGP).
+ */
+function multipathEqual(a: BgpPath, b: BgpPath, relax: boolean): boolean {
+  const r = { r: "" };
+  comparePaths(a, b, r);
+  if (!["Older Path", "Router ID", "Neighbor IP"].includes(r.r) || a.peer === "0.0.0.0" || b.peer === "0.0.0.0") return false;
+  if (relax) return true;
+  if (!a.ebgp) return a.asPath.join(" ") === b.asPath.join(" ");
+  return a.peerAs === b.peerAs;
+}
+
+/** Non-BGP IPv6 route or connected subnet reaching `ip` (switches keep no connected v6 routes). */
+function igpLookup6(device: Device, ip: string, vrf: string): { metric: number; iface: NetInterface } | undefined {
+  const m = longestPrefixMatch6(
+    (device.routingTable6 ?? []).filter((r) => r.type !== "bgp" && (r.vrf ?? "default") === vrf),
+    ip,
+  );
+  const iface = m ? findInterface(device, m.route.interfaceId) : device.interfaces.find((i) => vrfOf(device, i) === vrf && i.ipv6.some((a) => !isLinkLocal6(a.address) && sameSubnet6(a.address, ip, a.prefix)));
+  return iface ? { metric: m?.route.metric ?? 0, iface } : undefined;
+}
+
+const ifUp = (i: NetInterface | undefined) => !!i && i.operState === "up" && i.adminState === "up";
+
+/** Egress interface for a path's next hop, or undefined when it does not resolve. */
+function pathEgress(device: Device, vrf: string, af: Af, path: BgpPath, sessionIface?: string): NetInterface | undefined {
+  if (af === "ipv4") return nextHopUsable(device, path.nextHop, vrf);
+  if (path.nextHopLL && sessionIface) {
+    const i = findInterface(device, sessionIface);
+    if (ifUp(i)) return i;
+  }
+  const r = igpLookup6(device, path.nextHop, vrf);
+  return r && ifUp(r.iface) ? r.iface : undefined;
+}
+
+function igpMetricOf(device: Device, vrf: string, af: Af, nh: string): number {
+  if (af === "ipv4") return igpLookup(device, nh, vrf)?.route.metric ?? 0;
+  return igpLookup6(device, nh, vrf)?.metric ?? 0;
+}
+
+/** Connected IPv6 subnets of up interfaces in `vrf` (from addressing; switches keep no v6 connected routes). */
+function connected6(device: Device, vrf: string): { key: string; iface: NetInterface }[] {
+  const out: { key: string; iface: NetInterface }[] = [];
+  for (const i of device.interfaces) {
+    if (i.management || i.operState !== "up" || vrfOf(device, i) !== vrf) continue;
+    for (const a of i.ipv6) if (!isLinkLocal6(a.address)) out.push({ key: `${networkAddress6(a.address, a.prefix)}/${a.prefix}`, iface: i });
+  }
+  return out;
 }
 
 /**
  * Locally originated paths: `network` (valid only while an exact route exists —
  * import-check, bgp_route.c:6922 bgp_nexthop_reachability_check) and
- * `redistribute connected` (origin incomplete).
+ * `redistribute connected|static|ospf [route-map R] [metric N]` (bgp_route.c
+ * bgp_redistribute_add: origin incomplete, MED = route metric, next hop = the
+ * route's gateway, route-map applied — deny keeps the route out).
  */
-function localPaths(device: Device, cfg: BgpConfig, rid: string): Map<string, { path: BgpPath; valid: boolean }> {
+function localPaths(device: Device, cfg: BgpConfig, af: Af, rid: string): Map<string, { path: BgpPath; valid: boolean }> {
   const out = new Map<string, { path: BgpPath; valid: boolean }>();
-  const mk = (local: "network" | "redistribute", origin: number, med: number): BgpPath => ({ origin, asPath: [], nextHop: "0.0.0.0", med, weight: 32768, peer: "0.0.0.0", peerRid: rid, ebgp: false, local, sinceMs: 0 });
-  for (const n of cfg.networks) {
+  const vrf = cfg.vrf ?? "default";
+  const ac = afConfig(cfg, af);
+  const self = af === "ipv4" ? "0.0.0.0" : "::";
+  const rib = (af === "ipv4" ? device.routingTable : (device.routingTable6 ?? [])).filter((r) => r.type !== "bgp" && (r.vrf ?? "default") === vrf);
+  const mk = (local: "network" | "redistribute", origin: number, med: number, proto?: string, nextHop = self): BgpPath => ({ origin, asPath: [], nextHop, med, weight: 32768, peer: "0.0.0.0", peerRid: rid, ebgp: false, local, proto, sinceMs: 0 });
+  const conn6 = af === "ipv6" ? connected6(device, vrf) : [];
+  for (const n of ac.networks) {
     const [addr, len] = n.split("/");
-    const r = device.routingTable.find((x) => x.type !== "bgp" && x.destination === networkAddress(addr, Number(len)) && x.prefix === Number(len));
-    out.set(n, { path: mk("network", 0, r?.metric ?? 0), valid: !!r });
+    const r = af === "ipv4" ? rib.find((x) => x.destination === networkAddress(addr, Number(len)) && x.prefix === Number(len)) : rib.find((x) => `${networkAddress6(x.destination, x.prefix)}/${x.prefix}` === n);
+    const valid = !!r || conn6.some((c) => c.key === n);
+    out.set(n, { path: mk("network", 0, r?.metric ?? 0), valid });
   }
-  if (cfg.redistributeConnected) {
-    for (const r of device.routingTable) {
-      if (r.type !== "connected") continue;
-      const iface = findInterface(device, r.interfaceId);
-      if (!iface || iface.management || iface.operState !== "up") continue;
-      const k = `${r.destination}/${r.prefix}`;
-      if (!out.get(k)?.valid) out.set(k, { path: mk("redistribute", 2, 0), valid: true });
+  for (const proto of ["connected", "static", "ospf"] as RedistProto[]) {
+    const rd = ac.redist?.[proto];
+    if (!rd) continue;
+    const cands: { key: string; metric: number; nextHop?: string }[] = [];
+    for (const r of rib) {
+      if (r.type !== proto) continue;
+      if (proto === "connected") {
+        const iface = findInterface(device, r.interfaceId);
+        if (!iface || iface.management || iface.operState !== "up") continue;
+      }
+      const key = af === "ipv4" ? `${r.destination}/${r.prefix}` : `${networkAddress6(r.destination, r.prefix)}/${r.prefix}`;
+      cands.push({ key, metric: proto === "connected" ? 0 : r.metric, nextHop: r.nextHop ?? undefined });
+    }
+    if (proto === "connected") for (const c of conn6) if (!cands.some((x) => x.key === c.key)) cands.push({ key: c.key, metric: 0 });
+    for (const c of cands) {
+      if (out.get(c.key)?.valid) continue;
+      const path = mk("redistribute", 2, rd.metric ?? c.metric, proto, c.nextHop ?? self);
+      if (rd.routeMap && applyRouteMap(device, rd.routeMap, { prefix: c.key, af, protocol: proto }, path) === "deny") continue;
+      out.set(c.key, { path, valid: true });
     }
   }
   return out;
 }
 
-/** All candidate paths per prefix, best first (valid = next hop resolvable). */
-export function bgpTable(device: Device): Map<string, { path: BgpPath; valid: boolean }[]> {
-  const cfg = getBgpConfig(device);
-  const rt = peekBgpRuntime(device);
-  const table = new Map<string, { path: BgpPath; valid: boolean }[]>();
+/**
+ * Inbound policy (bgp_route.c bgp_update → bgp_input_filter :1671: prefix-list,
+ * filter-list; then bgp_input_modifier :1873: neighbor weight, route-map in).
+ * undefined = filtered. The raw path stays in the Adj-RIB-In, so policy changes
+ * re-evaluate at once (FRR re-applies policy on route-map/prefix-list change —
+ * bgp_routemap.c bgp_route_map_process_update / bgp_prefix_list_update).
+ */
+export function inboundPath(device: Device, nb: BgpNeighbor | undefined, af: Af, prefix: string, raw: BgpPath): BgpPath | undefined {
+  const pol = nb?.af?.[af];
+  if (pol?.prefixListIn && !prefixListPermits(device, pol.prefixListIn, prefix, af)) return undefined;
+  if (pol?.filterListIn && !asPathListPermits(device, pol.filterListIn, raw.asPath)) return undefined;
+  const a: BgpPath = { ...raw, asPath: [...raw.asPath], communities: raw.communities ? [...raw.communities] : undefined, weight: pol?.weight ?? 0 };
+  if (pol?.routeMapIn && applyRouteMap(device, pol.routeMapIn, { prefix, af, peer: raw.peer }, a) === "deny") return undefined;
+  return a;
+}
+
+export interface TableEntry {
+  path: BgpPath;
+  valid: boolean;
+  /** Selected as an additional ECMP path ('=' in show ip bgp). */
+  multipath?: boolean;
+  /** Why the best path won (route_vty_out_detail "best (<reason>)"). */
+  reason?: string;
+}
+
+const adjInOf = (p: PeerRt, af: Af) => (af === "ipv4" ? p.adjIn : (p.adjIn6 ?? {}));
+
+/** All candidate paths per prefix after inbound policy, best first (valid = next hop resolvable). */
+export function bgpTable(device: Device, af: Af = "ipv4", vrf = "default"): Map<string, TableEntry[]> {
+  const cfg = liveBgpConfig(device, vrf);
+  const rt = peekBgpRuntime(device, vrf);
+  const table = new Map<string, TableEntry[]>();
   if (!cfg) return table;
-  for (const [k, e] of localPaths(device, cfg, bgpRouterId(device, cfg))) table.set(k, [e]);
+  for (const [k, e] of localPaths(device, cfg, af, bgpRouterId(device, cfg))) table.set(k, [e]);
   for (const p of Object.values(rt?.peers ?? {})) {
     if (p.state !== "Established") continue;
-    for (const [k, path] of Object.entries(p.adjIn)) {
+    const nb = nbCfg(cfg, p.peer);
+    for (const [k, raw] of Object.entries(adjInOf(p, af))) {
+      const path = inboundPath(device, nb, af, k, raw);
+      if (!path) continue;
+      const valid = !!pathEgress(device, vrf, af, path, p.tcb?.ifaceId);
+      path.igpMetric = valid ? igpMetricOf(device, vrf, af, path.nextHop) : 0;
       const list = table.get(k) ?? [];
-      list.push({ path, valid: !!nextHopUsable(device, path.nextHop) });
+      list.push({ path, valid });
       table.set(k, list);
     }
   }
-  for (const list of table.values()) list.sort((x, y) => (x.valid !== y.valid ? (x.valid ? -1 : 1) : comparePaths(x.path, y.path)));
+  const ac = afConfig(cfg, af);
+  for (const list of table.values()) {
+    list.sort((x, y) => (x.valid !== y.valid ? (x.valid ? -1 : 1) : comparePaths(x.path, y.path)));
+    const best = list[0];
+    if (!best?.valid) continue;
+    if (list.length === 1) best.reason = "First path received";
+    else {
+      const r = { r: "" };
+      comparePaths(best.path, list[1].path, r);
+      best.reason = r.r;
+    }
+    // bgp_mpath.c bgp_path_info_mpath_update: up to maximum-paths (eBGP / ibgp by the best path's type)
+    const max = (best.path.ebgp ? ac.maxPaths : ac.maxPathsIbgp) ?? BGP_DEFAULTS.maxPaths;
+    let n = 1;
+    for (const e of list.slice(1)) {
+      if (n >= max) break;
+      if (e.valid && multipathEqual(e.path, best.path, !!cfg.multipathRelax)) {
+        e.multipath = true;
+        n++;
+      }
+    }
+  }
   return table;
 }
 
-/** Decision process + RIB install + Adj-RIB-Out diff → UPDATEs. */
-function converge(ctx: SimContext, device: Device, now: number): void {
-  const cfg = getBgpConfig(device);
-  const rt = peekBgpRuntime(device);
+/**
+ * Outbound processing for one peer (bgp_route.c subgroup_announce_check):
+ * never back to the sender, iBGP split horizon, well-known communities
+ * (no-advertise: nobody; no-export / local-AS: no eBGP peer), output prefix-list
+ * and filter-list, attribute rewrite (eBGP: next-hop-self, MED only for local
+ * routes, no LOCAL_PREF; iBGP: LOCAL_PREF default 100), then route-map out. Our own
+ * AS is prepended for eBGP after the route-map (bgp_attr.c bgp_packet_attribute).
+ * Returns the attributes to send (wire) and as shown by advertised-routes (shown).
+ */
+function outboundAttrs(device: Device, cfg: BgpConfig, nb: BgpNeighbor, p: PeerRt, af: Af, k: string, b: BgpPath): { wire: PathAttrs & { nextHopLL?: string }; shown: BgpPath } | undefined {
+  const ebgp = isEbgp(cfg, nb);
+  const local = b.peer === "0.0.0.0";
+  if (b.peer === p.peer) return undefined; // never back to the sender
+  if (!ebgp && !b.ebgp && !local) return undefined; // iBGP split horizon
+  const comms = b.communities ?? [];
+  if (comms.includes(COMMUNITY.NO_ADVERTISE)) return undefined;
+  if (ebgp && (comms.includes(COMMUNITY.NO_EXPORT) || comms.includes(COMMUNITY.LOCAL_AS))) return undefined;
+  const pol = nb.af?.[af];
+  if (pol?.prefixListOut && !prefixListPermits(device, pol.prefixListOut, k, af)) return undefined;
+  if (pol?.filterListOut && !asPathListPermits(device, pol.filterListOut, b.asPath)) return undefined;
+  const nh = af === "ipv4" ? { nextHop: p.tcb!.localIp } : selfNextHop6(device, cfg, p);
+  const shown: BgpPath = { ...b, asPath: [...b.asPath], communities: b.communities ? [...b.communities] : undefined };
+  const a: PathAttrs & { nextHopLL?: string } = ebgp
+    ? { origin: b.origin, asPath: [...b.asPath], ...nh, med: local ? b.med : undefined, communities: b.communities }
+    : { origin: b.origin, asPath: [...b.asPath], ...(local ? nh : { nextHop: b.nextHop }), med: b.med, localPref: b.localPref ?? BGP_DEFAULTS.localPref, communities: b.communities };
+  if (pol?.routeMapOut) {
+    const pa = { ...a, weight: b.weight };
+    if (applyRouteMap(device, pol.routeMapOut, { prefix: k, af, peer: p.peer }, pa) === "deny") return undefined;
+    const nhChanged = pa.nextHop !== a.nextHop;
+    Object.assign(a, { origin: pa.origin, asPath: pa.asPath, nextHop: pa.nextHop, med: pa.med, communities: pa.communities }, ebgp ? {} : { localPref: pa.localPref });
+    if (nhChanged) a.nextHopLL = undefined;
+    Object.assign(shown, { origin: pa.origin, asPath: pa.asPath, med: pa.med, localPref: pa.localPref, communities: pa.communities, ...(nhChanged ? { nextHop: pa.nextHop } : {}) });
+  }
+  if (ebgp) a.asPath = [cfg.localAs!, ...a.asPath];
+  if (a.communities && !a.communities.length) a.communities = undefined;
+  return { wire: a, shown };
+}
+
+/**
+ * IPv6 next hop we advertise (bgp_zebra.c bgp_nexthop_set): the global address of
+ * the session's interface (IPv4-mapped ::ffff:a.b.c.d when it has none) plus its
+ * link-local when the peer shares the network (length 32 next hop).
+ */
+function selfNextHop6(device: Device, cfg: BgpConfig, p: PeerRt): { nextHop: string; nextHopLL?: string } {
+  const iface = p.tcb?.ifaceId ? findInterface(device, p.tcb.ifaceId) : undefined;
+  const g = iface?.ipv6.find((a) => !isLinkLocal6(a.address));
+  const ll = iface?.ipv6.find((a) => isLinkLocal6(a.address));
+  const shared = !!iface?.ipv4.some((a) => cidrContains(networkAddress(a.address, a.prefix), a.prefix, p.peer));
+  return { nextHop: g ? g.address : `::ffff:${p.tcb?.localIp ?? "0.0.0.0"}`, ...(ll && shared ? { nextHopLL: ll.address } : {}) };
+}
+
+/** table-map (bgp_zebra.c bgp_table_map_apply): deny keeps a route out of the RIB, sets apply. */
+function tableMapRoute(device: Device, cfg: BgpConfig, af: Af, k: string, p: BgpPath): BgpPath | undefined {
+  const tm = afConfig(cfg, af).tableMap;
+  if (!tm) return p;
+  const a = { ...p, asPath: [...p.asPath] };
+  return applyRouteMap(device, tm, { prefix: k, af, peer: p.peer }, a) === "permit" ? a : undefined;
+}
+
+/** zebra: install best + multipath routes learned from peers (one Route per ECMP next hop). */
+function installRoutes(ctx: SimContext, device: Device, cfg: BgpConfig, rt: BgpRt, af: Af, table: Map<string, TableEntry[]>, now: number): void {
+  const vrf = cfg.vrf ?? "default";
+  const mine = (r: Route) => r.type === "bgp" && (r.vrf ?? "default") === vrf && !evpnOwned(device, r);
+  const cur = af === "ipv4" ? device.routingTable : (device.routingTable6 ?? []);
+  const prev = cur.filter(mine);
+  const keep = cur.filter((r) => !mine(r));
+  for (const [k, list] of table) {
+    if (!list[0]?.valid || list[0].path.peer === "0.0.0.0") continue;
+    for (const e of list.filter((x, i) => i === 0 || x.multipath)) {
+      const p = tableMapRoute(device, cfg, af, k, e.path);
+      if (!p) continue;
+      const iface = pathEgress(device, vrf, af, p, rt.peers[p.peer]?.tcb?.ifaceId);
+      if (!iface) continue;
+      const [dest, len] = k.split("/");
+      const nh = af === "ipv6" && p.nextHopLL ? p.nextHopLL : p.nextHop;
+      const old = prev.find((r) => r.destination === dest && r.prefix === Number(len) && r.nextHop === nh && r.interfaceId === iface.id);
+      if (!old) emit(ctx, device, "BGP_ROUTE", `BGP route ${k} via ${nh} (AS path ${p.asPath.join(" ") || "local"}) installed${vrf !== "default" ? ` in vrf ${vrf}` : ""}`);
+      keep.push({ destination: dest, prefix: Number(len), nextHop: nh, interfaceId: iface.id, type: "bgp", metric: p.med ?? 0, distance: p.ebgp ? 20 : 200, installedAtMs: old?.installedAtMs ?? now, ...(vrf !== "default" ? { vrf } : {}) });
+    }
+  }
+  if (af === "ipv4") device.routingTable = keep;
+  else device.routingTable6 = keep;
+}
+
+/** Decision process + RIB install + Adj-RIB-Out diff → UPDATEs, per address family. */
+function converge(ctx: SimContext, device: Device, now: number, vrf = "default"): void {
+  const cfg = liveBgpConfig(device, vrf);
+  const rt = peekBgpRuntime(device, vrf);
   if (!cfg || !rt) return;
   rt.dirty = false;
-  const table = bgpTable(device);
-  const best = new Map<string, BgpPath>();
-  for (const [k, list] of table) if (list[0]?.valid) best.set(k, list[0].path);
+  for (const af of ["ipv4", "ipv6"] as Af[]) {
+    const table = bgpTable(device, af, vrf);
+    const best = new Map<string, BgpPath>();
+    for (const [k, list] of table) if (list[0]?.valid) best.set(k, list[0].path);
 
-  // Loc-RIB change → table version
-  const newBest: Record<string, string> = {};
-  for (const [k, p] of best) newBest[k] = `${p.peer}|${attrSig(p)}`;
-  for (const k of new Set([...Object.keys(newBest), ...Object.keys(rt.best)])) if (newBest[k] !== rt.best[k]) rt.tableVersion++;
-  rt.best = newBest;
+    // Loc-RIB change → table version
+    const newBest: Record<string, string> = {};
+    for (const [k, list] of table) if (list[0]?.valid) newBest[k] = list.filter((e, i) => i === 0 || e.multipath).map((e) => `${e.path.peer}|${attrSig(e.path)}`).join("+");
+    const oldBest = (af === "ipv4" ? rt.best : rt.best6) ?? {};
+    for (const k of new Set([...Object.keys(newBest), ...Object.keys(oldBest)])) if (newBest[k] !== oldBest[k]) rt.tableVersion++;
+    if (af === "ipv4") rt.best = newBest;
+    else rt.best6 = newBest;
+    installRoutes(ctx, device, cfg, rt, af, table, now);
 
-  // zebra: install best paths learned from peers, withdraw the rest
-  const prev = device.routingTable.filter((r) => r.type === "bgp");
-  const keep = device.routingTable.filter((r) => r.type !== "bgp");
-  for (const [k, p] of best) {
-    if (p.peer === "0.0.0.0") continue;
-    const iface = nextHopUsable(device, p.nextHop);
-    if (!iface) continue;
-    const [dest, len] = k.split("/");
-    const old = prev.find((r) => r.destination === dest && r.prefix === Number(len) && r.nextHop === p.nextHop && r.interfaceId === iface.id);
-    if (!old) emit(ctx, device, "BGP_ROUTE", `BGP route ${k} via ${p.nextHop} (AS path ${p.asPath.join(" ") || "local"}) installed`);
-    keep.push({ destination: dest, prefix: Number(len), nextHop: p.nextHop, interfaceId: iface.id, type: "bgp", metric: p.med ?? 0, distance: p.ebgp ? 20 : 200, installedAtMs: old?.installedAtMs ?? now });
+    // Adj-RIB-Out per Established peer with the address family negotiated
+    for (const p of Object.values(rt.peers)) {
+      const nb = nbCfg(cfg, p.peer);
+      if (!nb || p.state !== "Established" || !p.tcb) continue;
+      if (af === "ipv6" && !v6Up(nb, p)) continue;
+      const want = new Map<string, PathAttrs & { nextHopLL?: string }>();
+      const shown: Record<string, BgpPath> = {};
+      for (const [k, b] of best) {
+        const o = outboundAttrs(device, cfg, nb, p, af, k, b);
+        if (!o) continue;
+        want.set(k, o.wire);
+        shown[k] = o.shown;
+      }
+      const adjOut = af === "ipv4" ? p.adjOut : (p.adjOut6 ??= {});
+      if (af === "ipv4") p.advOut = shown;
+      else p.advOut6 = shown;
+      const withdrawn = Object.keys(adjOut).filter((k) => !want.has(k));
+      const groups = new Map<string, { attrs: PathAttrs & { nextHopLL?: string }; nlri: string[] }>();
+      for (const [k, a] of want) {
+        const s = attrSig(a);
+        if (adjOut[k] === s) continue;
+        const g = groups.get(s) ?? { attrs: a, nlri: [] };
+        g.nlri.push(k);
+        groups.set(s, g);
+      }
+      if (withdrawn.length) {
+        for (const k of withdrawn) delete adjOut[k];
+        const bytes = af === "ipv4" ? encodeUpdate({ withdrawn, nlri: [] }, p.as4) : encodeV6Update({ unreach: withdrawn }, p.as4);
+        sendMsg(ctx, device, cfg, nb, p, bytes, "update", now);
+      }
+      for (const [s, g] of groups) {
+        for (const k of g.nlri) adjOut[k] = s;
+        const a = g.attrs;
+        const bytes =
+          af === "ipv4"
+            ? encodeUpdate({ withdrawn: [], attrs: a, nlri: g.nlri }, p.as4)
+            : encodeV6Update({ reach: { nextHop: a.nextHop, nextHopLL: a.nextHopLL, nlri: g.nlri, attrs: { origin: a.origin, asPath: a.asPath, med: a.med, localPref: a.localPref, communities: a.communities } } }, p.as4);
+        sendMsg(ctx, device, cfg, nb, p, bytes, "update", now);
+      }
+    }
   }
-  device.routingTable = keep;
-
-  // Adj-RIB-Out per Established peer
-  for (const p of Object.values(rt.peers)) {
-    const nb = nbCfg(cfg, p.peer);
-    if (!nb || p.state !== "Established" || !p.tcb) continue;
-    const ebgp = isEbgp(cfg, nb);
-    const want = new Map<string, PathAttrs>();
-    for (const [k, b] of best) {
-      if (b.peer === p.peer) continue; // never back to the sender
-      if (!ebgp && !b.ebgp && b.peer !== "0.0.0.0") continue; // iBGP split horizon
-      const a: PathAttrs = ebgp
-        ? { origin: b.origin, asPath: [cfg.localAs!, ...b.asPath], nextHop: p.tcb.localIp, med: b.peer === "0.0.0.0" ? b.med : undefined }
-        : { origin: b.origin, asPath: b.asPath, nextHop: b.peer === "0.0.0.0" ? p.tcb.localIp : b.nextHop, med: b.med, localPref: b.localPref ?? BGP_DEFAULTS.localPref };
-      want.set(k, a);
-    }
-    const withdrawn = Object.keys(p.adjOut).filter((k) => !want.has(k));
-    const groups = new Map<string, { attrs: PathAttrs; nlri: string[] }>();
-    for (const [k, a] of want) {
-      const s = attrSig(a);
-      if (p.adjOut[k] === s) continue;
-      const g = groups.get(s) ?? { attrs: a, nlri: [] };
-      g.nlri.push(k);
-      groups.set(s, g);
-    }
-    if (withdrawn.length) {
-      for (const k of withdrawn) delete p.adjOut[k];
-      sendMsg(ctx, device, cfg, nb, p, encodeUpdate({ withdrawn, nlri: [] }, p.as4), "update", now);
-    }
-    for (const [s, g] of groups) {
-      for (const k of g.nlri) p.adjOut[k] = s;
-      sendMsg(ctx, device, cfg, nb, p, encodeUpdate({ withdrawn: [], attrs: g.attrs, nlri: g.nlri }, p.as4), "update", now);
-    }
-  }
-  convergeEvpn(ctx, device, cfg, rt, now);
+  rt.installed = installedSig(device, vrf);
+  if (vrf === "default") convergeEvpn(ctx, device, cfg, rt, now);
 }
 
 // ---------------------------------------------------------------------------
@@ -839,7 +1168,7 @@ const hex = (ecs: number[][]) => ecs.map((e) => e.map((x) => x.toString(16).padS
 
 function evpnSig(a: { origin: number; asPath: number[]; nextHop: string; med?: number; localPref?: number; extComms: number[][]; pmsi?: Pmsi; route: EvpnRoute }): string {
   const pm = a.pmsi ? `${a.pmsi.tunnelType}/${a.pmsi.vni}/${a.pmsi.endpoint}` : "";
-  return `${a.origin}|${a.asPath.join(" ")}|${a.nextHop}|${a.med ?? ""}|${a.localPref ?? ""}|${hex(a.extComms)}|${pm}|${a.route.vni ?? ""}`;
+  return `${a.origin}|${a.asPath.join(" ")}|${a.nextHop}|${a.med ?? ""}|${a.localPref ?? ""}|${hex(a.extComms)}|${pm}|${a.route.vni ?? ""}/${a.route.vni2 ?? ""}/${a.route.esi ?? ""}`;
 }
 
 /** EVPN next hops resolve through any route, BGP-learned included (see module comment). */
@@ -852,7 +1181,7 @@ function evpnNexthopUsable(device: Device, nh: string): boolean {
 
 /** All EVPN candidate paths per RD|prefix, best first. */
 export function evpnTable(device: Device): Map<string, { path: EvpnPath; valid: boolean }[]> {
-  const cfg = getBgpConfig(device);
+  const cfg = liveBgpConfig(device);
   const rt = peekBgpRuntime(device);
   const table = new Map<string, { path: EvpnPath; valid: boolean }[]>();
   if (!cfg) return table;
@@ -925,7 +1254,7 @@ function convergeEvpn(ctx: SimContext, device: Device, cfg: BgpConfig, rt: BgpRt
 /** The VXLAN module's local routes changed: run the decision process now. */
 export function evpnRefresh(ctx: SimContext, device: Device, now: number): void {
   withDrain(() => {
-    if (getBgpConfig(device) && peekBgpRuntime(device)) converge(ctx, device, now);
+    if (liveBgpConfig(device) && peekBgpRuntime(device)) converge(ctx, device, now);
   });
 }
 
@@ -933,27 +1262,29 @@ export function evpnRefresh(ctx: SimContext, device: Device, now: number): void 
 // config reconciliation + timers
 
 function ensureRuntime(device: Device, cfg: BgpConfig, now: number): BgpRt {
-  const rt = featureState<BgpRt>(device, "bgpd", () => ({ localAs: cfg.localAs!, routerId: bgpRouterId(device, cfg), peers: {}, tableVersion: 0, best: {}, sig: "" }));
+  const rt = featureState<BgpRt>(device, rtKey(cfg.vrf), () => ({ localAs: cfg.localAs!, routerId: bgpRouterId(device, cfg), peers: {}, tableVersion: 0, best: {}, sig: "" }));
   for (const nb of cfg.neighbors) if (!rt.peers[nb.peer]) rt.peers[nb.peer] = newPeer(cfg, nb, now);
   return rt;
 }
 
-function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, now: number): void {
-  const rt = peekBgpRuntime(device);
+function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, now: number, vrf = vrfOfCfg(cfg)): void {
+  const rt = peekBgpRuntime(device, vrf);
   if (!cfg) {
     if (!rt) return;
     for (const p of Object.values(rt.peers)) {
       const nbOld = { peer: p.peer, remoteAs: p.remoteAs } as BgpNeighbor;
       if (p.state !== "Idle" && p.tcb?.state === "ESTABLISHED") {
-        const fakeCfg: BgpConfig = { localAs: rt.localAs, neighbors: [nbOld], networks: [] };
+        const fakeCfg: BgpConfig = { localAs: rt.localAs, neighbors: [nbOld], networks: [], ...(vrf !== "default" ? { vrf } : {}) };
         sendMsg(ctx, device, fakeCfg, nbOld, p, encodeNotification(6, 3), "notify", now);
         sendSegment(ctx, device, fakeCfg, nbOld, p.tcb, ["FIN", "ACK"], [], "FIN");
       }
       if (p.bfdReg) bfd().unregister(device, p.peer, "bgp");
     }
-    device.routingTable = device.routingTable.filter((r) => r.type !== "bgp");
-    delete device.config.features!["bgpd"];
-    evpnProvider?.ribChanged(ctx, device, []);
+    const mine = (r: Route) => r.type === "bgp" && (r.vrf ?? "default") === vrf && !evpnOwned(device, r);
+    device.routingTable = device.routingTable.filter((r) => !mine(r));
+    device.routingTable6 = (device.routingTable6 ?? []).filter((r) => !mine(r));
+    delete device.config.features![rtKey(vrf)];
+    if (vrf === "default") evpnProvider?.ribChanged(ctx, device, []);
     return;
   }
   const live = ensureRuntime(device, cfg, now);
@@ -977,7 +1308,7 @@ function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, 
     const sig = peerCfgSig(cfg, nb);
     if (sig !== p.cfgSig) {
       const [n, o] = [JSON.parse(sig), JSON.parse(p.cfgSig)];
-      const reason = n[0] !== o[0] ? "Remote AS changed" : n[3] !== o[3] ? "Address family activated" : "Update source change";
+      const reason = n[0] !== o[0] ? "Remote AS changed" : n[3] !== o[3] || n[4] !== o[4] ? "Address family activated" : "Update source change";
       p.cfgSig = sig;
       if (p.state !== "Idle") stopPeer(ctx, device, cfg, p, now, { reason, notify: { code: 6, subcode: 6 } });
       else if (nb.remoteAs !== undefined && !nb.shutdown && p.connectAt === undefined) p.connectAt = now;
@@ -990,7 +1321,7 @@ function reconcile(ctx: SimContext, device: Device, cfg: BgpConfig | undefined, 
     }
     if (nb.connectRetry !== undefined) p.vConnect = nb.connectRetry;
     if (nb.bfd && !p.bfdReg) {
-      const local = localAddressFor(device, nb);
+      const local = localAddressFor(device, nb, vrf);
       bfd().register(device, { peer: nb.peer, local: local?.ip, iface: local?.iface.name, multihop: !!nb.ebgpMultihop }, "bgp");
       p.bfdReg = true;
     } else if (!nb.bfd && p.bfdReg) {
@@ -1019,10 +1350,19 @@ function bfdDown(device: Device, p: PeerRt): boolean {
 
 function nextDue(device: Device, now: number): number | undefined {
   if (!runsBgp(device)) return undefined;
-  const cfg = getBgpConfig(device);
-  const rt = peekBgpRuntime(device);
+  let due: number | undefined;
+  for (const vrf of instanceVrfs(device)) {
+    const d = nextDueVrf(device, now, vrf);
+    if (d !== undefined && (due === undefined || d < due)) due = d;
+  }
+  return due;
+}
+
+function nextDueVrf(device: Device, now: number, vrf: string): number | undefined {
+  const cfg = liveBgpConfig(device, vrf);
+  const rt = peekBgpRuntime(device, vrf);
   if (!cfg) return rt ? now : undefined;
-  if (!rt || rt.dirty || rt.sig !== inputSig(device, cfg)) return now;
+  if (!rt || rt.dirty || rt.sig !== inputSig(device, cfg) || rt.installed !== installedSig(device, vrf)) return now;
   let due: number | undefined;
   const at = (t: number | undefined) => {
     if (t !== undefined && (due === undefined || t < due)) due = t;
@@ -1038,11 +1378,19 @@ function nextDue(device: Device, now: number): number | undefined {
 
 function tick(ctx: SimContext, device: Device, now: number): boolean {
   return withDrain(() => {
-    const cfg = getBgpConfig(device);
-    const rt = peekBgpRuntime(device);
-    if (!cfg || !rt || rt.sig !== inputSig(device, cfg)) reconcile(ctx, device, cfg, now);
-    if (!cfg) return true;
-    const live = peekBgpRuntime(device)!;
+    for (const vrf of instanceVrfs(device)) tickVrf(ctx, device, now, vrf);
+    return true;
+  });
+}
+
+function tickVrf(ctx: SimContext, device: Device, now: number, vrf: string): void {
+  {
+    const cfg = liveBgpConfig(device, vrf);
+    const rt = peekBgpRuntime(device, vrf);
+    if (!cfg || !rt || rt.sig !== inputSig(device, cfg)) reconcile(ctx, device, cfg, now, vrf);
+    if (!cfg) return;
+    const live = peekBgpRuntime(device, vrf)!;
+    if (live.installed !== installedSig(device, vrf)) live.dirty = true;
     for (const p of Object.values(live.peers)) {
       const nb = nbCfg(cfg, p.peer);
       if (!nb) continue;
@@ -1073,9 +1421,8 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
         else p.connectAt = undefined;
       }
     }
-    if (live.dirty) converge(ctx, device, now);
-    return true;
-  });
+    if (live.dirty) converge(ctx, device, now, vrf);
+  }
 }
 
 function isBgpSegment(frame: Frame): boolean {
@@ -1087,7 +1434,7 @@ registerDaemon({
   nextDue,
   tick,
   receiveL3(ctx, device, ingress, frame) {
-    if (!isBgpSegment(frame) || !runsBgp(device) || !getBgpConfig(device)) return false;
+    if (!isBgpSegment(frame) || !runsBgp(device) || !instanceVrfs(device).some((v) => liveBgpConfig(device, v))) return false;
     if (!ownsAddress(device, frame.ipv4!.dstIp)) return false; // transit: let the router forward it
     queue.push({ ctx, device, ingressId: ingress.id, frame });
     withDrain(() => undefined);
@@ -1110,14 +1457,17 @@ registerDaemon({
 
 export function runBgpToConvergence(ctx: SimContext): BgpSummary {
   const now = Math.floor(ctx.wallNow());
-  const speakers = Object.values(ctx.state.devices).filter((d) => runsBgp(d) && getBgpConfig(d));
+  const speakers = Object.values(ctx.state.devices).filter((d) => runsBgp(d) && instanceVrfs(d).some((v) => liveBgpConfig(d, v)));
   withDrain(() => {
     for (const d of speakers) {
-      const cfg = getBgpConfig(d)!;
-      reconcile(ctx, d, cfg, now);
-      for (const p of Object.values(peekBgpRuntime(d)!.peers)) {
-        const nb = nbCfg(cfg, p.peer);
-        if (p.state !== "Established" && nb && !nb.shutdown && nb.remoteAs !== undefined) p.connectAt = now;
+      for (const vrf of instanceVrfs(d)) {
+        const cfg = liveBgpConfig(d, vrf);
+        if (!cfg) continue;
+        reconcile(ctx, d, cfg, now, vrf);
+        for (const p of Object.values(peekBgpRuntime(d, vrf)!.peers)) {
+          const nb = nbCfg(cfg, p.peer);
+          if (p.state !== "Established" && nb && !nb.shutdown && nb.remoteAs !== undefined) p.connectAt = now;
+        }
       }
     }
   });
@@ -1135,7 +1485,7 @@ export function runBgpToConvergence(ctx: SimContext): BgpSummary {
   let sessions = 0;
   let routesInstalled = 0;
   for (const d of speakers) {
-    sessions += Object.values(peekBgpRuntime(d)?.peers ?? {}).filter((p) => p.state === "Established").length;
+    for (const vrf of instanceVrfs(d)) sessions += Object.values(peekBgpRuntime(d, vrf)?.peers ?? {}).filter((p) => p.state === "Established").length;
     routesInstalled += d.routingTable.filter((r) => r.type === "bgp").length;
   }
   return { routers: speakers.length, sessions, routesInstalled };

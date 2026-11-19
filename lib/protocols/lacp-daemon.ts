@@ -45,8 +45,19 @@
  *     src MAC, dst MAC, src IP, dst IP, IP protocol, L4 src/dst port (ARP: sender/
  *     target IP) + murmur3 fmix32, modulo the enabled members sorted by name. Deterministic: one flow
  *     always uses one member; different flows spread over members.
- *   - Static (mode on) LAGs are not modelled: this SONiC tree only supports
- *     `mode active` (interface.xml:394, teammgr.cpp:609 "active":true).
+ *   - Static LAG (PORTCHANNEL static "true": Click `config portchannel add
+ *     --static true`, KLISH `interface PortChannel N mode on` — PO_MODE "active on",
+ *     data/device-capture/klish-xml/sonic_types.xml:143): this tree's teammgr.cpp
+ *     only renders the lacp runner (:606-627), so the static runner follows newer
+ *     sonic-swss teammgrd, which starts teamd with the "loadbalance" runner: no
+ *     LACPDUs are sent or answered, a member is enabled (collecting/distributing)
+ *     whenever its link is up (ethtool link watch), and the team carrier is up while
+ *     enabled members ≥ min_ports. Received LACPDUs on a static member are ignored.
+ *
+ * Feature: `config feature state teamd disabled` stops docker-teamd: teamd exits,
+ * removing its ports (one last LACPDU without Sync per port, patch 0013), the
+ * PortChannels lose carrier and their members stop forwarding; re-enabling
+ * starts the runners from scratch.
  */
 import { registerDaemon } from "../control/daemon";
 import { registerDataPlaneHook } from "../control/hooks";
@@ -57,6 +68,7 @@ import { Frame } from "../models/packet";
 import { featureState, peekFeatureState } from "../models/feature-state";
 import { SimContext } from "../engine/context";
 import { generateMac } from "../models/mac";
+import { featureEnabled } from "./cpu-features";
 
 export const SLOW_PROTOCOLS_MAC = "01:80:C2:00:00:02";
 export const ETH_P_SLOW = 0x8809;
@@ -120,6 +132,8 @@ export interface LagCfg {
   fallback?: boolean;
   fastRate?: boolean;
   mode?: string;
+  /** PORTCHANNEL static "true": teamd loadbalance runner, no LACP. */
+  static?: boolean;
 }
 
 const RT = "teamd";
@@ -176,7 +190,7 @@ function signature(d: Device, lags: LagCfg[]): string {
     .map((c) => {
       const pc = lagIface(d, c.name);
       const m = c.members.map((n) => `${n}:${linkUp(ifByName(d, n)) ? 1 : 0}`).join(",");
-      return `${c.name}/${pc?.adminState}/${pc?.mac}/${minLinks(c)}/${c.fallback ? 1 : 0}/${c.fastRate ? 1 : 0}/${m}`;
+      return `${c.name}/${pc?.adminState}/${pc?.mac}/${minLinks(c)}/${c.fallback ? 1 : 0}/${c.fastRate ? 1 : 0}/${c.static ? 1 : 0}/${m}`;
     })
     .join(";");
 }
@@ -418,7 +432,53 @@ function sendAll(ctx: SimContext, d: Device, items: { lag: string; out: Pending[
   for (const { lag, out } of items) for (const { iface, port } of out) txPdu(ctx, d, lag, iface, port);
 }
 
+/** teamd loadbalance runner (static LAG): a member is enabled while its link is up. */
+function staticLag(d: Device, lag: LagCfg, lr: LacpLagRt): boolean {
+  const adminUp = lagIface(d, lag.name)?.adminState === "up";
+  let changed = false;
+  let enabled = 0;
+  for (const n of lag.members) {
+    const iface = ifByName(d, n);
+    if (!iface) continue;
+    const p = (lr.ports[n] ??= newPort(d, lag, n));
+    const up = linkUp(iface) && adminUp;
+    const actor = actorInit(d, lag, n, up ? ST.SYNC | ST.COLLECTING | ST.DISTRIBUTING | ST.AGGREGATION : 0);
+    if (p.linkUp !== up || p.enabled !== up || !sameInfo(actor, p.actor)) changed = true;
+    p.linkUp = up;
+    p.state = up ? "current" : "disabled";
+    p.selected = up;
+    p.enabled = up;
+    p.actor = actor;
+    p.partner = zeroInfo();
+    p.nextTx = p.timeoutAt = undefined;
+    if (up) enabled++;
+  }
+  lr.carrier = adminUp && enabled >= minLinks(lag);
+  return changed;
+}
+
+/** teamd stopped (feature teamd disabled): ports removed, PortChannels down, runtime gone. */
+function stopTeamd(ctx: SimContext, d: Device): boolean {
+  const rt = lacpRuntime(d);
+  if (!rt) return false;
+  for (const [lag, lr] of Object.entries(rt.lags)) {
+    const cfg = lagConfigs(d).find((l) => l.name === lag);
+    for (const [n, p] of Object.entries(lr.ports)) {
+      const iface = ifByName(d, n);
+      if (cfg?.static || p.state === "disabled" || !iface || lagIface(d, lag)?.adminState !== "up") continue;
+      p.actor = { ...p.actor, state: p.actor.state & (ST.ACTIVITY | ST.TIMEOUT | ST.AGGREGATION) };
+      p.tx++;
+      transmitL2(ctx, d, iface, SLOW_PROTOCOLS_MAC, ETH_P_SLOW, buildLacpdu(p.actor, p.partner), `LACPv1 actor ${p.actor.system} (teamd exit)`);
+    }
+    const pc = lagIface(d, lag);
+    if (pc) pc.operState = "down";
+  }
+  delete d.config.features![RT];
+  return true;
+}
+
 function tickDevice(ctx: SimContext, d: Device, now: number): boolean {
+  if (!featureEnabled(d, "teamd")) return stopTeamd(ctx, d);
   const lags = lagConfigs(d);
   const rt = rtOf(d);
   let changed = false;
@@ -456,13 +516,19 @@ function tickDevice(ctx: SimContext, d: Device, now: number): boolean {
     for (const n of Object.keys(lr.ports)) {
       if (lag.members.includes(n)) continue;
       const p = lr.ports[n];
-      if (setState(p, "disabled", now, adminUp)) {
+      if (!lag.static && setState(p, "disabled", now, adminUp)) {
         p.actor = actorInit(d, lag, n, ST.ACTIVITY | ST.AGGREGATION | (lag.fastRate ? ST.TIMEOUT : 0));
         const iface = ifByName(d, n);
         if (iface) out.push({ iface, port: p });
       }
       delete lr.ports[n];
       changed = true;
+    }
+    if (lag.static) {
+      if (staticLag(d, lag, lr)) changed = true;
+      if (applyCarrier(d, lag, lr)) changed = true;
+      sends.push({ lag: lag.name, out });
+      continue;
     }
     for (const n of lag.members) {
       const iface = ifByName(d, n);
@@ -505,8 +571,10 @@ function receive(ctx: SimContext, d: Device, ingress: NetInterface, frame: Frame
   const pdu = parseLacpdu(frame.rawL3);
   if (!pdu) return false;
   if (!isSwitch(d.type)) return false;
+  if (!featureEnabled(d, "teamd")) return false; // docker-teamd stopped
   const lag = lagConfigs(d).find((l) => l.members.includes(ingress.name));
   if (!lag) return false; // not a teamd port: nobody listens on the slow-protocols address
+  if (lag.static) return true; // loadbalance runner: LACPDUs are not processed
   const rt = rtOf(d);
   const lr = rt.lags[lag.name];
   const p = lr?.ports[ingress.name];
@@ -539,6 +607,7 @@ registerDaemon({
   nextDue(d, now) {
     if (!isSwitch(d.type)) return undefined;
     const rt = lacpRuntime(d);
+    if (!featureEnabled(d, "teamd")) return rt ? now : undefined;
     const lags = lagConfigs(d);
     const stale = peekFeatureState<{ portchannels: LagCfg[] }>(d, "lacp")?.portchannels.some((p) => !lagIface(d, p.name));
     if (stale) return now;
@@ -629,6 +698,7 @@ registerDataPlaneHook({
     return lagIface(d, m.lag) ?? null;
   },
   egressMember(d, logical, frame) {
+    if (logical.logical && !featureEnabled(d, "teamd") && lagConfigs(d).some((l) => l.name === logical.name)) return null; // teamd stopped
     if (!logical.logical || !lacpRuntime(d)?.lags[logical.name]) return undefined; // not a teamd LAG
     const members = activeMembers(d, logical.name);
     if (!members.length) return null;

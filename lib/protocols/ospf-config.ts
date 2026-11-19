@@ -18,9 +18,30 @@ export interface OspfNetwork {
   area: string; // dotted
 }
 
+export interface OspfRange {
+  prefix: string; // "10.1.0.0/16"
+  /** `area X range P not-advertise` */
+  notAdvertise?: boolean;
+  /** `area X range P cost N` */
+  cost?: number;
+}
+
 export interface OspfArea {
   id: string;
   type?: string; // "stub" | "nssa"
+  /** `area X stub no-summary` / `area X nssa no-summary` (totally stubby). */
+  noSummary?: boolean;
+  /** `area X default-cost N` — metric of the ABR's default summary (FRR default 1, ospfd.c:926). */
+  defaultCost?: number;
+  ranges?: OspfRange[];
+}
+
+export type RedistProto = "connected" | "static" | "bgp" | "kernel";
+
+export interface OspfRedist {
+  protocol: RedistProto;
+  metric?: number;
+  metricType?: 1 | 2;
 }
 
 /** Interface-level `ip ospf …` parameters (keyed by interface name). */
@@ -44,6 +65,18 @@ export interface OspfConfig {
   ifParams?: Record<string, OspfIfParams>;
   /** auto-cost reference-bandwidth (FRR stores the number as given; default 100000). */
   refBandwidth?: number;
+  /** `redistribute connected|static|bgp|kernel [metric N] [metric-type 1|2]` */
+  redistribute?: OspfRedist[];
+  /** `default-information originate [always] [metric N] [metric-type 1|2]` */
+  defaultInfo?: { always?: boolean; metric?: number; metricType?: 1 | 2 };
+  /**
+   * `log-adjacency-changes [detail]`. Unset = off: FRR's default is per build
+   * profile (ospf_vty.c:47-50, on only for "datacenter"); SONiC builds FRR
+   * without --enable-datacenter (sonic-frr debian/rules), so the "traditional"
+   * profile applies, and frrcfgd only renders the command when configured
+   * (sonic-frr-mgmt-framework templates/ospfd/ospfd.conf.db.comm_list.j2:16-25).
+   */
+  logAdjacencyChanges?: boolean | "detail";
 }
 
 export const OSPF_HELLO_DEFAULT = 10;
@@ -54,8 +87,22 @@ export const OSPF_REF_BW_DEFAULT = 100000;
 /** FRR's fallback when an interface reports no speed (OSPF_DEFAULT_BANDWIDTH, lib/libospf.h:64). */
 const OSPF_DEFAULT_BANDWIDTH = 10000;
 
-export function ospfConfig(device: Device): OspfConfig | undefined {
-  return peekFeatureState<OspfConfig>(device, "ospf");
+/**
+ * Instances: `router ospf` (VRF default) lives in features.ospf; `router ospf
+ * vrf NAME` in features["ospf:NAME"] (OSPFV2_ROUTER is keyed by vrf_name).
+ */
+export const ospfCfgKey = (vrf: string = DEFAULT_VRF) => (vrf === DEFAULT_VRF ? "ospf" : `ospf:${vrf}`);
+
+export function ospfConfig(device: Device, vrf: string = DEFAULT_VRF): OspfConfig | undefined {
+  return peekFeatureState<OspfConfig>(device, ospfCfgKey(vrf));
+}
+
+/** VRFs with a configured OSPF instance (default first). */
+export function ospfConfiguredVrfs(device: Device): string[] {
+  const f = device.config.features ?? {};
+  const out = f.ospf ? [DEFAULT_VRF] : [];
+  for (const k of Object.keys(f)) if (k.startsWith("ospf:") && f[k]) out.push(k.slice(5));
+  return out;
 }
 
 /** OSPF runs on routers and SONiC switches (routed ports, SVIs, loopbacks) — never hosts. */
@@ -111,13 +158,13 @@ export function ospfCost(cfg: OspfConfig, iface: NetInterface): number {
 }
 
 /** Every interface OSPF is enabled on (network statement or `ip ospf area`), up or not. */
-export function ospfInterfaces(device: Device, cfg: OspfConfig): OspfIfSpec[] {
+export function ospfInterfaces(device: Device, cfg: OspfConfig, vrf: string = DEFAULT_VRF): OspfIfSpec[] {
   const out: OspfIfSpec[] = [];
   for (const iface of device.interfaces) {
     const a = iface.ipv4[0];
     if (!a) continue;
-    // `router ospf` is the default-VRF instance; VRF member interfaces are not part of it.
-    if (vrfOf(device, iface) !== DEFAULT_VRF) continue;
+    // Each instance only runs on interfaces of its own VRF (`router ospf vrf NAME`).
+    if (vrfOf(device, iface) !== vrf) continue;
     const p = cfg.ifParams?.[iface.name] ?? {};
     let area = p.area;
     if (area === undefined) {
@@ -154,10 +201,14 @@ export function ospfAreas(cfg: OspfConfig): OspfArea[] {
   const byId = new Map<string, OspfArea>();
   for (const n of cfg.networks) if (!byId.has(n.area)) byId.set(n.area, { id: n.area });
   for (const p of Object.values(cfg.ifParams ?? {})) if (p.area && !byId.has(p.area)) byId.set(p.area, { id: p.area });
-  for (const a of cfg.areas) byId.set(a.id, { id: a.id, type: a.type });
+  for (const a of cfg.areas) byId.set(a.id, { ...a });
   return [...byId.values()].sort((x, y) => ipToInt(x.id) - ipToInt(y.id));
 }
 
 export function areaType(cfg: OspfConfig, area: string): string | undefined {
   return cfg.areas.find((a) => a.id === area)?.type;
+}
+
+export function areaCfg(cfg: OspfConfig, area: string): OspfArea | undefined {
+  return cfg.areas.find((a) => a.id === area);
 }

@@ -139,16 +139,22 @@ export function rebuildConnectedRoutes(device: Device): void {
  * routes. Static v6 routes are preserved.
  */
 export function rebuildConnectedRoutes6(device: Device): void {
-  if (!isHost(device.type) && !isRouter(device.type)) {
+  if (!isHost(device.type) && !isRouter(device.type) && !isSwitch(device.type)) {
     device.routingTable6 = [];
     return;
   }
 
-  const statics = (device.routingTable6 ?? []).filter((r) => r.type === "static");
+  const gw = device.config.defaultGateway6;
+  // Keep protocol routes (static, OSPFv3, BGP, RA-learned defaults); only the
+  // connected routes and the configured-gateway default are derived here.
+  const kept = (device.routingTable6 ?? []).filter(
+    (r) => r.type !== "connected" && !(r.type === "default" && r.nextHop === gw),
+  );
   const derived: Route[] = [];
 
   for (const iface of device.interfaces) {
     if (iface.operState !== "up" && iface.adminState !== "up") continue;
+    if (iface.management && isSwitch(device.type)) continue;
     for (const addr of iface.ipv6 ?? []) {
       if (isLinkLocal6(addr.address)) continue;
       derived.push({
@@ -162,7 +168,6 @@ export function rebuildConnectedRoutes6(device: Device): void {
     }
   }
 
-  const gw = device.config.defaultGateway6;
   if (gw) {
     const egress = device.interfaces.find((iface) =>
       iface.ipv6.some((a) => sameSubnet6(a.address, gw, a.prefix)),
@@ -179,5 +184,5 @@ export function rebuildConnectedRoutes6(device: Device): void {
     }
   }
 
-  device.routingTable6 = [...derived, ...statics];
+  device.routingTable6 = [...derived, ...kept];
 }

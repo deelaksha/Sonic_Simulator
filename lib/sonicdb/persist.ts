@@ -30,9 +30,26 @@ export const FILES_KEY = "sonicdb_files";
  * daemons start from scratch, and never written into a saved file.
  * ospfd/bgpd/bfdd/teamd/iccpd/lldpd/vrrpd/vxlan-rt/sflow-agent/snmp-agent are the
  * RT keys of lib/protocols/*-daemon.ts and lib/sflow/agent.ts; "_"-prefixed keys
- * are private daemon scratch (stp-daemon `_stpLastHello`).
+ * are private daemon scratch (stp-daemon `_stpLastHello`, nat.ts `_nat` translations,
+ * ipsla-daemon `_ipsla` probes, pbr.ts `_fbs` counters, igmp-snooping `_l2mc`,
+ * pim-daemon `_pimd`, mcast-host `_mcast-host`).
+ * Round-12 daemons: ospf6d (ospf6-daemon RT6_KEY), radvd/slaac (radv-daemon), the
+ * per-VRF instances "ospfd:<vrf>" (ospf-daemon rtKey) and "bgpd:<vrf>" (bgp-daemon
+ * rtKey) via RUNTIME_PREFIXES, and the operational stores that share a feature
+ * name with nothing configured in them: "udld" (per-port status/neighbours; config
+ * is cp_udld), "errdisable" (err-disabled ports; config is cp_errdisable),
+ * "storm-control" (policer buckets/drops; config is cp_storm_control),
+ * "dhcp-snooping" (learned bindings; config is cp_dhcp_snooping), "link-track"
+ * (group oper state; config is cp_link_track), "mirror" (ERSPAN GRE sequence;
+ * config is cp_mirror), "evpn-mh-rt" (remote ES peers).
+ * Config stores of the same features (ospf6, ipv6-nd, ospf:<vrf>, bgpvrf,
+ * ipsla_routes, fbs, routemap, prefixlist, bgpclist, cp_*) are saved.
  */
-export const RUNTIME_KEYS = new Set(["ospfd", "bgpd", "bfdd", "teamd", "iccpd", "lldpd", "vrrpd", "vxlan-rt", "sflow-agent", "snmp-agent", "counters", "copp-runtime", "cpu-queues", "qos-flows", "qos-queues", "qos-pfc"]);
+export const RUNTIME_KEYS = new Set([
+  "ospfd", "bgpd", "bfdd", "teamd", "iccpd", "lldpd", "vrrpd", "vxlan-rt", "sflow-agent", "snmp-agent", "counters", "copp-runtime", "cpu-queues", "qos-flows", "qos-queues", "qos-pfc",
+  "ospf6d", "radvd", "slaac", "udld", "errdisable", "storm-control", "dhcp-snooping", "link-track", "mirror", "evpn-mh-rt",
+]);
+const RUNTIME_PREFIXES = ["ospfd:", "bgpd:"];
 
 /**
  * State that is neither CONFIG_DB nor restarted daemons: logs, drop/traffic
@@ -41,7 +58,7 @@ export const RUNTIME_KEYS = new Set(["ospfd", "bgpd", "bfdd", "teamd", "iccpd", 
  */
 export const PRESERVED_KEYS = new Set([FILES_KEY, "syslog", "drops", "traffic-sink", "sflow-collector", "snmp-mgr", "snmptrapd"]);
 
-const isRuntime = (k: string) => RUNTIME_KEYS.has(k) || k.startsWith("_");
+const isRuntime = (k: string) => RUNTIME_KEYS.has(k) || k.startsWith("_") || RUNTIME_PREFIXES.some((p) => k.startsWith(p));
 
 interface SavedIface {
   id: string;

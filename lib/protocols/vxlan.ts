@@ -7,6 +7,14 @@
  *   vteps    VXLAN_TUNNEL|<name>            source_ip (IPv4 or a Loopback name in KLISH)
  *   nvo      VXLAN_EVPN_NVO|<name>          source_vtep
  *   vlanmap  VXLAN_TUNNEL_MAP|<vtep>|map_<vni>_Vlan<vid>   vlan, vni
+ *   vrfmap   VRF|<vrf> vni                  the L3 VNI of a tenant VRF (KLISH `map vni N vrf V`,
+ *                                           Click `config vrf add_vrf_vni_map`, config/main.py:7387)
+ *   suppress SUPPRESS_VLAN_NEIGH|Vlan<vid>  suppress=on (KLISH interface.xml:1142 `neigh-suppress`)
+ *   bgpvrf   `router bgp <as> vrf <vrf>` + l2vpn evpn `advertise ipv4 unicast` (type-5)
+ *
+ * An L3 VNI also has a VLAN map (sonic-utilities refuses add_vrf_vni_map without one,
+ * config/main.py:7410 "VLAN VNI not mapped"); its SVI VlanN is bound to the VRF and
+ * its MAC is the router MAC (zebra zl3vni_rmac2str: the SVI's MAC).
  *
  * SONiC allows one VTEP per switch (sonic-utilities config/vxlan.py:43
  * "VTEP already configured."). EVPN control of the tunnels needs the NVO
@@ -29,7 +37,14 @@ export interface VxlanConfig {
   /** The Loopback whose /32 is the source IP (show vxlan interface). */
   sourceIface?: string;
   nvo?: string;
+  /** VLAN↔VNI maps (L2 and L3 VNIs alike, as in VXLAN_TUNNEL_MAP). */
   maps: VxlanMap[];
+  /** VRF → L3 VNI. */
+  vrfMaps: { vrf: string; vni: number }[];
+  /** VLANs with ARP/ND suppression on. */
+  suppress: number[];
+  /** VRFs whose BGP instance advertises IPv4 unicast as EVPN type-5. */
+  advertiseIpv4: string[];
 }
 
 const isIpv4 = (s: string) => /^\d{1,3}(\.\d{1,3}){3}$/.test(s);
@@ -58,8 +73,22 @@ export function vxlanConfig(device: Device): VxlanConfig | undefined {
   const maps = rows(device, "vlanmap")
     .map((m) => ({ vlan: Number(String(m.vlan).replace(/^Vlan/, "")), vni: Number(m.vni) }))
     .filter((m) => Number.isInteger(m.vlan) && Number.isInteger(m.vni));
-  return { vtep: v.name, sourceIp, sourceIface, nvo, maps };
+  const vrfMaps = rows(device, "vrfmap")
+    .map((m) => ({ vrf: m.vrf, vni: Number(m.vni) }))
+    .filter((m) => m.vrf && Number.isInteger(m.vni) && m.vni > 0);
+  const suppress = rows(device, "suppress")
+    .filter((r) => r.suppress === "on")
+    .map((r) => Number(String(r.name).replace(/^Vlan/, "")));
+  const advertiseIpv4 = rows(device, "bgpvrf")
+    .filter((r) => r.advertise_ipv4 === "true")
+    .map((r) => r.vrf);
+  return { vtep: v.name, sourceIp, sourceIface, nvo, maps, vrfMaps, suppress, advertiseIpv4 };
 }
+
+/** VNIs that are L3 VNIs (mapped to a VRF). */
+export const isL3Vni = (cfg: VxlanConfig, vni: number) => cfg.vrfMaps.some((m) => m.vni === vni);
+/** The L2 VNI maps (VLAN extensions), L3 VNI maps excluded. */
+export const l2Maps = (cfg: VxlanConfig) => cfg.maps.filter((m) => !isL3Vni(cfg, m.vni));
 
 export const vniForVlan = (cfg: VxlanConfig, vid: number) => cfg.maps.find((m) => m.vlan === vid)?.vni;
 export const vlanForVni = (cfg: VxlanConfig, vni: number) => cfg.maps.find((m) => m.vni === vni)?.vlan;

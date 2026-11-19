@@ -93,3 +93,57 @@ export const ping6Command: CommandHandler = {
     return { output: out, events };
   },
 };
+
+/**
+ * traceroute6 (iputils/traceroute layout): ICMPv6 echo probes with hop limit
+ * 1, 2, 3 … through the real engine; each router whose hop limit expires
+ * answers ICMPv6 Time Exceeded (RFC 4443 3.3), a router without a route
+ * answers Destination Unreachable (printed !N, 3.1), the target answers the echo.
+ */
+export const traceroute6Command: CommandHandler = {
+  name: "traceroute6",
+  summary: "Trace the IPv6 path to a destination using the hop limit",
+  usage: "traceroute6 [-m maxhops] <ipv6-destination>",
+  help: [
+    "TRACEROUTE6",
+    "",
+    "Usage:",
+    "  traceroute6 [-m maxhops] <ipv6-destination>",
+    "",
+    "Purpose:",
+    "  Discovers each router on the IPv6 path with hop limit 1, 2, 3 ...",
+    "  Every router that decrements the hop limit to zero returns ICMPv6 Time Exceeded.",
+  ],
+  run(args, ctx): CommandResult {
+    const a = [...args];
+    const maxStr = takeFlagValue(a, "-m");
+    const maxHops = maxStr ? Math.max(1, Math.min(64, parseInt(maxStr, 10) || 30)) : 30;
+    const dst = firstPositional(a);
+    if (!dst) return { output: [err("traceroute6: usage: traceroute6 [-m maxhops] <ipv6-destination>")] };
+    if (!isValidIpv6(dst)) return { output: [err(`traceroute6: ${dst}: Name or service not known`)] };
+    const out: OutputLine[] = [line(`traceroute to ${dst} (${dst}), ${maxHops} hops max, 80 byte packets`)];
+    const allEvents: NonNullable<CommandResult["events"]> = [];
+    for (let hl = 1; hl <= maxHops; hl++) {
+      const { value: s, events } = ctx.runSim((sim) => sim.runPing6(ctx.device.id, dst, { count: 1, hopLimit: hl }));
+      allEvents.push(...events);
+      const r = s.replies[0];
+      const hop = String(hl).padStart(2);
+      if (r?.success) {
+        out.push(line(`${hop}  ${r.fromIp} (${r.fromIp})  ${r.rttMs} ms`));
+        break;
+      }
+      const start = events[0]?.timeMs ?? 0;
+      const err6 = events.find((e) => (e.type === "ICMP_TIME_EXCEEDED" || e.type === "ICMP_UNREACHABLE") && e.deviceId === ctx.device.id && e.frame?.icmp6 && e.frame.ipv6);
+      if (err6?.frame?.ipv6) {
+        const from = err6.frame.ipv6.srcIp;
+        const unreach = err6.frame.icmp6!.type === "dest-unreachable";
+        out.push(line(`${hop}  ${from} (${from})  ${Math.max(0, err6.timeMs - start)} ms${unreach ? " !N" : ""}`));
+        if (unreach) break;
+        continue;
+      }
+      out.push(line(`${hop}  * * *`));
+      if (r?.reason === "no-route") break;
+    }
+    return { output: out, events: allEvents };
+  },
+};

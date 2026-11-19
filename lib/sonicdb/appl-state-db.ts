@@ -16,6 +16,7 @@
  *   VXLAN_TUNNEL_TABLE (cfgmgr/vxlanmgr.cpp:24-25 src_ip), VXLAN_TUNNEL_MAP_TABLE,
  *   VXLAN_EVPN_NVO_TABLE, VXLAN_REMOTE_VNI_TABLE, VXLAN_FDB_TABLE (fdbsyncd from EVPN),
  *   LLDP_ENTRY_TABLE (lldp_syncd: lldp_rem_*)
+ *   NAT/NAPT, SUPPRESS_VLAN_NEIGH, L2MC member tables: ./appl-state-features.ts
  *
  * STATE_DB (separator "|"), schema.h:523-594:
  *   PORT_TABLE            live capture row: state ok, netdev_oper_status (portsyncd/linksync.cpp:201),
@@ -27,6 +28,7 @@
  *   BFD_SESSION_TABLE     "default|<if>|<peer>": state, local_addr, ...
  *   VXLAN_TUNNEL_TABLE    "EVPN_<remote>": src_ip, dst_ip, tnl_src, operstatus
  *   MCLAG_TABLE           iccpd: oper_status, role
+ *   MIRROR_SESSION_TABLE  ./appl-state-features.ts
  */
 import { Device } from "../models/device";
 import { Route, routeDistance } from "../models/route";
@@ -44,14 +46,15 @@ import { mclagConfig, mclagRuntime } from "../protocols/mclag-daemon";
 import { cpList } from "../commands/sonic-cli/config-plane";
 import { Tables, put, Row } from "./schema";
 import { frontPorts, ifAddrs } from "./config-db";
+import { projectFeatureAppl, projectFeatureState } from "./appl-state-features";
 
 const portNum = (name: string) => Number(/\d+$/.exec(name)?.[0] ?? 0);
 const ifName = (d: Device, id: string) => d.interfaces.find((i) => i.id === id)?.name;
 
-/** Routes the FIB holds: best distance per (vrf, prefix); equal-cost ties are ECMP. */
-export function fibRoutes(d: Device): Route[][] {
+/** Routes the FIB holds: best distance per (vrf, prefix); equal-cost ties are ECMP. `table` = routingTable6 for IPv6. */
+export function fibRoutes(d: Device, table: Route[] = d.routingTable): Route[][] {
   const groups = new Map<string, Route[]>();
-  for (const r of d.routingTable) {
+  for (const r of table) {
     const k = `${r.vrf ?? DEFAULT_VRF}|${r.destination}/${r.prefix}`;
     const g = groups.get(k);
     if (!g) groups.set(k, [r]);
@@ -112,14 +115,15 @@ export function projectApplDb(d: Device): Tables {
   // ROUTE_TABLE: "<prefix>" or "<vrf>:<prefix>" (routesync.cpp), ECMP comma-joined;
   // routes out of eth0 are skipped (routesync.cpp:1674).
   const mgmt = new Set(d.interfaces.filter((i) => i.management).map((i) => i.id));
-  for (const all of fibRoutes(d)) {
+  // IPv6 routes use the same keys with "::" as the on-link next hop (routesync.cpp).
+  for (const [all, onLink] of [...fibRoutes(d).map((g) => [g, "0.0.0.0"] as const), ...fibRoutes(d, d.routingTable6 ?? []).map((g) => [g, "::"] as const)]) {
     const g = all.filter((r) => !mgmt.has(r.interfaceId));
     if (!g.length) continue;
     const r0 = g[0];
     const vrf = r0.vrf ?? DEFAULT_VRF;
     const key = `${vrf === DEFAULT_VRF ? "" : vrf + ":"}${r0.destination}/${r0.prefix}`;
     put(t, "ROUTE_TABLE", key, {
-      nexthop: g.map((r) => r.nextHop ?? "0.0.0.0").join(","),
+      nexthop: g.map((r) => r.nextHop ?? onLink).join(","),
       ifname: g.map((r) => ifName(d, r.interfaceId) ?? "").join(","),
       protocol: PROTO[r0.type] ?? r0.type,
     });
@@ -183,6 +187,7 @@ export function projectApplDb(d: Device): Tables {
     if (n.mgmtIp) row.lldp_rem_man_addr = n.mgmtIp;
     put(t, "LLDP_ENTRY_TABLE", port, row);
   }
+  projectFeatureAppl(d, t);
   return t;
 }
 
@@ -248,5 +253,6 @@ export function projectStateDb(d: Device): Tables {
     const rt = mclagRuntime(d);
     put(t, "MCLAG_TABLE", mc.id, { oper_status: rt?.session ? "up" : "down", role: rt?.role || "none", peer_ip: mc.peerIp, local_ip: mc.sourceIp });
   }
+  projectFeatureState(d, t);
   return t;
 }

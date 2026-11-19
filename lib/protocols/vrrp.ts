@@ -16,11 +16,27 @@
  * The exports used by the frozen engine (router.ts, arp.ts, simulation.ts) keep
  * their historical signatures; the NetworkState argument is no longer needed for
  * the answer (the state is per device) but is kept for compatibility.
+ *
+ * One (interface, VRID) is one FRR vrrp_vrouter carrying an IPv4 and an IPv6
+ * vrrp_router (vrrp.h:260-290; frrcfgd maps the VRRP and VRRP6 CONFIG_DB rows onto
+ * it, frrcfgd.py:3580-3611): priority, interval, preempt, version and shutdown are
+ * shared; each family has its own VIPs, FSM, virtual MAC (00:00:5E:00:01:VRID /
+ * 00:00:5E:00:02:VRID, vrrp.c:66-79) and statistics. IPv6 needs version 3
+ * (vrrp.c:331-332).
+ *
+ * Interface tracking (VRRP_TRACK / VRRP6_TRACK rows: Click `config interface
+ * vrrp[6] track_interface add <if> <vrid> <track_if> <10-50>`, KLISH
+ * `track-interface <if> weight <n>`): nothing in this tree consumes those tables
+ * (FRR vrrpd has no tracking); the simulator follows the Broadcom/Dell Enterprise
+ * SONiC behaviour the KLISH grammar comes from — every tracked interface that is
+ * oper down lowers the priority advertised by that family by its weight (never
+ * below 1; an address owner stays at 255).
  */
 import { Device } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
 import { NetworkState } from "../models/topology";
 import { peekFeatureState } from "../models/feature-state";
+import { normalizeIpv6 } from "../models/ipv6";
 
 export interface VrrpTrack {
   iface: string;
@@ -31,6 +47,13 @@ export interface VrrpInstance {
   iface: string;
   vrid: number;
   vip?: string;
+  /** IPv6 virtual addresses (VRRP6 row 'vip', max 4, config/main.py:6976-6990). */
+  vips6?: string[];
+  /** VRRP6 row exists (`config interface vrrp6 add`, KLISH address-family ipv6). */
+  v6?: boolean;
+  /** VRRP_TRACK / VRRP6_TRACK rows. */
+  track?: VrrpTrack[];
+  track6?: VrrpTrack[];
   priority?: number;
   preempt?: boolean;
   version?: number;
@@ -50,6 +73,8 @@ export const VRRP_GROUP = "224.0.0.18"; // vrrp.h:27
 export const VRRP_PROTO = 112;
 
 export type VrrpFsmState = "Initialize" | "Backup" | "Master";
+export type VrrpFamily = "v4" | "v6";
+export const VRRP_GROUP6 = "ff02::12"; // vrrp.h:28
 
 /** Live per-instance protocol state (FRR struct vrrp_router, v4 only). */
 export interface VrrpRuntime {
@@ -73,19 +98,19 @@ export interface VrrpdState {
 }
 export const VRRP_RT = "vrrpd";
 
-/** IANA virtual MAC for an IPv4 VRRP group: 00-00-5E-00-01-{VRID} (vrrp.c:66-79). */
-export function vrrpMac(vrid: number): string {
-  return `00:00:5E:00:01:${(vrid & 0xff).toString(16).padStart(2, "0").toUpperCase()}`;
+/** IANA virtual MAC: 00-00-5E-00-01-{VRID} (IPv4) / 00-00-5E-00-02-{VRID} (IPv6), vrrp.c:66-79. */
+export function vrrpMac(vrid: number, fam: VrrpFamily = "v4"): string {
+  return `00:00:5E:00:0${fam === "v6" ? 2 : 1}:${(vrid & 0xff).toString(16).padStart(2, "0").toUpperCase()}`;
 }
 
-export const vrrpKey = (iface: string, vrid: number) => `${iface}|${vrid}`;
+export const vrrpKey = (iface: string, vrid: number, fam: VrrpFamily = "v4") => `${iface}|${vrid}${fam === "v6" ? "|v6" : ""}`;
 
 export function instancesOf(device: Device): VrrpInstance[] {
   return peekFeatureState<VrrpConfig>(device, "vrrp")?.instances ?? [];
 }
 
-export function runtimeOf(device: Device, iface: string, vrid: number): VrrpRuntime | undefined {
-  return peekFeatureState<VrrpdState>(device, VRRP_RT)?.routers[vrrpKey(iface, vrid)];
+export function runtimeOf(device: Device, iface: string, vrid: number, fam: VrrpFamily = "v4"): VrrpRuntime | undefined {
+  return peekFeatureState<VrrpdState>(device, VRRP_RT)?.routers[vrrpKey(iface, vrid, fam)];
 }
 
 export const advIntervalCs = (inst: VrrpInstance) => Math.round((inst.advInterval ?? VRRP_DEFAULTS.advIntervalMs) / 10);
@@ -113,22 +138,42 @@ export function vrrpIfaceUp(device: Device, iface: NetInterface): boolean {
   );
 }
 
-/** The interface an instance runs on, if it can run now (up, has a VIP and a primary address, not shut). */
-export function liveIface(device: Device, inst: VrrpInstance): NetInterface | undefined {
-  if (!inst.vip || inst.shutdown) return undefined;
+/**
+ * The interface a family's router runs on, if it can run now (vrrp_attach_interface /
+ * vrrp_startup preconditions, vrrp.c:300-370): up, not shut, has VIPs; IPv4 needs a
+ * primary address, IPv6 needs VRRPv3.
+ */
+export function liveIface(device: Device, inst: VrrpInstance, fam: VrrpFamily = "v4"): NetInterface | undefined {
+  if (inst.shutdown) return undefined;
+  if (fam === "v4" ? !inst.vip : !inst.vips6?.length || versionOf(inst) !== 3) return undefined;
   const iface = device.interfaces.find((i) => i.name === inst.iface);
-  if (!iface || !primaryIpv4(iface) || !vrrpIfaceUp(device, iface)) return undefined;
+  if (!iface || (fam === "v4" && !primaryIpv4(iface)) || !vrrpIfaceUp(device, iface)) return undefined;
   return iface;
 }
 
-/** Address owner: the VIP is configured on the interface itself (vrrp.c:118 vrrp_is_owner). */
-export function isOwner(iface: NetInterface, inst: VrrpInstance): boolean {
+/** Address owner: a VIP is configured on the interface itself (vrrp.c:118 vrrp_is_owner). */
+export function isOwner(iface: NetInterface, inst: VrrpInstance, fam: VrrpFamily = "v4"): boolean {
+  if (fam === "v6") return (inst.vips6 ?? []).some((v) => iface.ipv6.some((a) => normalizeIpv6(a.address) === normalizeIpv6(v)));
   return !!inst.vip && iface.ipv4.some((a) => a.address === inst.vip);
 }
 
-/** Priority the router advertises: 255 for the address owner (vrrp.c:1580-1583), else the configured one. */
-export function effectivePriority(iface: NetInterface, inst: VrrpInstance): number {
-  return isOwner(iface, inst) ? VRRP_PRIO_MASTER : priorityOf(inst);
+/** Total weight of this family's tracked interfaces that are down (see header). */
+export function trackPenalty(device: Device, inst: VrrpInstance, fam: VrrpFamily = "v4"): number {
+  let p = 0;
+  for (const t of (fam === "v6" ? inst.track6 : inst.track) ?? []) {
+    const ti = device.interfaces.find((i) => i.name === t.iface);
+    if (!ti || !vrrpIfaceUp(device, ti)) p += t.weight;
+  }
+  return p;
+}
+
+/**
+ * Priority the router advertises: 255 for the address owner (vrrp.c:1580-1583),
+ * else the configured one minus the weights of tracked interfaces that are down.
+ */
+export function effectivePriority(device: Device, iface: NetInterface, inst: VrrpInstance, fam: VrrpFamily = "v4"): number {
+  if (isOwner(iface, inst, fam)) return VRRP_PRIO_MASTER;
+  return Math.max(1, priorityOf(inst) - trackPenalty(device, inst, fam));
 }
 
 /**
@@ -145,9 +190,9 @@ export function vrrpTimers(inst: VrrpInstance, masterAdverInterval: number): { s
   return { skew, mdi: 3 * mdiadv + skew };
 }
 
-/** True while this instance is Master on an interface that is still up. */
-function liveMaster(device: Device, inst: VrrpInstance): boolean {
-  return runtimeOf(device, inst.iface, inst.vrid)?.state === "Master" && !!liveIface(device, inst);
+/** True while this instance's family router is Master on an interface that is still up. */
+export function liveMaster(device: Device, inst: VrrpInstance, fam: VrrpFamily = "v4"): boolean {
+  return runtimeOf(device, inst.iface, inst.vrid, fam)?.state === "Master" && !!liveIface(device, inst, fam);
 }
 
 /** VIP+vMAC+iface entries this device is currently Master for. */
@@ -167,10 +212,18 @@ export function ownsVipAsMaster(state: NetworkState, device: Device, ip: string)
   return masteredVips(state, device).some((v) => v.vip === ip);
 }
 
-/** Virtual MAC accepted on one specific L3 interface (DataPlaneHook.isLocalMac). */
+/** VRRPv3 IPv6 VIP this device currently masters (accept mode: echo to the VIP is answered). */
+export function ownsVip6AsMaster(device: Device, ip: string): boolean {
+  const want = normalizeIpv6(ip);
+  return instancesOf(device).some((i) => liveMaster(device, i, "v6") && (i.vips6 ?? []).some((v) => normalizeIpv6(v) === want));
+}
+
+/** Virtual MAC (either family) accepted on one specific L3 interface (DataPlaneHook.isLocalMac). */
 export function isMasterVMacOn(device: Device, iface: NetInterface, mac: string): boolean {
   const m = mac.toUpperCase();
-  return instancesOf(device).some((i) => i.iface === iface.name && vrrpMac(i.vrid) === m && liveMaster(device, i));
+  return instancesOf(device).some(
+    (i) => i.iface === iface.name && ((vrrpMac(i.vrid) === m && liveMaster(device, i)) || (vrrpMac(i.vrid, "v6") === m && liveMaster(device, i, "v6"))),
+  );
 }
 
 interface Contender { device: Device; iface: NetInterface; inst: VrrpInstance }
@@ -184,7 +237,7 @@ export function electMaster(state: NetworkState, vip: string): Contender | undef
       masters.push({ device, iface: liveIface(device, inst)!, inst });
     }
   }
-  masters.sort((a, b) => effectivePriority(b.iface, b.inst) - effectivePriority(a.iface, a.inst));
+  masters.sort((a, b) => effectivePriority(b.device, b.iface, b.inst) - effectivePriority(a.device, a.iface, a.inst));
   return masters[0];
 }
 
@@ -201,6 +254,24 @@ export function vrrpRole(_state: NetworkState, device: Device, vip: string): "Ma
 }
 
 /** FSM state name for show commands (vrrp.c:40-44 vrrp_state_names). */
-export function fsmState(device: Device, inst: VrrpInstance): VrrpFsmState {
-  return runtimeOf(device, inst.iface, inst.vrid)?.state ?? "Initialize";
+export function fsmState(device: Device, inst: VrrpInstance, fam: VrrpFamily = "v4"): VrrpFsmState {
+  return runtimeOf(device, inst.iface, inst.vrid, fam)?.state ?? "Initialize";
+}
+
+/**
+ * Link-local source of the IPv6 router: the macvlan's own link-local, which
+ * vrrpmgr makes random (`addrgenmode random`, sonic-swss cfgmgr/vrrpmgr.cpp:560-563)
+ * so Master and Backup never share the vMAC-derived one. Deterministic here:
+ * fe80:: + an interface id hashed from device, interface and VRID.
+ */
+export function vrrpLinkLocal6(device: Device, inst: VrrpInstance): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (const ch of `${device.id}/${inst.iface}/${inst.vrid}`) {
+    h1 = Math.imul(h1 ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ ch.charCodeAt(0), 0x5bd1e995) >>> 0;
+  }
+  const w = [h1 >>> 16, h1 & 0xffff, h2 >>> 16, h2 & 0xffff].map((x) => x.toString(16));
+  w[0] = ((parseInt(w[0], 16) & 0xfdff) >>> 0).toString(16); // random IIDs clear the U/L bit
+  return `fe80::${w.join(":")}`;
 }

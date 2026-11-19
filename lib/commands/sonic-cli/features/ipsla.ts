@@ -14,22 +14,34 @@
  *   sonic(conf-ipsla-20-tcp)# source-address|source-port|source-interface|ttl|tos|source-vrf
  *   sonic(config)# no ip sla <id>                  remove a whole instance
  *   sonic(conf-ipsla-*)# no <field>                clear one field
- *   sonic# show ip sla [<id> [history]]            render IP_SLA config
+ *   sonic# show ip sla [<id> [history]]            config + live probe state
+ *   sonic(config)# ip route <prefix> <nh> track <sla-id> [<distance>]   SLA-tracked static route
+ *   sonic(config)# ip route <prefix> <nh> <distance>                    floating static route
  *
  * Mirrors the real box's sonic-ip-sla IP_SLA_LIST CONFIG_DB table (see
- * data/device-capture/klish-xml/ipsla.xml). Config is stored honestly and
- * `show ip sla` renders exactly what was configured.
+ * data/device-capture/klish-xml/ipsla.xml, whose examples give the summary /
+ * detail / history layouts). The probes run in lib/protocols/ipsla-daemon.ts,
+ * which also installs / withdraws the tracked static routes.
  *
- * DATA-PLANE NOT SIMULATED: the probe engine is not modelled — operational
- * fields in the box output (Operation state, state transitions, last change,
- * per-probe counters, and `show ip sla <id> history`) are runtime state and are
- * rendered as "-" / a not-simulated note, never fabricated.
+ * The plain `ip route <prefix> <nh>` form belongs to features/staticroute.ts;
+ * the `track` / distance forms (route_static.xml) fall through it to here.
  */
 import { OutputLine, line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpUpsert, cpRemove, cpList } from "../config-plane";
 import { subViewFrame } from "../../../sonic/grammar";
 import { Device } from "../../../models/device";
+import { isValidIpv4, isValidPrefix, networkAddress } from "../../../models/ip";
+import {
+  peekSlaRuns,
+  trackedRoutes,
+  reconcileTracked,
+  installStatic,
+  removeStatic,
+  slaAgo,
+  slaTimestamp,
+  SLA_DEFAULTS,
+} from "../../../protocols/ipsla-daemon";
 
 // configure-ipsla-icmp-view sub-command -> IP_SLA field.
 const ICMP_FIELDS: Record<string, { field: string; numeric?: boolean }> = {
@@ -233,31 +245,93 @@ registerModal({
         line(row("SLA#", "Type", "State", "Target", "VRF", "Transitions", "Last change")),
         line(row("----", "----", "-----", "------", "---", "-----------", "-----------")),
       ];
+      const runs = peekSlaRuns(ctx.device) ?? {};
+      const now = Date.now();
       for (const i of instances) {
         const isTcp = i.type === "TCP-connect";
         const target = isTcp ? `${cell(i.tcp_dst)}(${cell(i.tcp_dst_port)})` : cell(i.icmp_dst);
-        const vrf = cell(isTcp ? i.tcp_vrf : i.icmp_vrf);
-        // State / Transitions / Last change are operational — not simulated.
-        out.push(line(row(cell(i.id), cell(i.type), "-", target, vrf, "-", "-")));
+        const vrf = String((isTcp ? i.tcp_vrf : i.icmp_vrf) ?? "default");
+        const r = runs[String(i.id)];
+        out.push(line(row(cell(i.id), cell(i.type), r?.state ?? "-", target, vrf, String(r?.transitions ?? 0), slaAgo(r?.lastChangeMs, now))));
       }
-      out.push(muted("Operational state (State/Transitions/Last change) is not simulated."));
       return { output: out };
     }
 
     // Detailed: `show ip sla <id> [history]`.
     const inst = instances.find((i) => i.id === idArg);
     if (!inst) return { output: [err(`% IP SLA instance ${idArg} not configured`)] };
-    if (args[3]?.toLowerCase() === "history")
-      return { output: [muted(`IP SLA ${idArg} history is operational state — not simulated`)] };
+    const run = peekSlaRuns(ctx.device)?.[idArg];
+    if (args[3]?.toLowerCase() === "history") {
+      const out: OutputLine[] = [line("Timestamp                 Event"), line("---------                 -----")];
+      for (const h of run?.history ?? []) out.push(line(`${slaTimestamp(h.atMs).padEnd(26)}${h.event}`));
+      return { output: out };
+    }
 
     const rows = inst.type === "TCP-connect" ? TCP_DETAIL : inst.type === "ICMP-echo" ? ICMP_DETAIL : COMMON_DETAIL;
+    const dflt: Record<string, unknown> = { frequency: SLA_DEFAULTS.frequency, timeout: SLA_DEFAULTS.timeout, threshold: SLA_DEFAULTS.threshold };
     const out: OutputLine[] = [line(`IP SLA Operation Number: ${String(inst.id)}`)];
     if (inst.type) out.push(line(`Type of Operation: ${String(inst.type)}`));
     for (const r of rows) {
-      const v = inst[r.field];
+      const v = inst[r.field] ?? dflt[r.field];
       if (v !== undefined && v !== "") out.push(line(`${r.label}: ${String(v)}`));
     }
-    out.push(muted("Operational state and per-probe counters are not simulated."));
+    if (run) {
+      out.push(line(`Operation state: ${run.state}`));
+      out.push(line(`Operation state transitions: ${run.transitions}`));
+      out.push(line(`Operation last state change: ${slaAgo(run.lastChangeMs, Date.now())}`));
+      if (inst.type === "TCP-connect") {
+        out.push(line(`TCP connect request counter: ${run.req}`), line(`TCP connect success counter: ${run.ok}`), line(`TCP connect error counter: ${run.err}`));
+      } else {
+        out.push(line(`ICMP Echo Request counter: ${run.req}`), line(`ICMP Echo Reply counter: ${run.ok}`), line(`ICMP Error counter: ${run.err}`), line("ICMP Invalid responses: 0"));
+      }
+    }
     return { output: out };
+  },
+});
+
+// configure-view: SLA-tracked / floating static routes (route_static.xml `track <id>` and route preference).
+// `ip route [vrf <v>] <prefix> <nh> [track <id>] [<distance>]`; the bare two-token form is staticroute.ts's.
+registerModal({
+  id: "ipsla-track-route",
+  views: ["configure-view"],
+  keywords: ["ip"],
+  run({ isNo, args, ctx }) {
+    if (args[0]?.toLowerCase() !== "route") return null;
+    let rest = args.slice(1);
+    let vrf: string | undefined;
+    if (rest[0]?.toLowerCase() === "vrf" && rest[1]) {
+      vrf = rest[1];
+      rest = rest.slice(2);
+    }
+    const [cidr, nh, ...opts] = rest;
+    if (!cidr?.includes("/") || !nh || !isValidIpv4(nh) || !opts.length) return null;
+    const [addr, len] = cidr.split("/");
+    if (!isValidIpv4(addr) || !isValidPrefix(Number(len))) return null;
+    let track: number | undefined;
+    let distance: number | undefined;
+    for (let i = 0; i < opts.length; i++) {
+      if (opts[i].toLowerCase() === "track" && /^\d+$/.test(opts[i + 1] ?? "")) track = Number(opts[++i]);
+      else if (/^\d+$/.test(opts[i]) && +opts[i] >= 1 && +opts[i] <= 255) distance = Number(opts[i]);
+      else return null; // tag / weight / interface forms: not modelled
+    }
+    const r = { prefix: networkAddress(addr, Number(len)), len: Number(len), nexthop: nh, ...(distance !== undefined ? { distance } : {}), ...(vrf ? { vrf } : {}) };
+    const dev = ctx.device;
+    const routes = trackedRoutes(dev);
+    const same = (x: typeof r) => x.prefix === r.prefix && x.len === r.len && x.nexthop === r.nexthop && x.vrf === r.vrf;
+    if (isNo) {
+      const i = routes.findIndex((x) => same(x));
+      if (i >= 0) routes.splice(i, 1);
+      removeStatic(dev, r);
+      return { output: [] };
+    }
+    if (track === undefined) {
+      if (!installStatic(dev, r, Date.now())) return { output: [err(`% Error: no interface on the subnet of nexthop ${nh}`)] };
+      return { output: [] };
+    }
+    const i = routes.findIndex((x) => same(x));
+    if (i >= 0) routes.splice(i, 1);
+    routes.push({ ...r, track });
+    reconcileTracked(dev, Date.now());
+    return { output: [] };
   },
 });
