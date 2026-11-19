@@ -2,7 +2,7 @@
 import "../lib/commands/sonic-cli/features";
 import "../lib/labs";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { portViews, cpuView, recentFrames, frontPorts, fmtBps } from "../lib/switch3d/model";
+import { portViews, cpuView, recentFrames, frontPorts, fmtBps, chassisKind, hostView, routeRows } from "../lib/switch3d/model";
 import { resetAll } from "./helpers";
 import { S, advance, byName } from "./control-helpers";
 
@@ -58,5 +58,46 @@ describe("switch3d model", () => {
     expect(frames.length).toBeGreaterThan(0);
     expect(frames.some((f) => /ICMP|echo/i.test(f.frame.meta.summary))).toBe(true);
     expect(fmtBps(125_000)).toBe("1.00 Mb/s");
+  });
+
+  it("routers and hosts: chassis kind, host OS view and routing table", () => {
+    expect([chassisKind("switch"), chassisKind("router"), chassisKind("firewall"), chassisKind("pc"), chassisKind("dhcp-server"), chassisKind("internet")]).toEqual(["switch", "router", "router", "pc", "server", "internet"]);
+    S().loadFeatureLab("ospf");
+    advance(20_000);
+    S().execCommand(byName("H1").id, "ping -c 1 192.168.3.10");
+    const h1 = byName("H1");
+    const hv = hostView(h1);
+    expect(hv.addresses).toEqual(["192.168.1.10/24 (eth0)"]);
+    expect(hv.gateway).toBe("192.168.1.1");
+    expect(hv.arp.map((a) => a.ip)).toContain("192.168.1.1"); // learned while pinging
+    const nic = portViews(h1, S().network)[0];
+    expect(nic).toMatchObject({ name: "eth0", kind: "rj45", led: "green", oper: "up" }); // 1G NIC: green link LED
+    expect(nic.peer?.deviceName).toBe("S1");
+    const rr = routeRows(byName("S1"));
+    expect(rr.some((r) => r.dest === "192.168.3.0/24" && r.type === "ospf")).toBe(true);
+  });
+});
+
+describe("packet animation hops", () => {
+  it("a ping across the OSPF lab yields ordered hops with ARP, request and reply styles", async () => {
+    const { packetHops } = await import("../lib/switch3d/model");
+    vi.useFakeTimers();
+    resetAll();
+    S().loadFeatureLab("ospf");
+    advance(20_000);
+    S().execCommand(byName("H1").id, "ping -c 1 192.168.3.10");
+    const hops = packetHops(S().events);
+    const labels = hops.map((h) => h.label);
+    expect(labels).toContain("ping request");
+    expect(labels).toContain("ping reply");
+    // the request leaves H1 first-ish and the reply ends at H1
+    const firstReq = hops.find((h) => h.label === "ping request")!;
+    expect(S().network.devices[firstReq.fromDeviceId].name).toBe("H1");
+    const lastReply = [...hops].reverse().find((h) => h.label === "ping reply")!;
+    expect(S().network.devices[lastReply.toDeviceId].name).toBe("H1");
+    // every hop references a real connection
+    const conns = S().network.connections;
+    for (const h of hops) expect(conns.some((c) => [c.a.interfaceId, c.b.interfaceId].includes(h.fromIfaceId) && [c.a.interfaceId, c.b.interfaceId].includes(h.toIfaceId))).toBe(true);
+    vi.useRealTimers();
   });
 });

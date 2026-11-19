@@ -4,7 +4,9 @@
  * here from the live simulated device — nothing is invented. Pure functions
  * (peek* only, never featureState) so rendering can't mutate the network.
  */
-import { Device, isSwitch } from "../models/device";
+import { Device, DeviceType, isSwitch } from "../models/device";
+import { tcpSockets, SocketRow } from "../protocols/tcp-stack";
+import { routeDistance } from "../models/route";
 import { NetworkState } from "../models/topology";
 import { NetInterface, InterfaceStats } from "../models/interface";
 import { peekFeatureState } from "../models/feature-state";
@@ -15,9 +17,22 @@ import { peekDrops } from "../control/drops";
 import { featureRows } from "../protocols/cpu-features";
 import { peekCoppRuntime, CpuQueues } from "../protocols/cpu-daemon";
 import type { PortChannel } from "../commands/sonic/lacp";
-import type { CaptureRecord } from "../engine";
+import type { CaptureRecord, SimEvent } from "../engine";
+import type { Frame } from "../models/packet";
 
 export type LedColor = "green" | "amber" | "off";
+
+/** Which real hardware a device is drawn as. */
+export type ChassisKind = "switch" | "router" | "pc" | "server" | "internet";
+
+export function chassisKind(t: DeviceType): ChassisKind | undefined {
+  if (t === "switch") return "switch";
+  if (t === "router" || t === "firewall") return "router";
+  if (t === "pc") return "pc";
+  if (t === "server" || t === "dns-server" || t === "dhcp-server" || t === "ntp-server") return "server";
+  if (t === "internet") return "internet"; // drawn as the ISP handoff (ONT) that leads to the cloud
+  return undefined;
+}
 /** Physical form factor drawn on the faceplate. */
 export type PortKind = "sfp" | "rj45";
 
@@ -39,7 +54,7 @@ export interface PortView {
   oper: "up" | "down";
   speedMbps: number;
   speedLabel: string;
-  /** Link LED: green = high speed (≥10G), amber = lower speed, off = no link. */
+  /** Link LED: green = gigabit or faster, amber = 10/100M, off = no link. */
   led: LedColor;
   peer?: PortPeer;
   mac: string;
@@ -103,7 +118,7 @@ export function portViews(d: Device, net: NetworkState): PortView[] {
       oper: iface.operState,
       speedMbps: iface.speed,
       speedLabel: speedLabel(iface.speed),
-      led: !up ? "off" : iface.speed >= 10_000 ? "green" : "amber",
+      led: !up ? "off" : iface.speed >= 1000 ? "green" : "amber",
       peer: peerOf(net, d, iface),
       mac: iface.mac,
       ipv4: iface.ipv4.map((a) => `${a.address}/${a.prefix}`),
@@ -170,3 +185,92 @@ export const fmtBps = (bps?: number): string => {
   const bits = bps * 8;
   return bits >= 1e9 ? `${(bits / 1e9).toFixed(2)} Gb/s` : bits >= 1e6 ? `${(bits / 1e6).toFixed(2)} Mb/s` : bits >= 1e3 ? `${(bits / 1e3).toFixed(1)} kb/s` : `${bits.toFixed(0)} b/s`;
 };
+
+export interface RouteRow {
+  dest: string;
+  via: string;
+  dev: string;
+  type: string;
+  distance: number;
+}
+
+/** IPv4 routing table rows (best first per prefix), as `show ip route` / `ip route` would list them. */
+export function routeRows(d: Device): RouteRow[] {
+  const name = (id: string) => d.interfaces.find((i) => i.id === id)?.name ?? id;
+  return [...d.routingTable]
+    .sort((a, b) => b.prefix - a.prefix || routeDistance(a) - routeDistance(b))
+    .map((r) => ({
+      dest: `${r.destination}/${r.prefix}`,
+      via: r.nextHop ?? "connected",
+      dev: name(r.interfaceId),
+      type: r.vrf && r.vrf !== "default" ? `${r.type} (${r.vrf})` : r.type,
+      distance: routeDistance(r),
+    }));
+}
+
+export interface HostView {
+  addresses: string[];
+  gateway?: string;
+  arp: { ip: string; mac: string; dev: string; state: string }[];
+  routes: RouteRow[];
+  sockets: SocketRow[];
+}
+
+/** What the host's operating system knows: addresses, gateway, ARP cache, routes, sockets. */
+export function hostView(d: Device): HostView {
+  const name = (id: string) => d.interfaces.find((i) => i.id === id)?.name ?? id;
+  return {
+    addresses: d.interfaces.flatMap((i) => i.ipv4.map((a) => `${a.address}/${a.prefix} (${i.name})`)),
+    gateway: d.config.defaultGateway,
+    arp: d.arpTable.map((e) => ({ ip: e.ip, mac: e.mac, dev: name(e.interfaceId), state: e.state })),
+    routes: routeRows(d),
+    sockets: tcpSockets(d),
+  };
+}
+
+/** One frame crossing one cable, in the order the simulator sent it (FRAME_SENT events). */
+export interface PacketHop {
+  id: string;
+  fromDeviceId: string;
+  fromIfaceId: string;
+  toDeviceId: string;
+  toIfaceId: string;
+  text: string;
+  label: string;
+  color: string;
+}
+
+/** Short label + colour for a frame: ARP amber, ping request green, reply blue, others violet. */
+export function packetStyle(f?: Frame): { label: string; color: string } {
+  if (!f) return { label: "frame", color: "#a78bfa" };
+  if (f.arp) return { label: f.arp.op === "request" ? "ARP who-has" : "ARP reply", color: "#f59e0b" };
+  if (f.icmp?.type === "echo-request") return { label: "ping request", color: "#22c55e" };
+  if (f.icmp?.type === "echo-reply") return { label: "ping reply", color: "#38bdf8" };
+  if (f.icmp) return { label: `ICMP ${f.icmp.type}`, color: "#ef4444" };
+  if (f.icmp6?.type === "echo-request") return { label: "ping6 request", color: "#22c55e" };
+  if (f.icmp6?.type === "echo-reply") return { label: "ping6 reply", color: "#38bdf8" };
+  if (f.tcp) return { label: "TCP", color: "#a78bfa" };
+  if (f.udp) return { label: "UDP", color: "#a78bfa" };
+  return { label: f.meta.summary.split(/[ ,:]/)[0] || "frame", color: "#a78bfa" };
+}
+
+/** The hops of a command's run (ping, traceroute, …), in order, at most `max`. */
+export function packetHops(events: readonly SimEvent[], max = 200): PacketHop[] {
+  const out: PacketHop[] = [];
+  for (const e of events) {
+    if (e.type !== "FRAME_SENT" || !e.link) continue;
+    const st = packetStyle(e.frame);
+    out.push({
+      id: e.id,
+      fromDeviceId: e.link.fromDeviceId,
+      fromIfaceId: e.link.fromInterfaceId,
+      toDeviceId: e.link.toDeviceId,
+      toIfaceId: e.link.toInterfaceId,
+      text: e.message,
+      ...st,
+    });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+

@@ -155,10 +155,16 @@ interface LabState {
   loadVlanLab(): void;
   /** Load a ready-to-use topology for a SONiC feature (bgp/ospf/ipvx/...). */
   loadFeatureLab(featureId: string): void;
-  /** Switch shown in the 3D switch view (components/switch3d), if open. */
-  switchViewId: string | null;
-  openSwitchView(deviceId: string): void;
-  closeSwitchView(): void;
+  /** Main area: the editable topology canvas, or the realistic rack-and-desk scene. */
+  canvasMode: "topology" | "realistic";
+  setCanvasMode(mode: "topology" | "realistic"): void;
+  /** Main area (topology / realistic scene / hardware view) shown full screen. */
+  mainMaximized: boolean;
+  setMainMaximized(on: boolean): void;
+  /** Device shown in the 3D device view (components/switch3d), if open. */
+  deviceViewId: string | null;
+  openDeviceView(deviceId: string): void;
+  closeDeviceView(): void;
   /** Running lab mission / troubleshooting lab (lib/missions), if any. */
   mission: ActiveMission | null;
   /** Solved missions for this viewer: id → completion time (kept in browser storage). */
@@ -634,7 +640,9 @@ export const useLabStore = create<LabState>((set, get) => {
   labName: "Untitled Lab",
   mission: null,
   missionProgress: loadProgress(),
-  switchViewId: null,
+  deviceViewId: null,
+  canvasMode: "topology",
+  mainMaximized: false,
   events: [],
   captures: [],
   terminals: {},
@@ -1102,7 +1110,7 @@ export const useLabStore = create<LabState>((set, get) => {
       sflowErrors: {},
       controlEvents: [],
       mission: null,
-      switchViewId: null,
+      deviceViewId: null,
       network: { devices: {}, connections: [] },
       labName: "Untitled Lab",
       events: [],
@@ -1187,12 +1195,20 @@ export const useLabStore = create<LabState>((set, get) => {
     get().missionTick();
   },
 
-  openSwitchView(deviceId) {
-    set({ switchViewId: deviceId, selectedDeviceId: deviceId });
+  setCanvasMode(mode) {
+    set({ canvasMode: mode });
   },
 
-  closeSwitchView() {
-    set({ switchViewId: null });
+  setMainMaximized(on) {
+    set({ mainMaximized: on });
+  },
+
+  openDeviceView(deviceId) {
+    set({ deviceViewId: deviceId, selectedDeviceId: deviceId });
+  },
+
+  closeDeviceView() {
+    set({ deviceViewId: null });
   },
 
   stopMission() {

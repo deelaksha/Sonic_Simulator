@@ -7,7 +7,8 @@ import { Inspector } from "@/components/inspector/Inspector";
 import { Terminal } from "@/components/terminal/Terminal";
 import { PacketTimeline } from "@/components/timeline/PacketTimeline";
 import { SessionManagerModal } from "@/components/cloud/SessionManagerModal";
-import { SwitchView } from "@/components/switch3d/SwitchView";
+import { DeviceView } from "@/components/switch3d/DeviceView";
+import { RealisticScene } from "@/components/switch3d/RealisticScene";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 
 function PanelHeader({ title, hint }: { title: string; hint?: string }) {
@@ -20,6 +21,18 @@ function PanelHeader({ title, hint }: { title: string; hint?: string }) {
 }
 
 export default function LabPage() {
+  const canvasMode = useLabStore((s) => s.canvasMode);
+  const setCanvasMode = useLabStore((s) => s.setCanvasMode);
+  const mainMaximized = useLabStore((s) => s.mainMaximized);
+  const setMainMaximized = useLabStore((s) => s.setMainMaximized);
+
+  // Esc leaves the full-screen main area (like the terminal's restore).
+  useEffect(() => {
+    if (!mainMaximized) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMainMaximized(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mainMaximized, setMainMaximized]);
   const labName = useLabStore((s) => s.labName);
   const currentSessionId = useLabStore((s) => s.currentSessionId);
   const cloudSyncStatus = useLabStore((s) => s.cloudSyncStatus);
@@ -155,15 +168,34 @@ export default function LabPage() {
 
         {/* center + right + bottom */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="relative flex min-h-0 flex-1">
-            <section className="min-w-0 flex-1">
-              <TopologyCanvas />
+          <div className={mainMaximized ? "fixed inset-0 z-[60] flex bg-[#0b0d11]" : "relative flex min-h-0 flex-1"}>
+            <section className="relative min-w-0 flex-1">
+              {canvasMode === "realistic" ? <RealisticScene /> : <TopologyCanvas />}
+              <div className="absolute left-3 top-3 z-30 flex overflow-hidden rounded border border-edge bg-panel/90 text-[11px] shadow">
+                {(["topology", "realistic"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setCanvasMode(m)}
+                    className={`px-2.5 py-1 ${canvasMode === m ? "bg-accent-2/20 text-accent-2" : "text-[#8b98a5] hover:text-[#e6edf3]"}`}
+                    title={m === "realistic" ? "See the lab as real hardware: rack, desk and patch cables" : "Edit the topology"}
+                  >
+                    {m === "topology" ? "Topology" : "View realistic"}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setMainMaximized(!mainMaximized)}
+                title={mainMaximized ? "Restore (Esc)" : "Full screen"}
+                className="absolute right-3 top-3 z-30 rounded border border-edge bg-panel/90 px-2 py-1 text-[11px] text-[#8b98a5] shadow hover:border-accent-2 hover:text-accent-2"
+              >
+                {mainMaximized ? "⤡ Restore (Esc)" : "⤢ Full screen"}
+              </button>
             </section>
             <aside className="shrink-0 border-l border-edge bg-panel">
               <Inspector />
             </aside>
-            {/* 3D switch view: covers canvas + inspector, keeps the terminal usable below */}
-            <SwitchView />
+            {/* 3D hardware view: covers canvas + inspector, keeps the terminal usable below */}
+            <DeviceView />
           </div>
 
           {/* bottom: terminal + packet timeline */}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useLabStore } from "@/lib/store/lab-store";
+import { chassisKind } from "@/lib/switch3d/model";
 import { Device, isHost, isRouter, isSwitch, findInterface } from "@/lib/models/device";
 import { NetInterface } from "@/lib/models/interface";
 import { NetworkState } from "@/lib/models/topology";
@@ -187,17 +188,17 @@ function Table({ title, rows, empty }: { title: string; rows: string[]; empty: s
   );
 }
 
-/** Opens the 3D chassis view (components/switch3d) for this switch. */
-function OpenSwitchView({ deviceId }: { deviceId: string }) {
-  const open = useLabStore((s) => s.openSwitchView);
+/** Opens the 3D hardware view (components/switch3d) for this device. */
+function OpenDeviceView({ deviceId }: { deviceId: string }) {
+  const open = useLabStore((s) => s.openDeviceView);
   return (
     <button
       onClick={() => open(deviceId)}
       className="w-full rounded-md border border-accent-2/40 bg-accent-2/10 px-2.5 py-2 text-left text-[11px] text-accent-2 hover:bg-accent-2/20"
       title="Also: double-click the switch on the canvas"
     >
-      <span className="font-semibold">Open 3D switch view</span>
-      <span className="block text-[10px] text-[#8b98a5]">Front panel, LEDs, cables, internals (ASIC / CPU) and live port data</span>
+      <span className="font-semibold">Open 3D hardware view</span>
+      <span className="block text-[10px] text-[#8b98a5]">Ports, LEDs, cables, what is inside, and live port data</span>
     </button>
   );
 }
@@ -311,7 +312,7 @@ export function DeviceConfigPanel() {
         ))}
       </div>
 
-      {isSwitch(device.type) && <OpenSwitchView deviceId={device.id} />}
+      {chassisKind(device.type) && <OpenDeviceView deviceId={device.id} />}
       {isSwitch(device.type) && <DataplaneMode device={device} />}
 
       {isSwitch(device.type) && (

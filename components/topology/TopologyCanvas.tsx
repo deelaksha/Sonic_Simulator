@@ -16,7 +16,8 @@ import {
   type Connection,
 } from "@xyflow/react";
 import { useLabStore } from "@/lib/store/lab-store";
-import { DeviceType, isSwitch } from "@/lib/models/device";
+import { DeviceType } from "@/lib/models/device";
+import { chassisKind } from "@/lib/switch3d/model";
 import { connectionFor } from "@/lib/models/topology";
 import { DeviceNode } from "./DeviceNode";
 
@@ -33,7 +34,7 @@ function CanvasInner() {
   const disconnect = useLabStore((s) => s.disconnect);
   const removeDevice = useLabStore((s) => s.removeDevice);
   const selectDevice = useLabStore((s) => s.selectDevice);
-  const openSwitchView = useLabStore((s) => s.openSwitchView);
+  const openDeviceView = useLabStore((s) => s.openDeviceView);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -129,7 +130,8 @@ function CanvasInner() {
         onConnect={onConnect}
         onNodeClick={(_, node) => selectDevice(node.id)}
         onNodeDoubleClick={(_, node) => {
-          if (isSwitch(useLabStore.getState().network.devices[node.id]?.type ?? "pc")) openSwitchView(node.id);
+          const t = useLabStore.getState().network.devices[node.id]?.type;
+          if (t && chassisKind(t)) openDeviceView(node.id);
         }}
         onNodeDragStop={(_, node) => moveDevice(node.id, node.position.x, node.position.y)}
         onNodesDelete={(deleted) => deleted.forEach((n) => removeDevice(n.id))}

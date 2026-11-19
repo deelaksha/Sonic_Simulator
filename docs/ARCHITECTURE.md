@@ -218,16 +218,32 @@ changes the learner's network. Each mission carries a reference `solution`
 in browser storage. `tests/missions-all.test.ts` proves every mission starts
 unsolved and is solved by its own solution.
 
-## 3D switch view
+## 3D hardware view
 
-`components/switch3d/SwitchView.tsx` (open by double-clicking a switch, or from the
-Device panel) draws the switch as a CSS 3D 1U box over the canvas/inspector area,
-leaving the terminal usable. Front face: faceplate with the real front-panel ports
-(SFP cages ≥10G, RJ45 below), link LEDs from oper state, activity blinks when a
-port's frame counters change, cables to the real peers, MGMT (eth0) and console
-ports, status OLED. Top face ("lid off"): ports traced to the switching ASIC, ASIC
-↔ CPU over PCIe for hostif traps, eth0 wired to the CPU; dots run along a trace when
-its counters move. Below: port inspector (counters, rates, drops by reason, VLAN,
-LAG, LLDP, last frames; shutdown via KLISH, unplug) and the CPU / control plane
-(CoPP trap groups and queues, containers). All data: `lib/switch3d/model.ts`.
+`components/switch3d/DeviceView.tsx` (double-click a switch, router, PC, server or the internet node, or
+use the Device panel button) draws the device as a real box in CSS 3D from fixed
+camera positions — no free rotation: the panel where its ports are, angled, and
+inside (lid off). Over the canvas/inspector area; the terminal stays usable.
+- `faces.tsx`: switch (1U faceplate: OLED, system LEDs, MGMT + console, two port
+  rows), router (1U: console / AUX / USB, routed ports), PC (desktop rear I/O: PSU,
+  USB, video, audio, NIC), server (1U rear: dual PSU, VGA, serial, BMC, NIC ports).
+  The internet node is drawn as the ISP handoff (fiber ONT) with a cloud inside
+  view describing what the simulator models (answers any routed address; DNS,
+  NTP, HTTP).
+  Link LEDs from oper state, activity blinks when frame counters change, cables to
+  the real peers.
+- `internals.tsx`: switch ports → ASIC — PCIe → CPU (traps); router ports → route
+  processor (software forwarding); host ports → NIC — PCIe → CPU (OS stack).
+- `panels.tsx`: port inspector (counters, rates, drops, VLAN/LAG/LLDP, last frames;
+  shutdown via KLISH on switches, `ip link set` elsewhere; unplug) and the CPU /
+  route processor / operating-system panel.
+Data: `lib/switch3d/model.ts`.
+
+**View realistic** (`components/switch3d/RealisticScene.tsx`, toggle at the top-left
+of the canvas): the whole lab as hardware — network gear in a rack (ONT shelf,
+routers, switches, rack servers), PCs on a desk (monitor + tower with NIC), and patch
+cables drawn port-to-port from each connection (measured from the port elements on
+screen). Dashed = link down; a dot runs along a cable in the direction a port's TX
+counter moved. Clicking a device opens its hardware view. The main area (topology,
+realistic scene, hardware view) has a full-screen toggle (⤢ / Esc), like the terminal.
 
