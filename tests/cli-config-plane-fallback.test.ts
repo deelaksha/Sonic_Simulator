@@ -69,7 +69,9 @@ describe("generic config-plane fallback (recognized commands are accepted + stor
 describe("exec-mode show fallback (recognized show commands degrade gracefully)", () => {
   it("a real device 'show' command with no handler is recognized, not rejected as 'unknown command'", () => {
     const { state, device } = sw();
-    const r = session(state, device, ["show object-groups"]);
+    // `show object-groups` now has a handler; `show dot1x statistics <mac>` is in the grammar
+    // (authmgr.xml) but has no handler.
+    const r = session(state, device, ["show dot1x statistics 00:11:22:33:44:55"]);
     const txt = r.output.map((o) => o.text).join("\n");
     expect(txt).not.toMatch(/unknown command/i);
     expect(txt).toMatch(/recognized SONiC command; not simulated/i);

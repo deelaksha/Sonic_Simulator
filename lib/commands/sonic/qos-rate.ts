@@ -8,7 +8,7 @@
  *                                    "For namespace :" block per port, rows UC0-UC7
  *                                    then MC8-MC15, tabulate 'simple', right aligned,
  *                                    no thousands separators.
- *   show queue watermark [unicast|multicast]
+ *   show queue watermark unicast|multicast   (registered in ./buffers.ts)
  *                                    scripts/watermarkstat:208 "Egress shared pool
  *                                    occupancy per unicast queue:" Port UC0..UC7 (bytes)
  *   show pfc counters [<if>]         scripts/pfcstat:44-46 Port Rx / Port Tx PFC0-7,
@@ -94,7 +94,7 @@ function showQueueCounters(args: string[], ctx: CommandContext): OutputLine[] {
   return out;
 }
 
-function showWatermark(args: string[], ctx: CommandContext): OutputLine[] {
+export function showWatermark(args: string[], ctx: CommandContext): OutputLine[] {
   const bad = requireSwitch(ctx);
   if (bad) return bad;
   const kind = (positional(args)[0] ?? "unicast").toLowerCase();
@@ -145,7 +145,6 @@ const config: SonicCmd[] = [
 
 const show: SonicCmd[] = [
   { path: ["queue", "counters"], summary: "Per-queue packet/byte/drop counters [<if>|CPU]", run: (a, ctx) => ({ output: showQueueCounters(a, ctx) }) },
-  { path: ["queue", "watermark"], summary: "Queue buffer watermarks (bytes) [unicast|multicast]", run: (a, ctx) => ({ output: showWatermark(a, ctx) }) },
   { path: ["pfc", "counters"], summary: "PFC pause frames received/sent per priority", run: (a, ctx) => ({ output: showPfcCounters(a, ctx) }) },
 ];
 

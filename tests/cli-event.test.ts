@@ -27,28 +27,25 @@ function run(state: NetworkState, device: Device, stack: CliStack, cmd: string):
   return { stack: r.toBash ? [] : r.stack, text: r.output.map((o) => o.text).join("\n") };
 }
 
-// Event/alarm is a show-only feature: events & alarms are runtime data the sim
-// cannot honestly model, so `show` reflects the (empty) config-plane store and
-// never fabricates rows. There is no config command, hence no store/no-clear test.
-describe("sonic-cli event/alarm (config-plane, show-only)", () => {
-  it("show event reflects no simulated event history", () => {
+// Events/alarms are derived from the box's syslog (features/event.ts): a
+// fresh switch with no logged state changes has an empty EVENT/ALARM table, so
+// the summary templates print nothing and the stats read 0.
+describe("sonic-cli event/alarm (derived from syslog)", () => {
+  it("show event on a quiet box prints an empty table", () => {
     const { state, device } = sw();
-    const text = run(state, device, ["exec"], "show event").text;
-    expect(text).toContain("No events to display");
-    expect(text).toContain("runtime data not simulated");
+    expect(run(state, device, ["exec"], "show event").text).toBe("");
   });
 
-  it("show alarm reflects no simulated alarm history", () => {
+  it("show alarm on a quiet box prints an empty table", () => {
     const { state, device } = sw();
-    const text = run(state, device, ["exec"], "show alarm").text;
-    expect(text).toContain("No alarms to display");
-    expect(text).toContain("runtime data not simulated");
+    expect(run(state, device, ["exec"], "show alarm").text).toBe("");
   });
 
-  it("show event summary is handled the same honest way", () => {
+  it("show event summary renders EVENT_STATS with zero counts", () => {
     const { state, device } = sw();
     const text = run(state, device, ["exec"], "show event summary").text;
-    expect(text).toContain("No events to display");
+    expect(text).toContain("Event summary");
+    expect(text).toMatch(/Total:\s+0/);
   });
 
   it("does not claim a non-event/alarm show (returns null to fall through)", () => {

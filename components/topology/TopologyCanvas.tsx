@@ -22,6 +22,7 @@ import { connectionFor } from "@/lib/models/topology";
 import { DeviceNode } from "./DeviceNode";
 import { PacketEdge } from "./PacketEdge";
 import { PacketCaption, usePacketPlayer } from "@/components/switch3d/packetPlayer";
+import { CableColorPicker } from "@/components/switch3d/CableColorPicker";
 
 const nodeTypes = { device: DeviceNode };
 const edgeTypes = { packet: PacketEdge };
@@ -46,6 +47,9 @@ function CanvasInner() {
   const { screenToFlowPosition } = useReactFlow();
   // Packet animation of the last command (shared with the realistic view).
   const player = usePacketPlayer();
+  // Click a link to recolour the cable.
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [picker, setPicker] = useState<{ id: string; x: number; y: number; title: string } | null>(null);
   const hop = player.hop;
 
   // The event currently "reached" by playback drives highlighting.
@@ -95,7 +99,12 @@ function CanvasInner() {
           targetHandle: c.b.interfaceId,
           className: c.id === activeEdgeId ? "active-edge" : undefined,
           animated: c.id === activeEdgeId,
-          style: { stroke: up ? "#64748b" : "#7f1d1d", strokeDasharray: up ? undefined : "6 4" },
+          style: {
+            stroke: c.color ?? (up ? "#64748b" : "#7f1d1d"),
+            strokeWidth: c.color ? 2.5 : undefined,
+            strokeOpacity: up ? 1 : 0.6,
+            strokeDasharray: up ? undefined : "6 4",
+          },
         } satisfies Edge;
       }),
     );
@@ -130,7 +139,8 @@ function CanvasInner() {
   );
 
   return (
-    <div className="relative h-full w-full" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+    <div ref={canvasRef} className="relative h-full w-full" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+      {picker && <CableColorPicker connectionId={picker.id} x={picker.x} y={picker.y} title={picker.title} onClose={() => setPicker(null)} />}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -148,7 +158,16 @@ function CanvasInner() {
         onNodeDragStop={(_, node) => moveDevice(node.id, node.position.x, node.position.y)}
         onNodesDelete={(deleted) => deleted.forEach((n) => removeDevice(n.id))}
         onEdgesDelete={(deleted) => deleted.forEach((edge) => disconnect(edge.id))}
-        onPaneClick={() => selectDevice(undefined)}
+        onPaneClick={() => {
+          selectDevice(undefined);
+          setPicker(null);
+        }}
+        onEdgeClick={(e, edge) => {
+          const r = canvasRef.current!.getBoundingClientRect();
+          const c = network.connections.find((x) => x.id === edge.id);
+          const name = (id?: string) => (id ? network.devices[id]?.name : "") ?? "";
+          setPicker({ id: edge.id, x: Math.min(e.clientX - r.left + 8, r.width - 270), y: e.clientY - r.top + 8, title: c ? `${name(c.a.deviceId)} ↔ ${name(c.b.deviceId)}` : "" });
+        }}
         fitView
         proOptions={{ hideAttribution: true }}
       >

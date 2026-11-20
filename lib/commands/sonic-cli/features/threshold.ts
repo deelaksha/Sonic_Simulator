@@ -173,15 +173,17 @@ registerModal({
 
     if (sub === "device") return { output: renderDevice(dev) };
     if (sub === "buffer-pool") {
-      const ifaceFilter = args[2]?.toLowerCase() === "interface" ? args[3] : undefined;
+      // KLISH writes the port as two words ("interface Ethernet 0").
+      const ifaceFilter = args[2]?.toLowerCase() === "interface" ? (/^\d+$/.test(args[4] ?? "") ? `${args[3]}${args[4]}` : args[3]) : undefined;
       return { output: renderBufferPool(dev, ifaceFilter) };
     }
     if (sub === "priority-group") return { output: renderTable(dev, "priority-group", args[2]?.toLowerCase()) };
     if (sub === "queue") return { output: renderTable(dev, "queue", args[2]?.toLowerCase()) };
     if (sub === "breaches") {
-      // Breach events are recorded by the box at runtime as buffers cross their
-      // configured thresholds — a data-plane effect this lab does not model.
-      return { output: [muted("No threshold breach events recorded (breach detection is a data-plane effect not simulated in this lab)")] };
+      // show_threshold_breach_event_reports.j2 renders nothing when the
+      // THRESHOLD_BREACH table is empty — the simulator never fills a buffer
+      // past a configured threshold (the flow model has no buffer occupancy).
+      return { output: [] };
     }
 
     // Bare `show threshold` — render everything configured, nothing fabricated.

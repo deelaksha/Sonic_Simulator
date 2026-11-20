@@ -226,8 +226,10 @@ registerModal({
     if (args[0]?.toLowerCase() !== "mclag") return null; // not ours
     const sub = args[1]?.toLowerCase();
     if (sub === "interface") {
-      const po = args[2];
-      const dom = args[3];
+      // LAG_ID ptype is the bare id; also accept "PortChannel 1" / "PortChannel1".
+      const rest = /^portchannel$/i.test(args[2] ?? "") ? args.slice(3) : args.slice(2);
+      const po = rest[0]?.replace(/^portchannel/i, "");
+      const dom = rest[1];
       if (!po || !dom) return { output: [err("% Usage: show mclag interface <portchannel-id> <domain-id>")] };
       const name = `PortChannel${po}`;
       const it = mlagIfaces(ctx.device, dom).find((i) => i.name === name);
@@ -239,8 +241,7 @@ registerModal({
       const isolate = !!rt?.session && !!peerLink && rt.remoteIfs[name] === "up";
       return {
         output: [
-          line(" "),
-          line(""),
+          line(" "), // device capture: one " " line, then the fields (mc-lag snapshot_SW1.txt:51-55)
           line(`${"Local/Remote Status".padEnd(20)} : ${it.local}/${it.remote}`),
           line(`${"TrafficDisable".padEnd(20)} : No`),
           line(`${"IsolateWithPeerLink".padEnd(20)} : ${isolate ? "Yes" : "No"}`),

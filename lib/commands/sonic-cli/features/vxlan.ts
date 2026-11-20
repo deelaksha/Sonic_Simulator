@@ -213,10 +213,9 @@ registerModal({
       const ip = args[3] && args[3].toLowerCase() !== "count" ? args[3] : "all";
       if (what === "vni") return { output: L(showRemoteVni(dev, ip, count)) };
       if (what === "mac") return { output: L(showRemoteMac(dev, ip, count)) };
-      return { output: [muted("% specify: show vxlan remote vni|mac [<remote-ip>] [count]")] };
+      return null; // bare container + `nexthop-group`: klish-evpn-show.ts
     }
     if (sub === "counters") return { output: L(showVxlanCounters(dev, args[2])) };
-    if (!sub) return { output: [muted("% specify one of: interface | vlanvnimap | vrfvnimap | tunnel | remote | counters")] };
     return null; // Click-only forms (remotevtep, remotevni, remotemac, name) fall through to the Click show
   },
 });

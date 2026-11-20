@@ -16,6 +16,8 @@ export interface Connection {
   a: Endpoint;
   b: Endpoint;
   state: LinkState;
+  /** Cable colour chosen by the learner (CSS colour); unset = automatic by what it connects. */
+  color?: string;
 }
 
 export interface NetworkState {

@@ -108,7 +108,7 @@ registerModal({
   id: "lldp-show",
   views: ["enable-view"],
   keywords: ["show"],
-  run({ ctx, args }) {
+  run({ ctx, args, delegate }) {
     if (args[0]?.toLowerCase() !== "lldp") return null;
     const sub = args[1]?.toLowerCase();
     if (sub === undefined || sub === "table") return { output: renderKlishLldpTable(ctx.device) };
@@ -117,6 +117,8 @@ registerModal({
       if (ifname && !interfaceByName(ctx.device, ifname)) return { output: [err(`% Error: Interface ${ifname} not found`)] };
       return { output: renderKlishLldpNeighbor(ctx.device, ifname) };
     }
+    // `show lldp statistics Ethernet 0`: KLISH two-word interface → Click "Ethernet0".
+    if (sub === "statistics" && args.length === 4 && /^\d+$/.test(args[3])) return { output: delegate(`show lldp statistics ${args[2]}${args[3]}`) };
     return null; // statistics etc. → Click layer
   },
 });

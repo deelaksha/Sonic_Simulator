@@ -264,3 +264,33 @@ continuing over PCIe to the CPU only for frames to/from the switch itself
 port → SoC → fiber → cloud. The main area (topology,
 realistic scene, hardware view) has a full-screen toggle (⤢ / Esc), like the terminal.
 
+**Cable colours**: a connection can carry a learner-chosen `color` (lib/models/topology.ts),
+set from a palette (`components/switch3d/CableColorPicker.tsx`) by clicking a cable in the
+realistic view or a link in the topology, or in the hardware view's port inspector. It is
+used everywhere (topology edge, realistic patch cable, plug / LC latch on the ports) and is
+saved / exported with the lab; "Auto" returns to the automatic colour by what it connects.
+
+## KLISH show coverage
+
+`KLISH_AUDIT=1 [KLISH_PREFIX="show interface"] [KLISH_LAB=ospf] [KLISH_DEV=LEAF1] npx vitest run tests/tools/klish-audit.test.ts`
+walks the real device grammar (data/sonic-cli-grammar.json) like a user pressing `?`,
+runs every complete `show …` command on a lab switch and lists the ones that fall
+through to "recognized SONiC command; not simulated", are unrecognized, or answer "% …".
+Some walk results are grammar artefacts (shared option groups glued onto unrelated
+commands); judge against the KLISH XML in data/device-capture/klish-xml. Convention: a
+COMMAND without an ACTION (pure keyword container) prints nothing, as klish does; a missing
+mandatory parameter prints `% Error: Incomplete command.` (`noAction` / `incomplete` in
+lib/commands/sonic-cli/features/klish-show-util.ts).
+
+
+## Click show coverage
+
+`CLICK_AUDIT=1 [CLICK_LAB=ospf] [CLICK_DEV=LEAF1] npx vitest run tests/tools/click-audit.test.ts`
+runs every path in tests/tools/click-show-commands.json (all `show` groups and commands
+declared in sonic-utilities/show, extracted from the Click decorators) at the bash prompt of
+a lab switch and prints each answer. A handful of paths in that list are extraction
+artefacts (Python re-using a function name); the real tree is show/main.py. Not modelled on
+purpose: muxcable (dual-ToR), fabric/chassis (VOQ chassis), kubernetes, bmp, vnet, srv6,
+p4-table, fgnhg, flowcnt-*, asic-sdk-health-event. Convention: a bare Click group prints
+Click's group help and a bad sub-command Click 7.0's usage error (`clickGroup` /
+`clickUsageError` / `clickGroupUsage` in lib/commands/sonic/types.ts).

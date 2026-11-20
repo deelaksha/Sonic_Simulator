@@ -12,6 +12,7 @@ import { useLabStore } from "@/lib/store/lab-store";
 import { Device } from "@/lib/models/device";
 import { ChassisKind, chassisKind, peerOf, portViews, PortView, routeSummary } from "@/lib/switch3d/model";
 import { PacketCaption, PacketOnPath, usePacketPlayer } from "./packetPlayer";
+import { CableColorPicker } from "./CableColorPicker";
 import { CSS } from "./styles";
 import { FaceProps, InternetFace, RouterFace, ServerRear, SwitchFace } from "./faces";
 import { Port, cableColor } from "./parts";
@@ -76,6 +77,8 @@ export function RealisticScene() {
   const net = useLabStore((s) => s.network);
   // Clicking selects the device (the Device panel on the right has "Open 3D hardware view").
   const select = useLabStore((s) => s.selectDevice);
+  // Click a cable to recolour it.
+  const [picker, setPicker] = useState<{ id: string; x: number; y: number; title: string } | null>(null);
   const { active, sent } = useActivity();
 
   // Packet animation (shared with the topology view): replay the last command hop by hop.
@@ -187,7 +190,7 @@ export function RealisticScene() {
         out.push({
           id: c.id,
           d,
-          color: cableTone(da.type, db.type),
+          color: c.color ?? cableTone(da.type, db.type),
           up,
           title: `${da.name} ${ia.name} ↔ ${db.name} ${ib.name} · ${up ? `up ${ia.speed >= 1000 ? `${ia.speed / 1000}G` : `${ia.speed}M`}` : "down"}`,
           a: ia.id,
@@ -207,7 +210,7 @@ export function RealisticScene() {
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [net.connections.length, devices.length, sceneOrder]);
+  }, [net.connections, devices.length, sceneOrder]);
 
   // Fit the scene when it opens and whenever devices are added or removed.
   useEffect(() => {
@@ -229,7 +232,8 @@ export function RealisticScene() {
         zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top);
       }}
       onPointerDown={(e) => {
-        if ((e.target as HTMLElement).closest("[data-dev],button,[data-overlay]")) return;
+        if ((e.target as HTMLElement).closest("[data-dev],button,[data-overlay],[data-cable]")) return;
+        setPicker(null);
         panning.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       }}
@@ -240,6 +244,7 @@ export function RealisticScene() {
       onPointerUp={() => (panning.current = null)}
     >
       <style>{CSS}</style>
+      {picker && <CableColorPicker connectionId={picker.id} x={Math.min(picker.x, (viewport.current?.clientWidth ?? 600) - 270)} y={picker.y} title={picker.title} onClose={() => setPicker(null)} />}
       {/* zoom controls */}
       <div data-overlay className="absolute bottom-3 right-3 z-30 flex items-center overflow-hidden rounded border border-edge bg-panel/90 text-[12px] shadow">
         <button onClick={() => zoomAt(1 / 1.2)} className="px-2 py-1 text-[#c9d3de] hover:text-accent-2" title="Zoom out">
@@ -254,7 +259,7 @@ export function RealisticScene() {
         </button>
       </div>
       <div data-overlay className="absolute bottom-3 left-3 z-30 rounded border border-edge bg-panel/80 px-2 py-1 text-[10px] text-[#8b98a5]">
-        drag background to pan · scroll to zoom · drag a unit / PC to rearrange · click to select
+        drag background to pan · scroll to zoom · drag a unit / PC to rearrange · click a device to select · click a cable to colour it
       </div>
       <div data-overlay className="absolute left-1/2 top-12 z-30 w-[min(820px,92%)] -translate-x-1/2">
           <PacketCaption p={player} idleHint="Run ping (or traceroute) in the terminal to watch the packets travel and the route light up. Click a device to select it." />
@@ -322,8 +327,22 @@ export function RealisticScene() {
             return (
             <g key={c.id} opacity={dim ? 0.25 : 1}>
               <path d={c.d} fill="none" stroke="#000" strokeOpacity={0.45} strokeWidth={6} />
-              <path d={c.d} fill="none" stroke={c.color} strokeWidth={3.5} strokeOpacity={c.up ? 0.95 : 0.35} strokeDasharray={c.up ? undefined : "6 5"} strokeLinecap="round" style={{ pointerEvents: "stroke" }}>
-                <title>{c.title}</title>
+              <path d={c.d} fill="none" stroke={c.color} strokeWidth={3.5} strokeOpacity={c.up ? 0.95 : 0.35} strokeDasharray={c.up ? undefined : "6 5"} strokeLinecap="round" />
+              {/* wide invisible hit area: click a cable to recolour it */}
+              <path
+                data-cable
+                d={c.d}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={14}
+                className="cursor-pointer"
+                style={{ pointerEvents: "stroke" }}
+                onClick={(e) => {
+                  const r = viewport.current!.getBoundingClientRect();
+                  setPicker({ id: c.id, x: e.clientX - r.left + 8, y: e.clientY - r.top + 8, title: c.title.split(" · ")[0] });
+                }}
+              >
+                <title>{`${c.title} — click to change the cable colour`}</title>
               </path>
               {!hop && c.up && sent.has(c.a) && (
                 <circle r="4.5" fill="#fde047" filter="url(#glow)">

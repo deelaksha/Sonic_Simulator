@@ -17,6 +17,15 @@ import { NetworkState, Connection } from "../models/topology";
 import { SimContext } from "../engine/context";
 import { ControlDaemon, registerDaemon } from "../control/daemon";
 import { normalizeMac } from "../models/mac";
+import { featureState, peekFeatureState } from "../models/feature-state";
+
+/** Per-port BPDU counters (stpd STP_PORT_TABLE bpdu_sent / bpdu_received) for `show spanning-tree counters`. */
+export type StpCounters = Record<string, { tx: number; rx: number }>;
+export const stpCounters = (d: Device): StpCounters => peekFeatureState<StpCounters>(d, "stp_counters") ?? {};
+function bumpBpdu(d: Device, ifname: string, dir: "tx" | "rx"): void {
+  const c = featureState<StpCounters>(d, "stp_counters", () => ({}));
+  (c[ifname] ??= { tx: 0, rx: 0 })[dir]++;
+}
 
 export const STP_MULTICAST_MAC = "01:80:C2:00:00:00";
 export const DEFAULT_STP_PRIORITY = 32768;
@@ -404,7 +413,7 @@ export const stpDaemon: ControlDaemon = {
 
     // Periodic hello every 2s
     const lastHello = (device.config.features as Record<string, unknown> | undefined)?._stpLastHello as number | undefined;
-    if (lastHello === undefined) return nowMs + HELLO_TIME_SECS * 1000;
+    if (lastHello === undefined) return nowMs; // never sent a hello yet: start now
     return lastHello + HELLO_TIME_SECS * 1000;
   },
 
@@ -437,6 +446,7 @@ export const stpDaemon: ControlDaemon = {
           frame: bpdu,
         });
         ctx.transmit(device.id, iface.id, bpdu);
+        bumpBpdu(device, iface.name, "tx");
       }
     }
     return true;
@@ -447,6 +457,7 @@ export const stpDaemon: ControlDaemon = {
     if (frame.ethernet.dstMac.toUpperCase() !== STP_MULTICAST_MAC && !frame.stp) return false;
 
     if (frame.stp) {
+      bumpBpdu(device, ingress.name, "rx");
       ctx.emit({
         type: "STP_BPDU_RECEIVED",
         deviceId: device.id,

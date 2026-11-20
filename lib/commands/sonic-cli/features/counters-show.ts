@@ -90,6 +90,7 @@ registerModal({
     if (a[0] === "interface" && a[1] === "counters") {
       if (a[2] === "rate") return { output: rateTable(args.slice(3), ctx.device) };
       if (a[2] === undefined) return { output: renderPortstat(ctx.device, { noBanner: true }) };
+      if (/^(ethernet|eth)$/.test(a[2]) && a.length === 3) return { output: renderPortstat(ctx.device, { noBanner: true }) }; // all Ethernet
       if (/^(ethernet|eth)/.test(a[2])) return { output: renderPortstat(ctx.device, { noBanner: true, intf: joinIf(args.slice(2)) }) };
       return null;
     }
@@ -98,11 +99,13 @@ registerModal({
       return { output: [line(`Aging-Time: ${fdbAgingTime(ctx.device)} seconds`)] };
     }
     if (a[0] === "mac" && a[1] === "address-table" && a[2] === "count") {
-      const t = ctx.device.macTable;
+      // `count Vlan <id>` / `count Vlan<id>` (mac.xml:34-42) counts that VLAN's entries.
+      const vid = /^vlan(\d*)$/i.exec(args[3] ?? "") ? Number(/^vlan(\d*)$/i.exec(args[3])![1] || args[4]) : undefined;
+      const t = ctx.device.macTable.filter((e) => vid === undefined || e.vlan === vid);
       const stat = t.filter((e) => e.static || e.interfaceId.startsWith("vtep:")).length;
       return {
         output: [
-          line(`MAC Entries for all vlans :  ${t.length}`),
+          line(`MAC Entries for ${vid === undefined ? "all vlans" : `Vlan${vid}`} :  ${t.length}`),
           line(`Dynamic Address Count :  ${t.length - stat}`),
           line(`Static Address (User-defined) Count :  ${stat}`),
           line(`Total MAC Addresses in Use: ${t.length}`),

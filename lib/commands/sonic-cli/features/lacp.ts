@@ -162,8 +162,10 @@ registerModal({
       return { output: showSummary(ctx.device) };
     }
     if (a0 === "interface" && /^portchannel/i.test(args[1] ?? "")) {
-      const id = /^portchannel(\d+)$/i.exec(args[1])?.[1] ?? args[2];
+      const joined = /^portchannel(\d+)$/i.exec(args[1])?.[1];
+      const id = joined ?? args[2];
       if (!id || !/^\d+$/.test(id)) return null;
+      if (args.length > (joined ? 2 : 3)) return null; // `… vlan-mappings` etc. → interface-show
       return { output: showDetail(ctx.device, `PortChannel${id}`) };
     }
     return null;

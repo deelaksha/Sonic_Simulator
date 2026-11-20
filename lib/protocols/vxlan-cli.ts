@@ -37,6 +37,7 @@
  */
 import { CommandContext, CommandResult, OutputLine, err, line, muted } from "../commands/types";
 import { SonicCmd } from "../commands/sonic/types";
+import { clickGroup } from "../commands/sonic/types";
 import { cpList, cpRemove, cpUpsert } from "../commands/sonic-cli/config-plane";
 import { Device } from "../models/device";
 import { longestPrefixMatch } from "../models/route";
@@ -557,6 +558,17 @@ export const vxlanClickConfig: SonicCmd[] = [
 const showCmd = (path: string[], summary: string, render: (a: string[], d: Device) => string[]): SonicCmd => ({ path, summary, run: (a, ctx) => ({ output: toLines(render(a, ctx.device)) }) });
 
 export const vxlanClickShow: SonicCmd[] = [
+  clickGroup(["vxlan"], "Show vxlan related information", [
+    ["counters", "Show VxLAN counters"],
+    ["interface", "Show VXLAN VTEP Information"],
+    ["name", "Show vxlan name <vxlan_name> information"],
+    ["remotemac", "Show MACs pointing to the remote VTEP"],
+    ["remotevni", "Show Vlans extended to the remote VTEP"],
+    ["remotevtep", "Show All Remote VTEP Information"],
+    ["tunnel", "Show vxlan tunnel information"],
+    ["vlanvnimap", "Show VLAN VNI Mapping Information"],
+    ["vrfvnimap", "Show VRF VNI Mapping Information"],
+  ]),
   showCmd(["vxlan", "interface"], "Show VXLAN VTEP Information", (_a, d) => showInterface(d)),
   showCmd(["vxlan", "vlanvnimap"], "Show VLAN VNI Mapping Information", (a, d) => showVlanVniMap(d, a[0] !== undefined)),
   showCmd(["vxlan", "vrfvnimap"], "Show VRF VNI Mapping Information", (_a, d) => showVrfVniMap(d)),

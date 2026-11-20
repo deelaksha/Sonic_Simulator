@@ -166,7 +166,7 @@ function dispatch(raw: string, stack: CliStack, ctx: CommandContext, delegate: D
     // For a real device `show` command with no specific handler, degrade to the
     // graceful exec fallback (recognized-but-not-simulated) instead of falsely
     // reporting "unknown command" — matching how `clear`/config commands behave.
-    if (out.some((o) => o.kind === "error" && /unknown command/i.test(o.text))) {
+    if (out.some((o) => o.kind === "error" && /unknown command|No such command/i.test(o.text))) {
       return stay(unknownIn("enable-view", raw));
     }
     return stay(out);

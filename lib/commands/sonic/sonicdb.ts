@@ -1,18 +1,16 @@
 /**
  * CONFIG_DB persistence Click commands (sonic-utilities config/main.py, show/main.py):
  *
- *   show runningconfiguration all       show/main.py:1747 — CONFIG_DB as JSON (indent 4, sorted)
  *   config save   [-y] [<file>]         main.py:1699 — sonic-cfggen -d --print-data > config_db.json
  *   config load   [-y] [<file>]         main.py:1757 — sonic-cfggen -j <file> --write-to-db (merge)
  *   config reload [-y] [-f] [<file>]    main.py:2026 — stop services, flush CONFIG_DB, load, restart
  *
- * `show runningconfiguration snmp` stays in ./snmp.ts (longer path wins there).
+ * `show runningconfiguration ...` (incl. `all`) lives in ./runcfg.ts.
  * The "file" lives in the simulated device (lib/sonicdb/persist.ts); there is no
  * real filesystem, so only files written by `config save` can be loaded.
  */
 import { CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
-import { configDbJson } from "../../sonicdb/project";
 import { isSonicDevice } from "../../sonicdb/config-db";
 import { DEFAULT_CONFIG_FILE, restoreConfig, saveConfig, savedFile } from "../../sonicdb/persist";
 
@@ -103,15 +101,6 @@ const config: SonicCmd[] = [
   },
 ];
 
-const show: SonicCmd[] = [
-  {
-    path: ["runningconfiguration", "all"],
-    summary: "Show full running configuration (CONFIG_DB as JSON)",
-    run(_args, ctx): CommandResult {
-      if (!isSonicDevice(ctx.device)) return notSonic();
-      return { output: configDbJson(ctx.device).split("\n").map((t) => line(t)) };
-    },
-  },
-];
+const show: SonicCmd[] = [];
 
 export const sonicdbModule: SonicFeatureModule = { id: "sonicdb", config, show };

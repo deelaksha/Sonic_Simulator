@@ -33,6 +33,8 @@
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
+import { tab } from "./interface";
+import { clickGroup } from "./types";
 import { featureState } from "../../models/feature-state";
 import { isValidIpv4 } from "../../models/ip";
 import { BfdSession, bfdSessions, reconcileBfd } from "../../protocols/bfd-daemon";
@@ -334,6 +336,23 @@ function frrBrief(sessions: BfdSession[]): OutputLine[] {
   ].map((t) => line(t));
 }
 
+/** STATE_DB BFD_SESSION_TABLE state strings (bfdorch). */
+const BFD_STATE_DB = ["Admin_Down", "Down", "Init", "Up"];
+
+/**
+ * Click `show bfd summary` (show/main.py:2592): STATE_DB BFD_SESSION_TABLE|<vrf>|<ifname>|<peer>
+ * rows, one per live session.
+ */
+function bfdSummary(ctx: CommandContext): OutputLine[] {
+  const ss = bfdSessions(ctx.device);
+  const rows = ss.map((s) => [
+    s.peer, s.ifname ?? "default", "default", BFD_STATE_DB[s.state], "async_active", s.local ?? s.pktLocal ?? "",
+    String(s.desiredMinTx), String(s.requiredMinRx), String(s.detectMult), s.multihop ? "true" : "false", String(s.myDisc),
+  ]);
+  const hdr = ["Peer Addr", "Interface", "Vrf", "State", "Type", "Local Addr", "TX Interval", "RX Interval", "Multiplier", "Multihop", "Local Discriminator"];
+  return [line(`Total number of BFD sessions: ${ss.length}`), ...tab(hdr, rows).map((t) => line(t))];
+}
+
 /** `show bfd peer <ip> [multihop] [local-address A] [interface I] [counters]`. */
 function showPeer(args: string[], ctx: CommandContext): CommandResult {
   const ip = args[0];
@@ -372,6 +391,11 @@ const show: SonicCmd[] = [
     run: (_a, ctx) => ({ output: frrBrief(bfdSessions(ctx.device)) }),
   },
   { path: ["bfd", "peer"], summary: "Show one BFD peer [counters]", run: (a, ctx) => showPeer(positional(a), ctx) },
+  clickGroup(["bfd"], "Show details of the bfd sessions", [
+    ["peer", "Show bfd session information for BFD peer"],
+    ["summary", "Show bfd session information"],
+  ]),
+  { path: ["bfd", "summary"], summary: "Show bfd session information", run: (_a, ctx) => ({ output: bfdSummary(ctx) }) },
 ];
 
 /** Every config change is applied to the running sessions at once (bfdd reacts to northbound commits). */

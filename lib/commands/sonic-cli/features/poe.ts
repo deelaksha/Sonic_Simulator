@@ -210,8 +210,12 @@ registerModal({
         const rest = args.slice(3).filter((a) => a.toLowerCase() !== "all");
         return { output: renderPortConfig(ctx.device, rest.join("")) };
       }
-      // `show poe port info ...` / bare `show poe port` — operational STATE_DB, not simulated.
-      return { output: [muted("% PoE operational port data is not available (no PoE hardware in the simulator); only configuration is stored")] };
+      // poe.xml:589 — bare `show poe port` is a keyword container.
+      if (args[2] === undefined) return { output: [err("% Error: Incomplete command.")] };
+      // `show poe port info all|<if>`: the simulated platform has no PoE controller, so the
+      // per-port openconfig-if-poe state GET returns 404 and sonic_cli_poe.py run() prints
+      // response.error_message() (cli_client.py format_error_message).
+      return { output: [err("%Error: Resource not found")] };
     }
 
     return { output: renderGlobal(ctx.device) };

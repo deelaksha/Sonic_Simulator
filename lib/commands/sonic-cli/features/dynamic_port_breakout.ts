@@ -119,8 +119,10 @@ registerModal({
     if (args[0]?.toLowerCase() !== "interface" || args[1]?.toLowerCase() !== "breakout") return null; // not ours
     const sub = (args[2] ?? "").toLowerCase();
 
-    // Platform capability / operational queries — not fabricated.
-    if (sub === "modes" || sub === "resources" || sub === "dependencies") {
+    // modes / dependencies: interface-show renders them from the port speeds / live config.
+    if (sub === "modes" || sub === "dependencies") return null;
+    // Platform resource limits — not fabricated.
+    if (sub === "resources") {
       return { output: [muted(`show interface breakout ${sub}: platform/operational data not simulated in this lab.`)] };
     }
 

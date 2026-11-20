@@ -482,7 +482,9 @@ const show: SonicCmd[] = [
     path: ["qos", "interface"],
     summary: "Show qos bindings on an interface",
     run(args, ctx): CommandResult {
-      const port = positional(args)[0];
+      const pos = positional(args);
+      // KLISH writes the interface as two words ("Ethernet 0").
+      const port = /^\d+$/.test(pos[1] ?? "") ? `${pos[0]}${pos[1]}` : pos[0];
       if (!port) return { output: [err("Usage: show qos interface <port>")] };
       return { output: renderInterface(ctx, port) };
     },

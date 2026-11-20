@@ -10,11 +10,10 @@
  * enable=true, `no usb` writes enable=false — a distinct "disabled" row, not a
  * deletion, so we keep the two apart from "never configured".
  *
- * DATA-PLANE NOT SIMULATED: the operational side of `show usb` (the mounted
- * partitions table), plus `show usb devices` / `show usb partitions` and the
- * `usb mount` / `usb un-mount` actions, all reflect physically-attached storage
- * media the simulator has no hardware for. We render only the configured
- * Auto-Detection state and never fabricate detected devices/partitions.
+ * The operational side (`show usb devices|partitions`, the mounted-partitions
+ * table of `show usb`) renders the real templates for a box with no USB
+ * storage attached (show_oc_usb_*.j2): header only / "No usb partitions mounted".
+ * The `usb mount` / `usb un-mount` actions are not modelled.
  */
 import { line, err, muted } from "../../types";
 import { registerModal } from "../registry";
@@ -51,20 +50,23 @@ registerModal({
     if (args[0]?.toLowerCase() !== "usb") return null; // not ours
 
     const sub = args[1]?.toLowerCase();
-    // Operational-only views: detected devices / partitions have no config to
-    // reflect and depend on attached hardware — do not fabricate.
-    if (sub === "devices" || sub === "partitions") {
-      return { output: [muted(`USB ${sub} reflect attached storage media (operational, not simulated in this lab)`)] };
-    }
+    const dash = line("-".repeat(68));
+    // show_oc_usb_devices.j2 / show_oc_usb_parts.j2: the simulated box has no USB
+    // storage plugged in, so the tables carry only their header.
+    if (sub === "devices") return { output: [dash, line(`${"Device name".padEnd(16)} ${"Manufacturer".padEnd(16)} Model Name`), dash] };
+    if (sub === "partitions") return { output: [dash, line(`${"Device name".padEnd(16)} ${"Mount Dir".padEnd(16)} Filesystem`), dash] };
 
-    // `show usb` — render configured Auto-Detection state (the mounted-partitions
-    // table is operational data and is not simulated).
+    // `show usb` — show_oc_usb_status.j2: configured Auto-Detection state, then the
+    // mounted-partitions table (empty: no media attached).
     const enable = cpGet(ctx.device, "usb")?.enable;
     if (enable === undefined) return { output: [muted("USB auto-detection not configured")] };
     return {
       output: [
         line(`Auto Detection: ${enable ? "Enabled" : "Disabled"}`),
-        muted("Mounted partitions reflect attached storage media (operational, not simulated in this lab)"),
+        dash,
+        line(`${"Mount Dir".padEnd(16)} ${"Device Name".padEnd(16)} Filesystem`),
+        dash,
+        line("No usb partitions mounted"),
       ],
     };
   },

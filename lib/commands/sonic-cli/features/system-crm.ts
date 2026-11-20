@@ -11,7 +11,7 @@
  *   sonic(config)# no crm all                                  clear everything
  *   sonic# show crm summary                                    render polling interval
  *   sonic# show crm thresholds [<resource>]                    render configured thresholds
- *   sonic# show crm resources ...                              operational — not simulated
+ *   sonic# show crm resources all|<resource>                   live usage (show_crm_resources_*.j2)
  *
  * Mirrors the real box's CONFIG_DB CRM|Config table (see
  * data/device-capture/klish-xml/system-crm.xml): polling interval and per-resource
@@ -21,13 +21,17 @@
  * nexthop group member|object, ...); it is stored as an underscore-joined key to
  * match CONFIG_DB naming.
  *
- * NOTE: `show crm resources` / `show crm summary` used/available ASIC counts are
- * OPERATIONAL data produced by the SAI CRM layer. This sim has no data-plane, so
- * that runtime usage is NOT fabricated — only the configured values are modelled.
+ * `show crm resources` renders the CRM counters orchagent reads from SAI: "used"
+ * is counted from the live tables (routes, next hops, neighbours, FDB, ACL
+ * bindings); "available" is what the virtual-switch SAI reports — fixed values
+ * (sonic-sairedis vslib/SwitchStateBase.h:719-741, set_static_crm_values()).
  */
 import { OutputLine, line, err, muted } from "../../types";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpGet, cpList } from "../config-plane";
+import { Device } from "../../../models/device";
+import { peekFeatureState } from "../../../models/feature-state";
+import { AclState } from "../../../protocols/acl-rules";
 
 const THRESHOLD_TYPES = ["percentage", "used", "free"];
 const FIELD_KW = ["type", "high", "low"];
@@ -151,11 +155,99 @@ registerModal({
       return { output: out };
     }
 
-    if (sub === "resources") {
-      // Used/available counts come from the ASIC (SAI CRM); no data-plane here.
-      return { output: [muted("CRM resource usage is operational data and is not simulated")] };
-    }
+    if (sub === "resources") return { output: crmResources(ctx.device, args.slice(2).map((t) => t.toLowerCase())) };
 
     return null; // other `show crm ...` — not ours
   },
 });
+
+// ---------------------------------------------------------------- show crm resources
+
+/** saivs static AVAILABLE_* values (SwitchStateBase.h:719-741). */
+const VS_AVAILABLE: Record<string, number> = {
+  ipv4_route: 100000, ipv6_route: 10000, ipv4_nexthop: 32000, ipv6_nexthop: 32000, ipv4_neighbor: 4000,
+  ipv6_neighbor: 2000, nexthop_group_member: 16000, nexthop_group: 400, fdb_entry: 800, snat_entry: 100,
+  dnat_entry: 100, ipmc_entry: 100,
+};
+const ORDER = Object.keys(VS_AVAILABLE);
+const STAGES_CRM = ["egress", "ingress"];
+const BIND_POINTS = ["port", "lag", "vlan", "rif", "switch"];
+
+function crmUsed(dev: Device): Record<string, number> {
+  const ecmp = (routes: Device["routingTable"]) => {
+    const by = new Map<string, Set<string>>();
+    for (const r of routes) {
+      if (!r.nextHop) continue;
+      const key = `${r.vrf ?? ""}|${r.destination}/${r.prefix}`;
+      if (!by.has(key)) by.set(key, new Set());
+      by.get(key)!.add(r.nextHop);
+    }
+    const groups = [...by.values()].filter((s) => s.size > 1);
+    return { groups: groups.length, members: groups.reduce((n, s) => n + s.size, 0) };
+  };
+  const g4 = ecmp(dev.routingTable);
+  const g6 = ecmp(dev.routingTable6);
+  const nh = (routes: Device["routingTable"]) => new Set(routes.filter((r) => r.nextHop).map((r) => r.nextHop)).size;
+  return {
+    ipv4_route: dev.routingTable.length, ipv6_route: dev.routingTable6.length,
+    ipv4_nexthop: nh(dev.routingTable), ipv6_nexthop: nh(dev.routingTable6),
+    ipv4_neighbor: dev.arpTable.length, ipv6_neighbor: dev.ndpTable.length,
+    nexthop_group_member: g4.members + g6.members, nexthop_group: g4.groups + g6.groups,
+    fdb_entry: dev.macTable.length, snat_entry: 0, dnat_entry: 0, ipmc_entry: 0,
+  };
+}
+
+/** ACL groups/tables in use per stage + bind point (one group per bound port, one table per bound ACL). */
+function aclUsage(dev: Device): Record<string, { groups: number; tables: number }> {
+  const out: Record<string, { groups: number; tables: number }> = {};
+  for (const st of STAGES_CRM) for (const bp of BIND_POINTS) out[`${st}|${bp}`] = { groups: 0, tables: 0 };
+  const tables = peekFeatureState<AclState>(dev, "acl")?.tables ?? [];
+  const bpOf = (p: string) => (p.startsWith("PortChannel") ? "lag" : p.startsWith("Vlan") ? "vlan" : p === "Switch" ? "switch" : "port");
+  for (const stage of STAGES_CRM) {
+    const groupPorts = new Set<string>();
+    for (const t of tables.filter((x) => (x.stage ?? "ingress").toLowerCase() === stage && x.ports.length)) {
+      for (const bp of new Set(t.ports.map(bpOf))) out[`${stage}|${bp}`].tables++;
+      for (const p of t.ports) groupPorts.add(p);
+    }
+    for (const p of groupPorts) out[`${stage}|${bpOf(p)}`].groups++;
+  }
+  return out;
+}
+
+const D_RES = "--------------------  ------------  -----------------";
+const H_RES = "Resource Name           Used Count    Available Count";
+const H_ACL = "Stage    Bind Point    Resource Name      Used Count    Available Count";
+const D_ACL = "-------  ------------  ---------------  ------------  -----------------";
+const resRow = (name: string, used: number, avail: number) => line(name.padEnd(22) + String(used).padStart(12) + String(avail).padStart(19));
+
+function aclRows(dev: Device, which: ("acl_group" | "acl_table")[]): OutputLine[] {
+  const acl = aclUsage(dev);
+  const out: OutputLine[] = [];
+  for (const st of STAGES_CRM) {
+    for (const bp of BIND_POINTS) {
+      const u = acl[`${st}|${bp}`];
+      const pre = st.toUpperCase().padEnd(9) + bp.toUpperCase().padEnd(14);
+      for (const w of which) {
+        const [used, avail] = w === "acl_group" ? [u.groups, 200] : [u.tables, 3];
+        out.push(line(pre + w.padEnd(17) + String(used).padStart(12) + String(avail).padStart(19)));
+      }
+    }
+  }
+  return out;
+}
+
+/** show_crm_resources_all.j2 / show_crm_resources_<resource>.j2 */
+function crmResources(dev: Device, k: string[]): OutputLine[] {
+  const used = crmUsed(dev);
+  const what = k.join("_").replace(/^nexthop_group_object$/, "nexthop_group").replace(/^(dnat|snat|fdb|ipmc)$/, "$1_entry");
+  if (what === "all" || what === "") {
+    return [
+      line(" "), line(" "), line(H_RES), line(D_RES), ...ORDER.map((r) => resRow(r, used[r], VS_AVAILABLE[r])),
+      line(" "), line(" "), line(H_ACL), line(D_ACL), ...aclRows(dev, ["acl_group", "acl_table"]),
+      line(" "), line(" "), line("Table ID    Resource Name    Used Count    Available Count"), line("----------  ---------------  ------------  -----------------"),
+    ];
+  }
+  if (what === "acl_group" || what === "acl_table") return [line(H_ACL), line(D_ACL), ...aclRows(dev, [what])];
+  if (VS_AVAILABLE[what] === undefined) return [err(`% Unknown CRM resource "${k.join(" ")}"`)];
+  return [line(H_RES), line(D_RES), line(""), resRow(what, used[what], VS_AVAILABLE[what])];
+}

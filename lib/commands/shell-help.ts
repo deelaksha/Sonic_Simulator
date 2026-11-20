@@ -34,7 +34,8 @@ export function shellHelp(line: string): HelpItem[] {
   if (!handler) return [];
   const args = typed.slice(1);
   const items = handler.name === "show" || handler.name === "config" ? treeHelp(handler.name, args) : usageHelp(handler.name, handler.usage, handler.summary, args);
-  return items.filter((i) => i.token.startsWith("<") || startsCi(i.token, partial));
+  // <cr> only applies to the words already typed, not to a half-typed one
+  return items.filter((i) => (i.token.startsWith("<") && !(i.token === "<cr>" && partial)) || startsCi(i.token, partial));
 }
 
 /** `show` / `config`: next tokens of every registered path that extends what was typed. */

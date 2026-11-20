@@ -85,7 +85,9 @@ registerModal({
 
     const globalOn = (cpGet(ctx.device, "dcbx") ?? {}).global === true;
     let list = cpList(ctx.device, "dcbx", "interfaces") as unknown as DcbxIf[];
-    if (sub === "interface" && args[2]) list = list.filter((i) => i.ifname.toLowerCase() === args[2].toLowerCase());
+    // KLISH writes `interface Ethernet 0` (two tokens) or `Ethernet0`.
+    const want = args.slice(2).join("").toLowerCase();
+    if (sub === "interface" && want) list = list.filter((i) => i.ifname.toLowerCase() === want);
 
     if (!globalOn && list.length === 0) return { output: [muted("DCBX not configured")] };
 

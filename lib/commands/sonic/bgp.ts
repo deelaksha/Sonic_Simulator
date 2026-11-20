@@ -67,7 +67,8 @@
  * 3..65535 (FRR bgp_vty.c / bgp_packet.c:2025); connect 1..65535 (KLISH RANGE_1_65535).
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
-import { SonicCmd, SonicFeatureModule, matchSonic, positional } from "./types";
+import { SonicCmd, SonicFeatureModule, matchSonic, positional, clickGroupUsage } from "./types";
+import { clickGroup, clickUsageError } from "./types";
 import { interfaceByName } from "../../models/device";
 import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
 import { isValidIpv6, networkAddress6 } from "../../models/ipv6";
@@ -1070,6 +1071,8 @@ function bgpShow(ctx: CommandContext, args: string[], vrf: string, af: Af): Comm
     af = a[0];
     a.splice(0, a[1] === "unicast" ? 2 : 1);
   }
+  // Click `show ip bgp network [<prefix> [bestpath|longer-prefixes|multipath]]` → vtysh `show ip bgp [<prefix>]`
+  if (a[0] === "network") a.shift();
   const sub = a[0];
   if (sub === "summary") return { output: toLines(renderBgpSummary(ctx, Date.now(), false, vrf, af)) };
   if (sub === "neighbors") {
@@ -1113,10 +1116,7 @@ for (const [base, af] of [
 ] as [string[], Af][]) {
   show.push({ path: base, summary: `Show BGP ${AF_TITLE[af]} (table, summary, neighbors, prefix, community) in FRR format`, run: (a, ctx) => bgpShow(ctx, a, "default", af) });
 }
-for (const base of [
-  ["ip", "bgp", "vrf"],
-  ["bgp", "vrf"],
-]) {
+for (const base of [["bgp", "vrf"]]) {
   show.push({
     path: base,
     summary: "Show BGP for a VRF instance (FRR format)",
@@ -1127,6 +1127,60 @@ for (const base of [
     },
   });
 }
+/** Click `show ip|ipv6 bgp vrf <vrf> …` (bgp_frr_v4.py / bgp_frr_v6.py vrf group, VRF argument required). */
+function vrfGroup(base: string[], af: Af, cmds: [string, string][]): SonicCmd {
+  const full = `show ${base.join(" ")}`;
+  const help = af === "ipv4" ? "Show IPv4 BGP information for a given VRF" : "Show IPv6 BGP information for a given VRF";
+  return {
+    path: base,
+    summary: help,
+    run(a, ctx) {
+      const p = positional(a);
+      if (!p.length) return { output: [line(`Usage: ${full} [OPTIONS] VRF COMMAND [ARGS]...`), ...clickGroupUsage(full, help, cmds).slice(1)] };
+      // IPv4 keeps the vtysh forms `show ip bgp vrf <vrf> [<prefix>]` this layer also serves
+      if (af === "ipv4") return bgpShow(ctx, p.slice(1), p[0], af);
+      if (!p[1]) return { output: clickUsageError(full, "VRF COMMAND [ARGS]...", "Missing command.") };
+      if (!cmds.some(([c]) => c === p[1])) return { output: clickUsageError(full, "VRF COMMAND [ARGS]...", `No such command "${p[1]}".`) };
+      return ipv6BgpShow(ctx, p.slice(1), p[0]);
+    },
+  };
+}
+
+/** bgp_frr_v6.py: summary / neighbors (vtysh `show bgp [vrf] ipv6 neighbor …`) / network. */
+function ipv6BgpShow(ctx: CommandContext, p: string[], vrf: string): CommandResult {
+  const [sub, ip, kind] = p;
+  if (sub === "summary") return { output: toLines(renderBgpSummary(ctx, Date.now(), false, vrf, "ipv6")) };
+  if (sub === "neighbors") {
+    const cmd = `show ipv6 bgp ${vrf === "default" ? "" : "vrf "}neighbors`;
+    if (ip !== undefined && !isValidIpv6(ip)) return { output: clickUsageError(cmd, "[IPADDRESS] [[routes|advertised-routes|received-routes]]", `${ip} is not valid ipv6 address`) };
+    if (kind === "advertised-routes" || kind === "received-routes" || kind === "routes") return { output: toLines(renderNeighborRoutes(ctx, ip, kind, vrf, "ipv6")) };
+    return { output: toLines(renderBgpNeighbors(ctx, ip, Date.now(), vrf)) };
+  }
+  return bgpShow(ctx, p, vrf, "ipv6"); // network [<prefix>]
+}
+
+const V4_CMDS: [string, string][] = [
+  ["neighbors", "Show IP (IPv4) BGP neighbors"],
+  ["network", "Show IP (IPv4) BGP network"],
+  ["summary", "Show summarized information of IPv4 BGP state"],
+];
+const V6_CMDS: [string, string][] = [
+  ["neighbors", "Show IPv6 BGP neighbors"],
+  ["network", "Show BGP ipv6 network"],
+  ["summary", "Show summarized information of IPv6 BGP state"],
+];
+show.push(
+  vrfGroup(["ip", "bgp", "vrf"], "ipv4", V4_CMDS),
+  vrfGroup(["ipv6", "bgp", "vrf"], "ipv6", V6_CMDS),
+  clickGroup(["ipv6", "bgp"], "Show IPv6 BGP (Border Gateway Protocol) information", [...V6_CMDS, ["vrf", "Show IPv6 BGP information for a given VRF"]]),
+  ...V6_CMDS.map(([c, h]): SonicCmd => ({ path: ["ipv6", "bgp", c], summary: h, run: (a, ctx) => ipv6BgpShow(ctx, [c, ...positional(a)], "default") })),
+  {
+    path: ["bgp", "device-global"],
+    summary: "Show BGP device global state",
+    // show/bgp_cli.py: BGP_DEVICE_GLOBAL|STATE (tsa_enabled / wcmp_enabled) is never written here
+    run: () => ({ output: [line("No configuration is present in CONFIG DB")] }),
+  },
+);
 show.push(
   { path: ["bgp", "community-list"], summary: "Show BGP community-lists", run: (a, ctx) => ({ output: toLines(renderCommunityLists(ctx, positional(a)[0])) }) },
   { path: ["bgp", "as-path-access-list"], summary: "Show AS-path access-lists", run: (a, ctx) => ({ output: toLines(renderAsPathLists(ctx, positional(a)[0])) }) },

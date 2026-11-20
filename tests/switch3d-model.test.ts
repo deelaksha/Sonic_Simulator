@@ -158,3 +158,23 @@ describe("route summary", () => {
     vi.useRealTimers();
   });
 });
+
+describe("cable colours", () => {
+  it("a chosen colour is stored on the connection, shown on the port, kept by export/import, and Auto resets it", () => {
+    resetAll();
+    S().loadFeatureLab("ospf");
+    const s1 = byName("S1");
+    const e0 = portViews(s1, S().network).find((p) => p.name === "Ethernet0")!;
+    const id = e0.peer!.connectionId!;
+    expect(e0.peer!.cableColor).toBeUndefined(); // automatic by default
+    S().setCableColor(id, "#f97316");
+    expect(S().network.connections.find((c) => c.id === id)!.color).toBe("#f97316");
+    expect(portViews(byName("S1"), S().network).find((p) => p.name === "Ethernet0")!.peer!.cableColor).toBe("#f97316");
+    const json = S().exportLab();
+    S().newLab();
+    expect(S().importLab(json)).toBe(true);
+    expect(S().network.connections.find((c) => c.id === id)!.color).toBe("#f97316");
+    S().setCableColor(id, undefined);
+    expect(S().network.connections.find((c) => c.id === id)!.color).toBeUndefined();
+  });
+});

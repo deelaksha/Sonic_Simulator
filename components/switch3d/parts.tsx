@@ -64,7 +64,7 @@ export interface PortPacket {
 
 /** One network port with its link/activity LED and, when cabled, the plug or transceiver. */
 export function Port({ p, bottom, blinking, selected, onClick, packet }: { p: PortView; bottom?: boolean; blinking: boolean; selected: boolean; onClick(): void; packet?: PortPacket }) {
-  const c = cableColor(p.peer?.deviceType);
+  const c = p.peer?.cableColor ?? cableColor(p.peer?.deviceType);
   const tip = `${p.name} (${p.speedLabel}) — ${p.admin === "down" ? "admin down" : p.oper === "up" ? "link up" : "no link"}${p.peer ? ` · cabled to ${p.peer.deviceName} ${p.peer.ifName}` : " · empty"}`;
   // Activity: the link LED goes dark for one tick when frames moved (bursty blink).
   const led = p.led !== "off" && !blinking ? `on-${p.led}` : "";

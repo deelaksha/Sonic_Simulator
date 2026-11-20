@@ -88,9 +88,12 @@ export function renderFrrRoutes(
   filter?: { network: string; prefix: number },
   vrf = "default",
   omitCodes = false,
+  types?: string[],
 ): string[] {
   let all = entries(device, nowMs).filter((e) => e.vrf === vrf);
   if (filter) all = all.filter((e) => e.dest === filter.network && e.prefix === filter.prefix);
+  // `show ip route static|connected|ospf|bgp|…` (zebra: route type filter; "default" is a static).
+  if (types) all = all.filter((e) => types.includes(e.type === "default" ? "static" : e.type));
   const lines = [...(omitCodes ? [] : FRR_ROUTE_CODES), "", `IPv4 unicast VRF ${vrf}:`];
   const byPrefix = new Map<string, Entry[]>();
   for (const e of all) {
@@ -131,4 +134,24 @@ export function renderFrrRoutes(
     }
   }
   return lines;
+}
+
+/** Longest-prefix match for `show ip route <A.B.C.D>` (zebra rib_match). */
+export function frrRouteLookup(device: Device, nowMs: number, ip: string, vrf = "default"): { network: string; prefix: number } | undefined {
+  const hits = entries(device, nowMs).filter((e) => e.vrf === vrf && !e.inactive && networkAddress(ip, e.prefix) === e.dest);
+  const best = hits.sort((a, b) => b.prefix - a.prefix)[0];
+  return best && { network: best.dest, prefix: best.prefix };
+}
+
+/** Per route-type RIB / FIB counts for `show ip route summary` (zebra vty_show_ip_route_summary). */
+export function frrRouteSummary(device: Device, nowMs: number, vrf = "default"): { type: string; rib: number; fib: number }[] {
+  const counts = new Map<string, { rib: number; fib: number }>();
+  for (const e of entries(device, nowMs).filter((x) => x.vrf === vrf)) {
+    const t = e.type === "default" ? "static" : e.type;
+    const c = counts.get(t) ?? { rib: 0, fib: 0 };
+    c.rib++;
+    if (!e.inactive) c.fib++;
+    counts.set(t, c);
+  }
+  return [...counts].map(([type, c]) => ({ type, ...c }));
 }

@@ -12,6 +12,45 @@ import { RealisticScene } from "@/components/switch3d/RealisticScene";
 import { PacketClock } from "@/components/switch3d/packetPlayer";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 
+type Panel = "devices" | "inspector" | "packets";
+const PANELS_KEY = "lab-panels";
+const PANEL_DEFAULTS: Record<Panel, boolean> = { devices: false, inspector: true, packets: true };
+
+/** Which side panels are open (navbar toggles); remembered per browser. */
+function usePanels() {
+  const [open, setOpen] = useState(PANEL_DEFAULTS);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PANELS_KEY) ?? "{}");
+      setOpen((o) => ({ ...o, ...saved }));
+    } catch {}
+  }, []);
+  const toggle = (p: Panel) =>
+    setOpen((o) => {
+      const next = { ...o, [p]: !o[p] };
+      try {
+        localStorage.setItem(PANELS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  return { open, toggle };
+}
+
+function PanelToggle({ on, onClick, label, title }: { on: boolean; onClick(): void; label: string; title: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={on}
+      className={`rounded border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+        on ? "border-accent-2/60 bg-accent-2/15 text-accent-2" : "border-edge bg-panel-2 text-[#8b98a5] hover:text-[#e6edf3]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function PanelHeader({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="flex items-center justify-between border-b border-edge bg-panel px-3 py-1.5">
@@ -44,6 +83,7 @@ export default function LabPage() {
   );
 
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const panels = usePanels();
   const [firebaseActive, setFirebaseActive] = useState(false);
 
   useEffect(() => {
@@ -109,6 +149,11 @@ export default function LabPage() {
           <span className="text-lg">🛰️</span>
           <span className="text-sm font-semibold">Networking Lab</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <PanelToggle on={panels.open.devices} onClick={() => panels.toggle("devices")} label="＋ Devices" title="Show / hide the device palette (drag a device onto the canvas)" />
+          <PanelToggle on={panels.open.inspector} onClick={() => panels.toggle("inspector")} label="Inspector" title="Show / hide the device editing panel" />
+          <PanelToggle on={panels.open.packets} onClick={() => panels.toggle("packets")} label="Packets" title="Show / hide the packet timeline" />
+        </div>
         <span className="text-[11px] text-[#5f6b7a]">
           build · configure · generate traffic · watch packets · inspect · troubleshoot
         </span>
@@ -163,8 +208,13 @@ export default function LabPage() {
 
       <div className="flex min-h-0 flex-1">
         {/* left: device toolbox */}
-        <aside className="w-56 shrink-0 border-r border-edge bg-panel">
-          <DeviceToolbox />
+        <aside
+          className={`shrink-0 overflow-hidden bg-panel transition-[width] duration-300 ease-out ${panels.open.devices ? "w-56 border-r border-edge" : "w-0"}`}
+          aria-hidden={!panels.open.devices}
+        >
+          <div className="h-full w-56">
+            <DeviceToolbox />
+          </div>
         </aside>
 
         {/* center + right + bottom */}
@@ -192,7 +242,10 @@ export default function LabPage() {
                 {mainMaximized ? "⤡ Restore (Esc)" : "⤢ Full screen"}
               </button>
             </section>
-            <aside className="shrink-0 border-l border-edge bg-panel">
+            <aside
+              className={`shrink-0 overflow-hidden bg-panel transition-[max-width] duration-300 ease-out ${panels.open.inspector ? "max-w-[30rem] border-l border-edge" : "max-w-0"}`}
+              aria-hidden={!panels.open.inspector}
+            >
               <Inspector />
             </aside>
             {/* 3D hardware view: covers canvas + inspector, keeps the terminal usable below */}
@@ -203,7 +256,7 @@ export default function LabPage() {
 
           {/* bottom: terminal + packet timeline */}
           <div className="flex h-[32%] min-h-[210px] border-t border-edge">
-            <section className="flex min-w-0 flex-1 flex-col border-r border-edge bg-[#0a0d12]">
+            <section className="flex min-w-0 flex-1 flex-col bg-[#0a0d12]">
               <PanelHeader
                 title="Terminal"
                 hint={selectedDevice ? selectedDevice.config.hostname : "no device selected"}
@@ -212,10 +265,15 @@ export default function LabPage() {
                 <Terminal />
               </div>
             </section>
-            <section className="flex w-[40%] shrink-0 flex-col bg-panel">
-              <PanelHeader title="Packet timeline" />
-              <div className="min-h-0 flex-1">
-                <PacketTimeline />
+            <section
+              className={`shrink-0 overflow-hidden bg-panel transition-[width] duration-300 ease-out ${panels.open.packets ? "w-[40%] border-l border-edge" : "w-0"}`}
+              aria-hidden={!panels.open.packets}
+            >
+              <div className="flex h-full min-w-[360px] flex-col">
+                <PanelHeader title="Packet timeline" />
+                <div className="min-h-0 flex-1">
+                  <PacketTimeline />
+                </div>
               </div>
             </section>
           </div>

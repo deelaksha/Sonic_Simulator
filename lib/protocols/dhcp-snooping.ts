@@ -43,6 +43,18 @@ export interface SnoopState {
   bindings: SnoopBinding[];
   /** port → DHCP frames dropped there. */
   drops: Record<string, number>;
+  /** `show ip dhcp snooping statistics [detail]` counters (openconfig-dhcp-snooping state). */
+  stats?: SnoopStats;
+}
+
+export interface SnoopStats {
+  /** DHCP messages intercepted / forwarded; bindings added. */
+  rx: number;
+  fwd: number;
+  added: number;
+  /** port → source-MAC verification failures / server messages on an untrusted port. */
+  macFail: Record<string, number>;
+  srvUntrusted: Record<string, number>;
 }
 
 export function peekSnoopState(device: Device): SnoopState | undefined {
@@ -92,13 +104,16 @@ registerDataPlaneHook({
     if (iface.ipv4.length > 0 || !snoopingOn(device, vid)) return true;
     const trusted = isTrusted(device, iface.name);
     const st = featureState<SnoopState>(device, "dhcp-snooping", () => ({ bindings: [], drops: {} }));
-    const drop = () => {
+    const stats = (st.stats ??= { rx: 0, fwd: 0, added: 0, macFail: {}, srvUntrusted: {} });
+    stats.rx++;
+    const drop = (why: Record<string, number>) => {
       st.drops[iface.name] = (st.drops[iface.name] ?? 0) + 1;
+      why[iface.name] = (why[iface.name] ?? 0) + 1;
       return false;
     };
 
     if (fromServer) {
-      if (!trusted) return drop();
+      if (!trusted) return drop(stats.srvUntrusted);
       const d = frame.dhcp;
       if (d?.messageType === "ack" && d.yourIp) {
         const mac = normalizeMac(d.clientMac);
@@ -107,15 +122,18 @@ registerDataPlaneHook({
         if (port && !isTrusted(device, port.name)) {
           st.bindings = st.bindings.filter((b) => !(b.mac === mac && b.vlan === vid));
           st.bindings.push({ mac, ip: d.yourIp, vlan: vid, iface: port.name, lease: d.leaseSeconds ?? 86400, learnedAt: ctx.wallNow() });
+          stats.added++;
         }
       }
+      stats.fwd++;
       return true;
     }
 
     // Client message: source MAC verification on untrusted ports.
     if (!trusted && frame.dhcp && cpGet(device, "dhcp_snooping")?.v4_verify_mac && normalizeMac(frame.ethernet.srcMac) !== normalizeMac(frame.dhcp.clientMac)) {
-      return drop();
+      return drop(stats.macFail);
     }
+    stats.fwd++;
     return true;
   },
 });

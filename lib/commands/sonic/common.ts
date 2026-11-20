@@ -11,6 +11,7 @@ import { SonicFeatureModule, SonicCmd, positional } from "./types";
 import { findInterface, interfaceByName, isSwitch, isHost, isRouter } from "../../models/device";
 import { listVlans, vlanMembers } from "../../models/vlan-ops";
 import { isValidMac, normalizeMac } from "../../models/mac";
+import { ipintutil } from "./ipv6";
 
 function ifaceStatus(ctx: CommandContext): OutputLine[] {
   const out = [
@@ -75,22 +76,6 @@ function macTable(ctx: CommandContext, args: string[] = []): OutputLine[] {
   ];
 }
 
-function ipInterfaces(ctx: CommandContext): OutputLine[] {
-  const out = [
-    line("Interface      IPv4 address/mask      Admin/Oper"),
-    line("-------------  ---------------------  ------------"),
-  ];
-  let any = false;
-  for (const i of ctx.device.interfaces) {
-    for (const a of i.ipv4) {
-      any = true;
-      out.push(line(`${i.name.padEnd(13)}  ${`${a.address}/${a.prefix}`.padEnd(21)}  ${i.adminState}/${i.operState}`));
-    }
-  }
-  if (!any) out.push(muted("(no IPv4 addresses configured)"));
-  return out;
-}
-
 function runningConfig(ctx: CommandContext, section?: string): OutputLine[] {
   const out: OutputLine[] = [];
   const wantVlan = !section || section === "vlan";
@@ -123,7 +108,7 @@ const show: SonicCmd[] = [
   { path: ["interface", "status"], summary: "Interface status", run: (_a, ctx) => ({ output: ifaceStatus(ctx) }) },
   { path: ["mac", "address-table"], summary: "MAC address table", run: (a, ctx) => ({ output: macTable(ctx, a) }) },
   { path: ["mac"], summary: "MAC address table", run: (a, ctx) => ({ output: macTable(ctx, a) }) },
-  { path: ["ip", "interfaces"], summary: "IPv4 interface addresses", run: (_a, ctx) => ({ output: ipInterfaces(ctx) }) },
+  { path: ["ip", "interfaces"], summary: "IPv4 interface addresses", run: (_a, ctx) => ({ output: ipintutil(ctx, "ipv4") }) },
   {
     path: ["running-configuration"],
     summary: "Running configuration",

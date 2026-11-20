@@ -49,6 +49,9 @@ import { stormControlModule } from "./storm-control";
 import { natModule } from "./nat";
 import { mcastModule } from "../../protocols/mcast-show";
 import { mclagModule } from "./mclag";
+import { sysinfoModule } from "./sysinfo";
+import { runcfgModule } from "./runcfg";
+import { buffersModule } from "./buffers";
 const MODULES: SonicFeatureModule[] = [
   countersModule,
   syslogModule,
@@ -92,6 +95,9 @@ const MODULES: SonicFeatureModule[] = [
   natModule,
   mcastModule,
   mclagModule,
+  sysinfoModule,
+  runcfgModule,
+  buffersModule,
 ];
 
 const CONFIG_CMDS: SonicCmd[] = MODULES.flatMap((m) => m.config);

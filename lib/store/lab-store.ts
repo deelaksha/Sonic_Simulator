@@ -31,7 +31,7 @@ import { CloudSyncStatus } from "../firebase/types";
 import { saveSession, loadSession, deleteSession } from "../firebase/session-service";
 import { getAppStorage } from "../firebase/storage-fallback";
 
-const CAPTURE_LIMIT = 800;
+const CAPTURE_LIMIT = 4000; // room for steady control traffic (STP BPDUs, LLDP, OSPF…) plus the last commands
 
 export interface TerminalLine {
   id: string;
@@ -97,6 +97,8 @@ interface LabState {
    *  address then runs DHCP (lib/models/auto-dhcp.ts). */
   connect(aDeviceId: string, aIfaceId: string, bDeviceId: string, bIfaceId: string, opts?: { autoDhcp?: boolean }): ConnectResult;
   disconnect(connectionId: string): void;
+  /** Colour one cable (shown in every view); undefined = back to the automatic colour. */
+  setCableColor(connectionId: string, color: string | undefined): void;
 
   // interface / device config
   setInterfaceIp(deviceId: string, ifaceId: string, address: string, prefix: number): void;
@@ -824,6 +826,15 @@ export const useLabStore = create<LabState>((set, get) => {
       }
     }
     return { ok: true };
+  },
+
+  setCableColor(connectionId, color) {
+    const next = structuredClone(get().network);
+    const c = next.connections.find((x) => x.id === connectionId);
+    if (!c) return;
+    if (color) c.color = color;
+    else delete c.color;
+    set({ network: next });
   },
 
   disconnect(connectionId) {

@@ -110,9 +110,11 @@ registerModal({
     if (args[0]?.toLowerCase() !== "warm-restart") return null; // not ours
     const view = args[1]?.toLowerCase();
 
-    // `check` is a purely operational read — nothing configured to reflect.
+    // `check` (show_warm_restart.j2 check-submodules): no warm reboot is ever in progress in
+    // a lab, so no module has a pending entry — only the table header prints.
     if (view === "check") {
-      return { output: [muted("% show warm-restart check: operational warm-restart state is not simulated (config-plane only)")] };
+      const rule = "-".repeat(62);
+      return { output: [line(rule), line(`${"Module".padEnd(10)}${"Pending Entry".padEnd(80)}`), line(rule)] };
     }
 
     const st: CpState = cpGet(ctx.device, "warm_restart") ?? {};

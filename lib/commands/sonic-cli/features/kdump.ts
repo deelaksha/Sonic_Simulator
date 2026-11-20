@@ -91,7 +91,8 @@ registerModal({
       };
     }
     if (sub === "files" || sub === "log") {
-      return { output: [muted(`% show kdump ${sub}: kernel core dump files are runtime data, not simulated`)] };
+      // sonic_cli_oc_kdump.py:121-127 — no kernel crash has ever been captured on a lab switch.
+      return { output: [line("No kernel core dump files")] };
     }
 
     // status (default): reflect configured admin mode + configured values only.

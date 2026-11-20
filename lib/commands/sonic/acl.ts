@@ -31,6 +31,7 @@
  */
 import { CommandContext, CommandHandler, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
+import { clickGroup } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
 import { Device, interfaceByName } from "../../models/device";
 import {
@@ -312,6 +313,10 @@ const show: SonicCmd[] = [
     summary: "Show ACL rules (optionally for one table / rule)",
     run: (args, ctx) => ({ output: renderRules(ctx, positional(args)[0], positional(args)[1]) }),
   },
+  clickGroup(["acl"], "Show ACL related information", [
+    ["rule", "Show existing ACL rules"],
+    ["table", "Show existing ACL tables"],
+  ]),
 ];
 
 export const aclModule: SonicFeatureModule = { id: "acl", config, show };

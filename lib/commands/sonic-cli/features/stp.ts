@@ -36,6 +36,7 @@ import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpGet, cpUpsert, cpList } from "../config-plane";
 import { getStpBridgeOper } from "../../../protocols/stp-daemon";
 import { NetworkState } from "../../../models/topology";
+import { listVlans, vlanMembers } from "../../../models/vlan-ops";
 
 const intIn = (s: string | undefined, lo: number, hi: number): number | null => {
   const n = Number(s);
@@ -310,7 +311,7 @@ export function renderRunning(dev: Device): OutputLine[] {
   return out;
 }
 
-function renderOper(dev: Device, state?: NetworkState): OutputLine[] {
+function renderOper(dev: Device, state?: NetworkState, keep?: (ifname: string) => boolean): OutputLine[] {
   const st = cpGet(dev, "stp");
   const mode = (st?.mode as string | undefined) ?? "rpvst";
   const oper = state ? getStpBridgeOper(state, dev) : undefined;
@@ -337,6 +338,7 @@ function renderOper(dev: Device, state?: NetworkState): OutputLine[] {
 
     const sortedPorts = Object.values(oper.ports).sort((a, b) => a.portNumber - b.portNumber);
     for (const p of sortedPorts) {
+      if (keep && !keep(p.interfaceName)) continue;
       const r = (roleMap[p.role] ?? p.role).padEnd(8);
       const s = (stateMap[p.state] ?? p.state).padEnd(10);
       const c = String(p.cost).padEnd(10);
@@ -358,7 +360,21 @@ registerModal({
     const a0 = (args[0] ?? "").toLowerCase();
     const a1 = (args[1] ?? "").toLowerCase();
     if (a0 === "running-configuration" && a1 === "spanning-tree") return { output: renderRunning(ctx.device) };
-    if (a0 === "spanning-tree") return { output: renderOper(ctx.device, ctx.network) };
+    if (a0 === "spanning-tree") {
+      if (args.length === 1) return { output: renderOper(ctx.device, ctx.network) };
+      // `show spanning-tree Vlan <id> [interface <if>]` (stp.xml:41-47): the VLAN's member ports.
+      const m = /^vlan(\d*)$/i.exec(args[1]);
+      if (!m) return null; // counters / bpdu-guard / inconsistentports / mst → stp-extra-show
+      const vid = Number(m[1] || args[2]);
+      const rest = args.slice(m[1] ? 2 : 3);
+      if (!Number.isInteger(vid) || (rest.length && rest[0].toLowerCase() !== "interface")) return null;
+      const want = rest.length ? rest.slice(1).join("") : undefined;
+      if (!vlanMembers(ctx.device, vid).length && !listVlans(ctx.device).some((v) => v.id === vid)) {
+        return { output: [err(`% Error: Vlan${vid} not configured`)] };
+      }
+      const members = new Set(vlanMembers(ctx.device, vid).map((x) => x.port));
+      return { output: renderOper(ctx.device, ctx.network, (n) => members.has(n) && (!want || n === want)) };
+    }
     return null;
   },
 });

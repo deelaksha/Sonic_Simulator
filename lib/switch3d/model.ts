@@ -42,6 +42,8 @@ export interface PortPeer {
   deviceType: string;
   ifName: string;
   connectionId?: string;
+  /** Colour the learner gave this cable, if any. */
+  cableColor?: string;
 }
 
 export interface PortView {
@@ -85,7 +87,7 @@ export function peerOf(net: NetworkState, d: Device, iface: NetInterface): PortP
   const pd = net.devices[far.deviceId];
   const pi = pd?.interfaces.find((i) => i.id === far.interfaceId);
   if (!pd || !pi) return undefined;
-  return { deviceId: pd.id, deviceName: pd.name, deviceType: pd.type, ifName: pi.name, connectionId: conn?.id };
+  return { deviceId: pd.id, deviceName: pd.name, deviceType: pd.type, ifName: pi.name, connectionId: conn?.id, cableColor: conn?.color };
 }
 
 function vlanText(iface: NetInterface): string {

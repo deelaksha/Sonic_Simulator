@@ -12,7 +12,7 @@
  * Feature modules live in their own files and are composed in ./index.ts, which
  * lets features be added independently (one file each) without merge conflicts.
  */
-import { CommandContext, CommandResult } from "../types";
+import { CommandContext, CommandResult, OutputLine, line, err } from "../types";
 
 export interface SonicCmd {
   /** Tokens after `config`/`show`, e.g. ["vlan","member","add"] or ["vlan"]. */
@@ -43,4 +43,42 @@ export function matchSonic(cmds: SonicCmd[], tokens: string[]): { cmd: SonicCmd;
 /** Positional (non-flag) tokens. */
 export function positional(args: string[]): string[] {
   return args.filter((a) => !a.startsWith("-"));
+}
+
+/**
+ * What Click prints for a group invoked without a sub-command (no invoke_without_command):
+ * usage, the group's docstring, options, and the sub-command list with their short help.
+ */
+export function clickGroupUsage(path: string, help: string, commands: [string, string][]): OutputLine[] {
+  const w = Math.max(...commands.map(([n]) => n.length), 14) + 2;
+  return [
+    line(`Usage: ${path} [OPTIONS] COMMAND [ARGS]...`),
+    line(""),
+    line(`  ${help}`),
+    line(""),
+    line("Options:"),
+    line("  -?, -h, --help  Show this message and exit."),
+    line(""),
+    line("Commands:"),
+    ...commands.map(([n, h]) => line(`  ${n.padEnd(w)}${h}`)),
+  ];
+}
+
+/** Click 7.0 usage error (UsageError.show): usage, help hint, blank, message. */
+export function clickUsageError(cmd: string, usageArgs: string, msg: string): OutputLine[] {
+  return [line(`Usage: ${cmd} [OPTIONS]${usageArgs ? ` ${usageArgs}` : ""}`), line(`Try "${cmd} -h" for help.`), line(""), err(`Error: ${msg}`)];
+}
+
+/** A Click group (no invoke_without_command): its help when bare, "No such command" otherwise. */
+export function clickGroup(path: string[], help: string, cmds: [string, string][], bare?: (ctx: CommandContext) => OutputLine[]): SonicCmd {
+  const full = `show ${path.join(" ")}`;
+  return {
+    path,
+    summary: help,
+    run(args, ctx) {
+      const sub = positional(args)[0];
+      if (!sub) return { output: bare ? bare(ctx) : clickGroupUsage(full, help, cmds) };
+      return { output: clickUsageError(full, "COMMAND [ARGS]...", `No such command "${sub}".`) };
+    },
+  };
 }

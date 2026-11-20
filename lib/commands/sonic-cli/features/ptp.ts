@@ -23,6 +23,7 @@ import { line, err, muted, OutputLine } from "../../types";
 import { Device } from "../../../models/device";
 import { registerModal } from "../registry";
 import { cpSet, cpUnset, cpUpsert, cpRemove, cpGet, CpState } from "../config-plane";
+import { ptpOperShow } from "./ptp-oper-show";
 
 const MODES = ["boundary-clock", "end-to-end-transparent-clock", "disable"];
 const TRANSPORTS = ["l2", "ipv4", "ipv6"];
@@ -188,7 +189,9 @@ registerModal({
       const p = renderPorts(st);
       return { output: p.length ? p : [muted("No PTP ports configured")] };
     }
-    // Operational views have no config-plane data — the PTP engine is not simulated.
+    // parent / time-property / servo: free-running-clock operational views (ptp-oper-show.ts).
+    const oper = view ? ptpOperShow(ctx.device, st, view) : undefined;
+    if (oper) return { output: oper.map((t) => line(t)) };
     if (view && view !== "clock") {
       return { output: [muted(`% show ptp ${args.slice(1).join(" ")}: operational PTP state is not simulated (config-plane only)`)] };
     }

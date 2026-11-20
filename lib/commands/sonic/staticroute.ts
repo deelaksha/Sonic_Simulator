@@ -12,7 +12,7 @@
  * A route added here lands in ctx.device.routingTable and is read by the packet
  * engine via longestPrefixMatch, so it changes real forwarding (spec §9, §61).
  */
-import { renderFrrRoutes } from "./frr-route";
+import { renderFrrRoutes, frrRouteLookup, frrRouteSummary } from "./frr-route";
 import { vrfOf, vrfNames, DEFAULT_VRF } from "../../models/vrf";
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
@@ -116,6 +116,19 @@ const config: SonicCmd[] = [
   },
 ];
 
+/** show_ip_route_summary_rpc.j2: per-VRF "Route Source / Routes / FIB" table with totals. */
+function routeSummary(ctx: CommandContext, vrfs: string[], notInstalled: boolean): OutputLine[] {
+  const out: string[] = [];
+  vrfs.forEach((v, i) => {
+    const rows = notInstalled ? [] : frrRouteSummary(ctx.device, Date.now(), v);
+    out.push(`Route Source         Routes               FIB  (vrf ${v})`);
+    for (const r of rows) out.push(`${r.type.padEnd(21)}${String(r.rib).padEnd(21)}${String(r.fib).padEnd(18)}`);
+    out.push("------", `Totals               ${String(rows.reduce((s, r) => s + r.rib, 0)).padEnd(21)}${String(rows.reduce((s, r) => s + r.fib, 0)).padEnd(18)}`);
+    if (i < vrfs.length - 1) out.push(" ");
+  });
+  return out.map((t) => line(t));
+}
+
 function renderRoutes(ctx: CommandContext, filter?: Cidr, vrf = DEFAULT_VRF, omitCodes = false): OutputLine[] {
   // FRR zebra format, shared by every route source (lib/commands/sonic/frr-route.ts).
   return renderFrrRoutes(ctx.device, Date.now(), filter, vrf, omitCodes).map((t) => line(t));
@@ -136,10 +149,29 @@ const show: SonicCmd[] = [
         vrfs = name === "all" ? vrfNames(ctx.device) : [name];
         a.splice(vi, 2);
       }
-      const arg = positional(a)[0];
-      const cidr = arg ? parseCidr(arg) : undefined;
-      if (arg && !cidr) return { output: [err(`show ip route: invalid prefix "${arg}"`)] };
-      return { output: vrfs.flatMap((v, i) => renderRoutes(ctx, cidr ?? undefined, v, i > 0)) };
+      // KLISH route-cmd (ipv4.xml:19-59): summary | not-installed [summary] | <proto> | nexthop-group | verbose | <ip> | <prefix>
+      const p = positional(a).filter((x) => x !== "verbose");
+      const arg = p[0];
+      if (arg === "summary" || (arg === "not-installed" && p[1] === "summary")) {
+        return { output: routeSummary(ctx, vrfs, arg === "not-installed") };
+      }
+      const PROTO: Record<string, string> = { static: "static", connected: "connected", bgp: "bgp", ospf: "ospf", "attached-host": "attached-host" };
+      if (arg && (PROTO[arg] || arg === "not-installed")) {
+        // Every route the simulator selects is programmed, so not-installed lists none.
+        const types = arg === "not-installed" ? [] : [PROTO[arg]];
+        return { output: vrfs.flatMap((v, i) => renderFrrRoutes(ctx.device, Date.now(), undefined, v, i > 0, types).map((t) => line(t))) };
+      }
+      if (arg === "nexthop-group" || !arg) return { output: vrfs.flatMap((v, i) => renderRoutes(ctx, undefined, v, i > 0)) };
+      if (isValidIpv4(arg)) {
+        // `show ip route <A.B.C.D>`: the longest-prefix match (zebra rib_match).
+        return { output: vrfs.flatMap((v, i) => {
+          const hit = frrRouteLookup(ctx.device, Date.now(), arg, v);
+          return hit ? renderRoutes(ctx, hit, v, i > 0) : [line("% Network not in table")];
+        }) };
+      }
+      const cidr = parseCidr(arg);
+      if (!cidr) return { output: [err(`show ip route: invalid prefix "${arg}"`)] };
+      return { output: vrfs.flatMap((v, i) => renderRoutes(ctx, cidr, v, i > 0)) };
     },
   },
 ];

@@ -5,6 +5,7 @@ import { useLabStore } from "@/lib/store/lab-store";
 import { Device } from "@/lib/models/device";
 import { ChassisKind, CpuView, HostView, PortView, RouteRow, fmtBps, recentFrames } from "@/lib/switch3d/model";
 import { Fact, Heading, click } from "./parts";
+import { CableSwatches } from "./CableColorPicker";
 
 const LED_MEANING = { off: "off: no link", green: "green: gigabit+ link, blinks with traffic", amber: "amber: 10/100M link, blinks with traffic" };
 
@@ -76,6 +77,12 @@ export function PortInspector({ device, kind, port: p, sound }: { device: Device
         {kind === "switch" && <Fact k="LLDP neighbor" v={p.lldp ? `${p.lldp.sysName ?? p.lldp.chassisId} · ${p.lldp.portId}${p.lldp.mgmtIp ? ` · ${p.lldp.mgmtIp}` : ""}` : "—"} />}
         <Fact k="LED meaning" v={LED_MEANING[p.led]} />
       </div>
+      {p.peer?.connectionId && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-[#5f6b7a]">Cable colour</span>
+          <CableSwatches connectionId={p.peer.connectionId} />
+        </div>
+      )}
 
       <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
