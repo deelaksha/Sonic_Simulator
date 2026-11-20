@@ -8,6 +8,10 @@
  *   - the PC's L2 segment (through switches, same VLAN) is searched for a gateway:
  *     a router / L3 interface or a switch VLAN interface with an IP. If found, the
  *     address comes from that subnet and the gateway is set;
+ *   - a router port on the segment with no address yet becomes the gateway: it
+ *     takes .1 of the PC's subnet (like a home router's LAN side), and PCs on the
+ *     segment without a gateway point at it. This also runs when a bare router
+ *     port is cabled to a segment that already has PCs;
  *   - otherwise a /24 is used: the one another host on the segment already has,
  *     else a fresh 192.168.N.0/24 not used anywhere in the lab.
  * Addresses never collide with any address in the lab; hosts start at .10.
@@ -34,11 +38,25 @@ export function wantsAutoDhcp(d: Device, iface: NetInterface): boolean {
   return d.type === "pc" && !iface.management && iface.ipv4.length === 0 && !isStatic(d, iface.id);
 }
 
+/** Should this router port take the gateway address of its segment automatically? */
+export function wantsAutoGateway(d: Device, iface: NetInterface): boolean {
+  return (d.type === "router" || d.type === "firewall") && !iface.management && iface.ipv4.length === 0 && !isStatic(d, iface.id);
+}
+
+interface PortRef {
+  deviceId: string;
+  ifaceId: string;
+}
+
 interface Segment {
   /** L3 interfaces on the segment (router ports, routed switch ports, SVIs) with an IP. */
   gateways: { address: string; prefix: number }[];
   /** Addresses other hosts on the segment already use. */
   hosts: { address: string; prefix: number }[];
+  /** PC ports on the segment. */
+  hostPorts: PortRef[];
+  /** Router ports on the segment that could become its gateway (wantsAutoGateway). */
+  bareRouters: PortRef[];
 }
 
 function peerOf(net: NetworkState, deviceId: string, ifaceId: string): { deviceId: string; ifaceId: string } | undefined {
@@ -50,7 +68,7 @@ function peerOf(net: NetworkState, deviceId: string, ifaceId: string): { deviceI
 
 /** Walk the broadcast domain a PC port is in: across switch ports in the same VLAN. */
 function segmentOf(net: NetworkState, pcId: string, ifaceId: string): Segment {
-  const seg: Segment = { gateways: [], hosts: [] };
+  const seg: Segment = { gateways: [], hosts: [], hostPorts: [], bareRouters: [] };
   const seen = new Set<string>();
   const queue: { deviceId: string; ifaceId: string; vlan?: number }[] = [];
   const first = peerOf(net, pcId, ifaceId);
@@ -65,6 +83,8 @@ function segmentOf(net: NetworkState, pcId: string, ifaceId: string): Segment {
     if (!isSwitch(d.type)) {
       // router / firewall port = the gateway; another host = a neighbour on the segment
       for (const a of ingress.ipv4) (d.type === "router" || d.type === "firewall" ? seg.gateways : seg.hosts).push(a);
+      if (wantsAutoGateway(d, ingress)) seg.bareRouters.push({ deviceId, ifaceId: inId });
+      else if (d.type === "pc") seg.hostPorts.push({ deviceId, ifaceId: inId });
       continue;
     }
     if (ingress.ipv4.length) {
@@ -89,11 +109,28 @@ export interface AutoLease {
   address: string;
   prefix: number;
   gateway?: string;
+  /** Bare router port that takes `gateway` as its address. */
+  gatewayPort?: PortRef;
+}
+
+function usedAddresses(net: NetworkState): Set<string> {
+  return new Set(Object.values(net.devices).flatMap((d) => d.interfaces.flatMap((i) => i.ipv4.map((a) => a.address))));
+}
+
+/** First unused address of the subnet at or after host number `from`. */
+function freeHost(netAddr: string, prefix: number, from: number, used: Set<string>): string {
+  const size = 2 ** (32 - prefix);
+  const start = ipToInt(netAddr);
+  for (let h = Math.min(from, size - 2); h < size - 1; h++) {
+    const cand = intToIp(start + h);
+    if (!used.has(cand)) return cand;
+  }
+  return "";
 }
 
 /** The lab DHCP's choice for this PC port (see the header). */
 export function autoLease(net: NetworkState, pcId: string, ifaceId: string): AutoLease {
-  const used = new Set(Object.values(net.devices).flatMap((d) => d.interfaces.flatMap((i) => i.ipv4.map((a) => a.address))));
+  const used = usedAddresses(net);
   const usedNets = new Set(Object.values(net.devices).flatMap((d) => d.interfaces.flatMap((i) => i.ipv4.map((a) => networkAddress(a.address, 24)))));
   const seg = segmentOf(net, pcId, ifaceId);
   const base = seg.gateways[0] ?? seg.hosts[0];
@@ -108,15 +145,22 @@ export function autoLease(net: NetworkState, pcId: string, ifaceId: string): Aut
     while (usedNets.has(`192.168.${n}.0`) && n < 254) n++;
     netAddr = `192.168.${n}.0`;
   }
-  const size = 2 ** (32 - prefix);
-  const start = ipToInt(netAddr);
-  let address = "";
-  for (let h = Math.min(10, size - 2); h < size - 1; h++) {
-    const cand = intToIp(start + h);
-    if (!used.has(cand)) {
-      address = cand;
-      break;
-    }
+  if (!seg.gateways.length && seg.bareRouters.length) {
+    const gateway = freeHost(netAddr, prefix, 1, used);
+    used.add(gateway);
+    return { address: freeHost(netAddr, prefix, 10, used), prefix, gateway, gatewayPort: seg.bareRouters[0] };
   }
-  return { address, prefix, gateway: seg.gateways[0]?.address };
+  return { address: freeHost(netAddr, prefix, 10, used), prefix, gateway: seg.gateways[0]?.address };
+}
+
+/**
+ * A bare router port was cabled to a segment whose PCs already have addresses but no
+ * gateway: the port's address (.1 of their subnet) and the PC ports that should use it.
+ */
+export function autoGateway(net: NetworkState, routerId: string, ifaceId: string): { address: string; prefix: number; hosts: PortRef[] } | undefined {
+  const seg = segmentOf(net, routerId, ifaceId);
+  const base = seg.hosts[0];
+  if (seg.gateways.length || !base) return undefined;
+  const address = freeHost(networkAddress(base.address, base.prefix), base.prefix, 1, usedAddresses(net));
+  return address ? { address, prefix: base.prefix, hosts: seg.hostPorts } : undefined;
 }

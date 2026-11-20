@@ -22,7 +22,7 @@ import { sflowAgentTick } from "../sflow/agent";
 import { nextControlDue, runControlTick } from "../control";
 import { getLab, LabApi } from "../labs";
 import { getMission, holds, makeCheckCtx } from "../missions";
-import { autoLease, markStatic, wantsAutoDhcp } from "../models/auto-dhcp";
+import { autoGateway, autoLease, isStatic, markStatic, wantsAutoDhcp, wantsAutoGateway } from "../models/auto-dhcp";
 import { startCollector, stopCollector, resetCollector } from "../sflow/collector";
 import { isSwitch } from "../models/device";
 import { cliModeFor, runSonicCli, enterSonicCli, CliStack, cliPrompt } from "../commands/sonic-cli";
@@ -573,6 +573,13 @@ export const useLabStore = create<LabState>((set, get) => {
       iface.ipv4 = [{ address: lease.address, prefix: lease.prefix }];
       if (lease.gateway) dev.config.defaultGateway = lease.gateway;
       rebuildConnectedRoutes(dev);
+      const gw = lease.gatewayPort && draft.devices[lease.gatewayPort.deviceId];
+      const gwIface = gw?.interfaces.find((i) => i.id === lease.gatewayPort!.ifaceId);
+      if (gw && gwIface && lease.gateway) {
+        gwIface.ipv4 = [{ address: lease.gateway, prefix: lease.prefix }];
+        rebuildConnectedRoutes(gw);
+        lines.push(`${gw.config.hostname} ${gwIface.name} had no address — it became this segment's gateway ${lease.gateway}/${lease.prefix}`);
+      }
       const leases = ((dev.config.features ??= {}).dhclientLeases ??= {}) as Record<string, unknown>;
       leases[iface.name] = { address: lease.address, prefix: lease.prefix, server: "lab DHCP (simulated)", gateway: lease.gateway };
       lines.push(
@@ -585,6 +592,27 @@ export const useLabStore = create<LabState>((set, get) => {
       { text: `# cable connected on ${iface.name} — requesting an address with DHCP (set one by hand to make it static)`, kind: "output", lineKind: "muted" },
       ...lines.map((text) => ({ text, kind: "output" as const })),
     ]);
+  };
+
+  /** A bare router port was cabled next to PCs that have no gateway: it becomes theirs. */
+  const autoRouterGateway = (deviceId: string, ifaceId: string): void => {
+    const draft = structuredClone(get().network);
+    const r = autoGateway(draft, deviceId, ifaceId);
+    const dev = draft.devices[deviceId];
+    const iface = dev?.interfaces.find((i) => i.id === ifaceId);
+    if (!r || !dev || !iface) return;
+    iface.ipv4 = [{ address: r.address, prefix: r.prefix }];
+    rebuildConnectedRoutes(dev);
+    const pcs: string[] = [];
+    for (const h of r.hosts) {
+      const pc = draft.devices[h.deviceId];
+      if (!pc || pc.config.defaultGateway || isStatic(pc, h.ifaceId)) continue;
+      pc.config.defaultGateway = r.address;
+      pcs.push(h.deviceId);
+    }
+    set({ network: draft });
+    get().appendTerminal(deviceId, [{ text: `# cable connected on ${iface.name} — no address set, took ${r.address}/${r.prefix} as the gateway for the PCs on this segment`, kind: "output", lineKind: "muted" }]);
+    for (const pc of pcs) get().appendTerminal(pc, [{ text: `default gateway is now ${r.address} (${dev.config.hostname} ${iface.name})`, kind: "output", lineKind: "muted" }]);
   };
 
   /** Stream newly recorded frames into every running tcpdump session. */
@@ -820,9 +848,11 @@ export const useLabStore = create<LabState>((set, get) => {
     set({ network: next });
     if (opts?.autoDhcp) {
       for (const [d, i] of [[aDeviceId, aIfaceId], [bDeviceId, bIfaceId]]) {
-        const dev = next.devices[d];
+        // re-read: the other end's DHCP may already have addressed this port
+        const dev = get().network.devices[d];
         const iface = dev?.interfaces.find((x) => x.id === i);
         if (dev && iface && wantsAutoDhcp(dev, iface)) autoDhcp(d, i);
+        else if (dev && iface && wantsAutoGateway(dev, iface)) autoRouterGateway(d, i);
       }
     }
     return { ok: true };
