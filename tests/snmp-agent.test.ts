@@ -132,9 +132,10 @@ describe("snmpd on SONiC (store, fake time)", () => {
 
     run("S1", "sudo config interface shutdown Ethernet0");
     advance(200);
-    const down = trapOids().filter((t) => t.oid === "IF-MIB::linkDown");
+    const down = trapOids().filter((t) => t.oid === "IF-MIB::linkDown" && t.src === "192.168.100.1");
     expect(down).toHaveLength(1);
-    expect(down[0].src).toBe("192.168.100.1");
+    // the cable's far end (S2 Ethernet0) loses carrier too: its own linkDown (admin up, oper down)
+    expect(trapOids().filter((t) => t.oid === "IF-MIB::linkDown").map((t) => t.src).sort()).toEqual(["192.168.100.1", "192.168.100.2"]);
     const log = nmsRun("snmptrapd -l").split("\n");
     const i = log.findIndex((l) => l.includes("IF-MIB::linkDown"));
     expect(log[i - 1]).toMatch(/^2026-11-17 10:00:\d\d <UNKNOWN> \[UDP: \[192\.168\.100\.1\]:\d+->\[192\.168\.100\.250\]:162\]:$/);
@@ -148,13 +149,13 @@ describe("snmpd on SONiC (store, fake time)", () => {
 
     run("S1", "sudo config interface startup Ethernet0");
     advance(200);
-    expect(trapOids().filter((t) => t.oid === "IF-MIB::linkUp")).toHaveLength(1);
+    expect(trapOids().filter((t) => t.oid === "IF-MIB::linkUp" && t.src === "192.168.100.1")).toHaveLength(1);
 
     // `no snmp-server enable traps` → snmp_linktrapd suppresses link traps.
     S().runCliScript(byName("S1").id, ["configure terminal", "no snmp-server enable traps", "end"]);
     run("S1", "sudo config interface shutdown Ethernet1");
     advance(200);
-    expect(trapOids().filter((t) => t.oid === "IF-MIB::linkDown")).toHaveLength(1);
+    expect(trapOids().filter((t) => t.oid === "IF-MIB::linkDown" && t.src === "192.168.100.1")).toHaveLength(1);
   });
 
   it("tcpdump prints SNMP like print-snmp.c", () => {

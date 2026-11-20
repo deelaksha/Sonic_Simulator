@@ -10,14 +10,15 @@
  *   config aaa authentication fallback   <enable|disable|default>
  *   show aaa                                                 AAA Authentication Information
  *
- * A `tacacs+` login method is rejected because no passkey exists in this sim,
- * matching aaa.txt TC-4/TC-5; bad enums map to the "Invalid input" error
- * (TC-16/TC-17). Authorization/accounting are display-only on the DUT with no
- * config CLI (TC-19/TC-20), so they are intentionally not modelled here.
+ * A `tacacs+` login method is rejected while no TACACS+ global passkey is set
+ * (`config tacacs passkey` / `tacacs-server key`), matching aaa.txt TC-4/TC-5;
+ * bad enums map to the "Invalid input" error (TC-16/TC-17). Authorization/accounting
+ * are display-only on the DUT with no config CLI (TC-19/TC-20), so they are
+ * intentionally not modelled here.
  */
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
-import { featureState } from "../../models/feature-state";
+import { featureState, peekFeatureState } from "../../models/feature-state";
 
 interface AaaState {
   /** Ordered login method-list; empty = default (local). */
@@ -63,7 +64,8 @@ const config: SonicCmd[] = [
       if (methods.some((m) => !VALID_METHODS.includes(m))) {
         return { output: [err(INVALID_INPUT)] };
       }
-      if (methods.includes("tacacs+")) {
+      // TACPLUS|global passkey (aaa_table_hard_dependency_check, config/main.py:2652-2661)
+      if (methods.includes("tacacs+") && !peekFeatureState<{ globalKey?: string }>(ctx.device, "tacacs")?.globalKey) {
         return { output: [err(TACACS_NO_PASSKEY)] };
       }
       st.loginMethods = methods;

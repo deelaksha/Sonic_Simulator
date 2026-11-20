@@ -18,7 +18,7 @@
  *   config router ospf area <id> range <cidr> [not-advertise|advertise|cost <n>]
  *   config router ospf area <id> default-cost <n>
  *   config router ospf no area <id> [stub|nssa [no-summary]|range <cidr>|default-cost]
- *   config router ospf redistribute connected|static|bgp|kernel [metric <n>] [metric-type 1|2]
+ *   config router ospf redistribute connected|static|bgp|kernel [metric <n>] [metric-type 1|2] [route-map <name>]
  *   config router ospf no redistribute <proto>
  *   config router ospf default-information originate [always] [metric <n>] [metric-type 1|2]
  *   config router ospf no default-information originate
@@ -105,9 +105,9 @@ const rangeNum = (tok: string | undefined, lo: number, hi: number) => {
   return tok !== undefined && /^\d+$/.test(tok) && n >= lo && n <= hi ? n : null;
 };
 
-/** `[metric <0-16777214>] [metric-type 1|2]` (ospf.xml:1057 RANGE_0_16777214 / RANGE_1_2). */
-function metricOpts(toks: string[]): { metric?: number; metricType?: 1 | 2 } | string {
-  const out: { metric?: number; metricType?: 1 | 2 } = {};
+/** `[metric <0-16777214>] [metric-type 1|2] [route-map <name>]` (ospf.xml:1057 RANGE_0_16777214 / RANGE_1_2). */
+function metricOpts(toks: string[], allowRouteMap = false): { metric?: number; metricType?: 1 | 2; routeMap?: string } | string {
+  const out: { metric?: number; metricType?: 1 | 2; routeMap?: string } = {};
   for (let i = 0; i < toks.length; i += 2) {
     if (toks[i] === "metric") {
       const n = rangeNum(toks[i + 1], 0, 16777214);
@@ -116,6 +116,8 @@ function metricOpts(toks: string[]): { metric?: number; metricType?: 1 | 2 } | s
     } else if (toks[i] === "metric-type") {
       if (toks[i + 1] !== "1" && toks[i + 1] !== "2") return "metric-type must be 1 or 2";
       out.metricType = Number(toks[i + 1]) as 1 | 2;
+    } else if (allowRouteMap && toks[i] === "route-map" && toks[i + 1]) {
+      out.routeMap = toks[i + 1];
     } else return `unknown option '${toks[i]}'`;
   }
   return out;
@@ -380,12 +382,12 @@ const config: SonicCmd[] = [
   },
   {
     path: ["router", "ospf", "redistribute"],
-    summary: "Redistribute routes into OSPF as type-5 LSAs (connected|static|bgp|kernel [metric <n>] [metric-type 1|2])",
+    summary: "Redistribute routes into OSPF as type-5 LSAs (connected|static|bgp|kernel [metric <n>] [metric-type 1|2] [route-map <name>])",
     run(args, ctx): CommandResult {
       const pos = positional(args);
       const proto = pos[0] as RedistProto;
       if (!["connected", "static", "bgp", "kernel"].includes(proto)) return { output: [err(`config router ospf redistribute: protocol must be connected, static, bgp or kernel (got '${pos[0] ?? ""}')`)] };
-      const m = metricOpts(pos.slice(1));
+      const m = metricOpts(pos.slice(1), true);
       if (typeof m === "string") return { output: [err(`config router ospf redistribute: ${m}`)] };
       const st = state(ctx);
       st.redistribute = [...(st.redistribute ?? []).filter((r) => r.protocol !== proto), { protocol: proto, ...m }];

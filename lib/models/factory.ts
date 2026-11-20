@@ -13,6 +13,7 @@ import { networkAddress6, isLinkLocal6, sameSubnet6 } from "./ipv6";
 import { Route, carryInstallTime } from "./route";
 import { vrfOf, DEFAULT_VRF } from "./vrf";
 import { resolveStatics } from "./static-routes";
+import { vxlanConfig } from "../protocols/vxlan";
 
 let macCounter = 1;
 
@@ -105,12 +106,18 @@ export function rebuildConnectedRoutes(device: Device): void {
     return;
   }
 
+  if (isSwitch(device.type)) refreshSviOperState(device);
+
   // Static and protocol-learned (OSPF/BGP) routes survive a connected-route rebuild.
   const statics = device.routingTable.filter((r) => r.type !== "connected" && r.type !== "default");
   const derived: Route[] = [];
 
   for (const iface of device.interfaces) {
     if (iface.operState !== "up" && iface.adminState !== "up") continue;
+    // zebra withdraws the connected route of an operationally down interface
+    // (if_down → connected_down): an SVI without an up member, a cabled routed
+    // port whose far end is down.
+    if (isSwitch(device.type) && !iface.management && (iface.logical ? iface.operState !== "up" : portDown(iface))) continue;
     const vrf = vrfOf(device, iface);
     for (const addr of iface.ipv4) {
       derived.push({
@@ -151,6 +158,42 @@ export function rebuildConnectedRoutes(device: Device): void {
 }
 
 /**
+ * SVI autostate (enabled by default on the device: sonic_cli_vlan.py reports
+ * "autostate Enable"): VlanN is operationally up only while at least one of its
+ * member ports (access/trunk switchports and PortChannels, not routed ports) is
+ * up (see portDown). A VLAN without any member port is left as it is, as is a
+ * VLAN mapped to a VXLAN VNI (the VTEP is a bridge member too).
+ */
+/**
+ * A front-panel port counts as down when it is shut or has no carrier — an
+ * unplugged port included (zebra: if_is_operative needs the link up, so an
+ * address on an unplugged port has no connected route, as on the device).
+ */
+const portDown = (i: NetInterface) => i.adminState !== "up" || i.operState !== "up";
+
+function refreshSviOperState(device: Device): void {
+  const vnis = new Set(vxlanConfig(device)?.maps.map((m) => m.vlan) ?? []);
+  for (const svi of device.interfaces) {
+    const m = svi.logical ? /^Vlan(\d+)$/.exec(svi.name) : null;
+    if (!m) continue;
+    const id = Number(m[1]);
+    const members = device.interfaces.filter(
+      (i) =>
+        !i.management &&
+        !i.name.includes(".") &&
+        !i.ipv4.length &&
+        (!i.logical || i.name.startsWith("PortChannel")) &&
+        ((i.vlan.mode === "access" && i.vlan.accessVlan === id) || (i.vlan.mode === "trunk" && i.vlan.allowedVlans.includes(id))),
+    );
+    if (!members.length || vnis.has(id)) {
+      if (svi.adminState === "up") svi.operState = "up";
+      continue;
+    }
+    svi.operState = svi.adminState === "up" && members.some((i) => !portDown(i)) ? "up" : "down";
+  }
+}
+
+/**
  * Rebuild connected + default IPv6 routes from interface addressing + the
  * configured v6 gateway. Link-local (fe80::/10) addresses do not create global
  * routes. Static v6 routes are preserved.
@@ -172,6 +215,7 @@ export function rebuildConnectedRoutes6(device: Device): void {
   for (const iface of device.interfaces) {
     if (iface.operState !== "up" && iface.adminState !== "up") continue;
     if (iface.management && isSwitch(device.type)) continue;
+    const vrf = vrfOf(device, iface);
     for (const addr of iface.ipv6 ?? []) {
       if (isLinkLocal6(addr.address)) continue;
       derived.push({
@@ -181,6 +225,7 @@ export function rebuildConnectedRoutes6(device: Device): void {
         interfaceId: iface.id,
         type: "connected",
         metric: 0,
+        ...(vrf !== DEFAULT_VRF ? { vrf } : {}),
       });
     }
   }

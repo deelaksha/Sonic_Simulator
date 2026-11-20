@@ -184,9 +184,14 @@ function runClient(o: Opts, ctx: CommandContext): CommandResult {
     out.push(err("iperf3: error - unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection refused"));
     return { output: out };
   }
-  const hops = traceFlowPath(net, ctx.device.id, dstIp);
+  // The control connection is TCP to the server port (also for -u tests).
+  const hops = traceFlowPath(net, ctx.device.id, dstIp, { proto: "tcp", srcPort: 40000, dstPort: o.port });
   if (!hops) {
-    out.push(err("iperf3: error - unable to connect to server: No route to host"));
+    // Routed but the SYN is filtered (ACL) → connect() times out; otherwise unreachable.
+    const filtered = traceFlowPath(net, ctx.device.id, dstIp) !== null;
+    out.push(err(filtered
+      ? "iperf3: error - unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection timed out"
+      : "iperf3: error - unable to connect to server: No route to host"));
     return { output: out };
   }
   srv.tests += 1;

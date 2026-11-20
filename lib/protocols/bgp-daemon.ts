@@ -86,7 +86,7 @@
 import { Device, findInterface, isRouter, isSwitch, interfaceByName } from "../models/device";
 import { NetInterface, primaryIpv4 } from "../models/interface";
 import { Frame, TcpHeader } from "../models/packet";
-import { Route, longestPrefixMatch, longestPrefixMatch6 } from "../models/route";
+import { Route, isSelectedRoute, longestPrefixMatch, longestPrefixMatch6 } from "../models/route";
 import { cidrContains, networkAddress } from "../models/ip";
 import { isLinkLocal6, networkAddress6, sameSubnet6 } from "../models/ipv6";
 import { vrfOf } from "../models/vrf";
@@ -922,6 +922,7 @@ function localPaths(device: Device, cfg: BgpConfig, af: Af, rid: string): Map<st
     const cands: { key: string; metric: number; nextHop?: string }[] = [];
     for (const r of rib) {
       if (r.type !== proto) continue;
+      if (!isSelectedRoute(af === "ipv4" ? device.routingTable : (device.routingTable6 ?? []), r)) continue; // zebra redistributes the selected route only
       if (proto === "connected") {
         const iface = findInterface(device, r.interfaceId);
         if (!iface || iface.management || iface.operState !== "up") continue;

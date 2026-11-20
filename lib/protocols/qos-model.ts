@@ -66,6 +66,10 @@ import { Device, interfaceByName, isSwitch } from "../models/device";
 import { featureState, peekFeatureState } from "../models/feature-state";
 import { recordDrop } from "../control/drops";
 import { Simulation } from "../engine/simulation";
+import { Frame } from "../models/packet";
+import { l4Payload } from "../control/packet";
+import { bytesToFrame } from "../packetgen/frame";
+import { sendTrafficPacket } from "./traffic";
 import type { QosState } from "../commands/sonic/qos";
 import type { PfcState } from "../commands/sonic/qospfc";
 
@@ -196,17 +200,46 @@ export function deviceOwningIp(state: NetworkState, ip: string): Device | undefi
   return Object.values(state.devices).find((d) => d.interfaces.some((i) => i.ipv4.some((a) => a.address === ip)));
 }
 
+/** The flow's own L4 header, so the trace meets the ACLs / policies that would act on it. */
+export interface FlowProbe {
+  proto: "tcp" | "udp";
+  srcPort: number;
+  dstPort: number;
+}
+
+/** Inner frame of a VXLAN packet (UDP/4789), so a flow is followed across the overlay. */
+function vxlanInner(f: Frame): Frame | undefined {
+  if (f.udp?.dstPort !== 4789) return undefined;
+  const b = l4Payload(f);
+  try {
+    return b && b.length >= 8 + 14 ? bytesToFrame(b.slice(8), "") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * Forward path src -> dstIp: one ICMP echo through the real engine on a clone,
- * then a DFS over the echo-request FRAME_SENT edges (ignores flooded copies).
+ * Forward path src -> dstIp: one ICMP echo through the real engine on a clone
+ * (resolves ARP), then — given a probe — one packet with the flow's own L4
+ * header; a DFS over that packet's FRAME_SENT edges (ignores flooded copies).
  */
-export function traceFlowPath(state: NetworkState, srcId: string, dstIp: string): FlowHop[] | null {
+export function traceFlowPath(state: NetworkState, srcId: string, dstIp: string, probe?: FlowProbe): FlowHop[] | null {
   const dst = deviceOwningIp(state, dstIp);
   if (!dst || dst.id === srcId) return null;
   const sim = new Simulation(structuredClone(state), { wallBase: 0 });
   sim.runPing(srcId, dstIp, { count: 1 });
+  let from = 0;
+  let isProbe = (f: Frame) => f.icmp?.type === "echo-request" && f.ipv4?.dstIp === dstIp;
+  if (probe) {
+    from = sim.events.length;
+    const spec = { srcDeviceId: srcId, dstIp, protocol: probe.proto, srcPort: probe.srcPort, dstPort: probe.dstPort, size: 0, count: 1, intervalMs: 0, continuous: false };
+    sendTrafficPacket(sim, sim.state.devices[srcId], spec, 1);
+    isProbe = (f: Frame) => f.ipv4?.dstIp === dstIp && (probe.proto === "tcp" ? f.tcp?.dstPort : f.udp?.dstPort) === probe.dstPort;
+  }
+  const carries = (f: Frame) => isProbe(f) || (() => { const i = vxlanInner(f); return !!i && isProbe(i); })();
   const edges = sim.events
-    .filter((e) => e.type === "FRAME_SENT" && e.link && e.frame?.icmp?.type === "echo-request" && e.frame.ipv4?.dstIp === dstIp)
+    .slice(from)
+    .filter((e) => e.type === "FRAME_SENT" && e.link && e.frame && carries(e.frame))
     .map((e) => e.link!);
   const used = new Set<number>();
   const walk = (dev: string, from: number, inIfId?: string): FlowHop[] | null => {
@@ -573,7 +606,7 @@ function take(carry: number[], k: number, x: number): number {
 export function refreshPaths(state: NetworkState, flows: QosFlow[], nowMs: number): void {
   for (const f of flows) {
     if (f.hops.length && nowMs - f.tracedMs < TRACE_MS) continue;
-    f.hops = traceFlowPath(state, f.srcId, f.dstIp) ?? [];
+    f.hops = traceFlowPath(state, f.srcId, f.dstIp, { proto: f.proto, srcPort: f.srcPort, dstPort: f.dstPort }) ?? [];
     f.tracedMs = nowMs;
     f.carry = f.hops.map(() => 0);
     f.dropCarry = f.hops.map(() => 0);
@@ -633,7 +666,7 @@ export function accountTick(state: NetworkState, nowMs: number): boolean {
         q.dropBytes += nd * f.frameBytes;
         const pq = res.ports.get(`${h.dev}|${h.outIf}`)?.queues[hr.queue];
         if (pq && pq.wredDrop > 0) q.wredDropPkts += nd;
-        for (let x = 0; x < nd; x++) recordDrop(dev, h.outIf, "OTHER");
+        for (let x = 0; x < nd; x++) recordDrop(dev, h.outIf, "EGRESS_QUEUE");
       }
       if (k === 0) f.sentPkts += n;
       if (k === f.hops.length - 1) f.deliveredPkts += n;

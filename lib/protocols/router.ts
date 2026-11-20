@@ -51,6 +51,7 @@ function sendIcmpError(
   const srcAddr = primaryIpv4(ingress);
   if (!srcAddr) return; // router interface has no address to source the error from
   ipOutput(ctx, device, {
+    vrf: vrfOf(device, ingress), // icmp_send routes the error in the ingress interface's VRF (l3mdev)
     srcIp: srcAddr.address,
     dstIp: origSrcIp,
     ttl: 64,
@@ -161,6 +162,9 @@ export function routerReceive(
   }
 
   // --- Forwarding ---
+  // Link-layer broadcasts (e.g. a DHCP DISCOVER no relay claimed) are never routed
+  // (Linux ip_forward drops pkt_type != PACKET_HOST; RFC 1812 5.3.5.1).
+  if (isBroadcast(dstMac)) return;
   const newTtl = ip.ttl - 1;
   ctx.emit({
     type: "TTL_DECREMENT",

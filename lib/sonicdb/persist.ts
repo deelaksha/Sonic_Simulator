@@ -139,21 +139,34 @@ export function saveConfig(d: Device, path = DEFAULT_CONFIG_FILE, nowMs = Date.n
 /**
  * Apply a saved snapshot to the device.
  *   mode "reload": flush config + runtime, then load (config reload)
- *   mode "load":   re-apply the file's config, keep daemons/learned tables (config load)
+ *   mode "load":   merge the file's config over the running one, keep daemons/learned
+ *                  tables (config load: `sonic-cfggen -j <file> --write-to-db` is
+ *                  ConfigDBConnector.mod_config, an upsert — rows the file does not
+ *                  name stay). Merged per device object: interfaces, VLANs, static
+ *                  routes/MACs and addresses are unions; a feature store in the file
+ *                  replaces the running store of the same feature.
  */
 export function restoreConfig(d: Device, net: NetworkState, snap: SavedConfig, mode: "reload" | "load"): void {
   d.config.hostname = snap.hostname;
 
-  // Interfaces: physical ports keep identity (cabling); logical ones follow the file.
+  // Interfaces: physical ports keep identity (cabling); logical ones follow the file
+  // (reload) or are added to the running ones (load).
+  const load = mode === "load";
   const saved = new Map(snap.interfaces.map((s) => [s.id, s]));
   const next: NetInterface[] = [];
   for (const cur of d.interfaces) {
     const s = saved.get(cur.id);
     if (!s) {
-      if (!cur.logical) next.push(cur); // hardware cannot disappear
+      if (!cur.logical || load) next.push(cur); // hardware cannot disappear
       continue;
     }
-    next.push(applyIface(cur, s));
+    const [v4, v6] = [cur.ipv4, cur.ipv6];
+    applyIface(cur, s);
+    if (load) {
+      cur.ipv4 = [...cur.ipv4, ...v4.filter((a) => !cur.ipv4.some((b) => b.address === a.address))];
+      cur.ipv6 = [...cur.ipv6, ...v6.filter((a) => !cur.ipv6.some((b) => b.address === a.address))];
+    }
+    next.push(cur);
   }
   for (const s of snap.interfaces) {
     if (next.some((i) => i.id === s.id) || !s.logical) continue;
@@ -165,13 +178,18 @@ export function restoreConfig(d: Device, net: NetworkState, snap: SavedConfig, m
   }
   d.interfaces = next;
 
-  d.config.vlans = snap.vlans ? clone(snap.vlans) : undefined;
+  if (load) {
+    const vlans = [...(d.config.vlans ?? [])];
+    for (const v of snap.vlans ?? []) if (!vlans.some((x) => x.id === v.id)) vlans.push(clone(v));
+    d.config.vlans = vlans.length ? vlans : d.config.vlans;
+  } else d.config.vlans = snap.vlans ? clone(snap.vlans) : undefined;
 
-  // Features: the file's config stores; preserved stores stay; runtime per mode.
+  // Features: the file's config stores; preserved stores stay; runtime per mode;
+  // config load keeps the running stores the file does not have.
   const cur = d.config.features ?? {};
   const features: Record<string, unknown> = clone(snap.features);
   for (const [k, v] of Object.entries(cur)) {
-    if (PRESERVED_KEYS.has(k) || (mode === "load" && isRuntime(k))) features[k] = v;
+    if (PRESERVED_KEYS.has(k) || (load && (isRuntime(k) || !(k in features)))) features[k] = v;
   }
   d.config.features = features;
 
@@ -183,9 +201,13 @@ export function restoreConfig(d: Device, net: NetworkState, snap: SavedConfig, m
     d.ndpTable = [];
     d.macTable = clone(snap.staticMacs);
   } else {
-    d.routingTable = [...d.routingTable.filter((r) => r.type !== "static"), ...clone(snap.staticRoutes)];
-    d.routingTable6 = [...d.routingTable6.filter((r) => r.type !== "static"), ...clone(snap.staticRoutes6)];
-    d.macTable = [...d.macTable.filter((m) => !m.static), ...clone(snap.staticMacs)];
+    const rk = (r: Route) => `${r.vrf ?? ""}|${r.destination}/${r.prefix}|${r.nextHop ?? ""}`;
+    const mk = (m: MacEntry) => `${m.vlan}|${m.mac.toLowerCase()}`;
+    const fileR = new Set([...snap.staticRoutes, ...snap.staticRoutes6].map(rk));
+    const fileM = new Set(snap.staticMacs.map(mk));
+    d.routingTable = [...d.routingTable.filter((r) => r.type !== "static" || !fileR.has(rk(r))), ...clone(snap.staticRoutes)];
+    d.routingTable6 = [...d.routingTable6.filter((r) => r.type !== "static" || !fileR.has(rk(r))), ...clone(snap.staticRoutes6)];
+    d.macTable = [...d.macTable.filter((m) => !m.static || !fileM.has(mk(m))), ...clone(snap.staticMacs)];
   }
 
   for (const i of d.interfaces) {

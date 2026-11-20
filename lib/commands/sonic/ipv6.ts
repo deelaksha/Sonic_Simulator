@@ -156,8 +156,8 @@ export function renderFrrRoutes6(device: Device, nowMs: number, filter?: { netwo
       }
     }
   }
-  for (const i of vrf === "default" ? device.interfaces : []) {
-    if (i.management || !linkLocalOf(i)) continue;
+  for (const i of device.interfaces) {
+    if (i.management || !linkLocalOf(i) || vrfOf(device, i) !== vrf) continue;
     const since = (device.routingTable6 ?? []).find((r) => r.type === "connected" && r.interfaceId === i.id)?.installedAtMs ?? nowMs;
     all.push({ type: "connected", dest: "fe80::", prefix: 64, distance: 0, metric: 0, nextHop: null, ifName: i.name, since });
   }

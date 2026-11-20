@@ -99,7 +99,10 @@ describe("KLISH show snmp-server (renderer/templates/show_snmp*.j2)", () => {
   it("KLISH interface shutdown sends linkDown via snmp_linktrapd", () => {
     for (const l of ["configure terminal", "interface Ethernet 1", "shutdown", "end"]) S().execCommand(id("S2"), l);
     advance(200);
-    expect(trapNames().filter((n) => n === "IF-MIB::linkDown")).toHaveLength(1);
+    // S2's own linkDown, plus S3's: the far end of the S2–S3 cable loses carrier too
+    expect(trapNames().filter((n) => n === "IF-MIB::linkDown")).toHaveLength(2);
+    const fromS2 = (peekTrapd(byName("NMS"))?.traps ?? []).filter((t) => t.srcIp === "192.168.100.2");
+    expect(fromS2.map((t) => formatOid((decodeMessage(t.bytes).pdu.varbinds[1].value as { value: number[] }).value))).toContain("IF-MIB::linkDown");
   });
 });
 

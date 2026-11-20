@@ -235,6 +235,18 @@ function reconcileHost(d: Device, now: number): void {
   const st = slaacState(d);
   for (const i of d.interfaces) {
     const rs = (st.rs[i.id] ??= { sent: 0 });
+    if (i.adminState !== "up" && (st.routers.some((r) => r.ifId === i.id) || st.addrs.some((a) => a.ifId === i.id))) {
+      // `ip link set <if> down` (addrconf_ifdown): the kernel drops the routes via the
+      // interface, its RA default routers and its autoconfigured addresses; they come
+      // back from the RA answering the Router Solicitation sent when the link is up again.
+      // (Carrier loss alone only marks the routes linkdown and keeps them.)
+      const gone = st.addrs.filter((a) => a.ifId === i.id).map((a) => a.address);
+      i.ipv6 = i.ipv6.filter((x) => !gone.includes(normalizeIpv6(x.address)));
+      st.addrs = st.addrs.filter((a) => a.ifId !== i.id);
+      st.routers = st.routers.filter((r) => r.ifId !== i.id);
+      syncConnected6(d);
+      syncRaRoutes(d, st);
+    }
     if (!up(i) || !ipv6Enabled(i)) {
       rs.sent = 0;
       rs.due = undefined;
@@ -438,7 +450,8 @@ export function renderIp6Route(d: Device, nowMs: number): string[] {
       rows.push({ key: -1n, len: 0, text });
     } else {
       const head = r.prefix === 0 ? "default" : `${r.destination}/${r.prefix}`;
-      const proto = PROTO[r.type] ? ` proto ${PROTO[r.type]}` : "";
+      // A host's `ip -6 route add` route is RTPROT_BOOT, which iproute2 does not print.
+      const proto = PROTO[r.type] && (isRouterLike(d) || r.type !== "static") ? ` proto ${PROTO[r.type]}` : "";
       rows.push({ key: r.prefix === 0 ? -1n : key, len: r.prefix, text: `${head}${r.nextHop ? ` via ${r.nextHop}` : ""} dev ${dev}${proto} metric ${isRouterLike(d) ? 20 : 1024} pref medium` });
     }
   }

@@ -51,6 +51,8 @@ export type PingFailure =
   | "arp-failed"
   | "ndp-failed"
   | "no-egress"
+  | "ttl-exceeded"
+  | "net-unreachable"
   | "timeout";
 
 export interface PingReply {
@@ -180,7 +182,8 @@ export class Simulation implements SimContext {
   emit(e: EmitInput): void {
     if (e.type === "FRAME_DROPPED" || e.type === "ICMP_UNREACHABLE" || e.type === "ICMP_TIME_EXCEEDED") {
       const dev = this.state.devices[e.deviceId];
-      if (dev && (isSwitch(dev.type) || isRouter(dev.type))) recordDrop(dev, e.interfaceName ?? "CPU", classifyDrop(e.message));
+      const reason = classifyDrop(e.message);
+      if (reason && dev && (isSwitch(dev.type) || isRouter(dev.type))) recordDrop(dev, e.interfaceName ?? "CPU", reason);
     }
     this.seq += 1;
     if (this.events.length >= 2500) return;
@@ -400,6 +403,8 @@ export class Simulation implements SimContext {
     if (a.yourIp && a.prefix) {
       iface.ipv4 = [{ address: a.yourIp, prefix: a.prefix }];
       if (a.gateway) client.config.defaultGateway = a.gateway;
+      // dhclient-script make_resolv_conf: option 6 (domain-name-servers) becomes resolv.conf's nameserver.
+      if (a.dns && !isSwitch(client.type)) client.config.features = { ...client.config.features, dns: { nameservers: [a.dns] } };
       rebuildConnectedRoutes(client);
       dhclientLeases(client)[iface.name] = { address: a.yourIp, prefix: a.prefix, server: a.serverIp ?? "", gateway: a.gateway };
     }
@@ -770,7 +775,7 @@ export class Simulation implements SimContext {
   }
 
   // --- Ping orchestration ---
-  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number; size?: number; vrf?: string }): PingSummary {
+  runPing(srcDeviceId: string, dstIp: string, opts?: { count?: number; ttl?: number; size?: number; vrf?: string; oif?: string }): PingSummary {
     const count = opts?.count ?? 4;
     const ttl = opts?.ttl ?? 64;
     const size = opts?.size ?? 56;
@@ -780,7 +785,7 @@ export class Simulation implements SimContext {
     if (src) {
       for (let seq = 1; seq <= count; seq++) {
         this.resetSteps(); // reset runaway hop guard per probe
-        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl, size, opts?.vrf));
+        replies.push(this.pingOnce(src, dstIp, this.icmpId, seq, ttl, size, opts?.vrf, opts?.oif));
         this.advance(5); // small spacing so timestamps differ between probes
       }
     }
@@ -797,9 +802,9 @@ export class Simulation implements SimContext {
     return { dstIp, transmitted: replies.length, received, replies };
   }
 
-  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number, size: number = 56, vrf?: string): PingReply {
+  private pingOnce(src: Device, dstIp: string, id: number, seq: number, ttl: number, size: number = 56, vrf?: string, oif?: string): PingReply {
     // Silent lookup to pick the source address (the egress interface's IP).
-    const match = longestPrefixMatch(src.routingTable, dstIp, vrf);
+    const match = longestPrefixMatch(oif ? src.routingTable.filter((r) => r.interfaceId === oif) : src.routingTable, dstIp, vrf);
     if (!match) {
       this.emit({
         type: "ROUTE_LOOKUP",
@@ -836,6 +841,7 @@ export class Simulation implements SimContext {
     this.echoReplies = [];
     const res = ipOutput(this, src, {
       vrf,
+      oif,
       srcIp: srcAddr.address,
       dstIp,
       ttl,
@@ -862,6 +868,17 @@ export class Simulation implements SimContext {
         bytes: size + 8,
       };
     }
+    // An ICMP error for this probe (TTL expired on the way, router has no route).
+    const icmpErr = this.echoReplies.find(
+      (r) =>
+        r.deviceId === src.id &&
+        (r.frame.icmp?.type === "time-exceeded" || r.frame.icmp?.type === "dest-unreachable") &&
+        r.frame.icmp.identifier === id &&
+        r.frame.icmp.sequence === seq,
+    )?.frame;
+    if (icmpErr?.ipv4) {
+      return { seq, success: false, reason: icmpErr.icmp!.type === "time-exceeded" ? "ttl-exceeded" : "net-unreachable", fromIp: icmpErr.ipv4.srcIp };
+    }
     return { seq, success: false, reason: "timeout" };
   }
 
@@ -869,7 +886,7 @@ export class Simulation implements SimContext {
   runTraceroute(
     srcDeviceId: string,
     dstIp: string,
-    opts?: { maxHops?: number },
+    opts?: { maxHops?: number; vrf?: string },
   ): { dstIp: string; hops: TraceHop[] } {
     const maxHops = opts?.maxHops ?? 30;
     const src = this.state.devices[srcDeviceId];
@@ -877,7 +894,7 @@ export class Simulation implements SimContext {
     if (!src) return { dstIp, hops };
 
     for (let ttl = 1; ttl <= maxHops; ttl++) {
-      const probe = this.traceProbe(src, dstIp, this.icmpId, ttl);
+      const probe = this.traceProbe(src, dstIp, this.icmpId, ttl, opts?.vrf);
       if (probe.reachedDst && probe.fromIp) {
         hops.push({ ttl, reached: true, fromIp: probe.fromIp, rttMs: probe.rttMs });
         break;
@@ -897,8 +914,9 @@ export class Simulation implements SimContext {
     dstIp: string,
     id: number,
     ttl: number,
+    vrf?: string,
   ): { reachedDst: boolean; fromIp?: string; rttMs?: number } {
-    const match = longestPrefixMatch(src.routingTable, dstIp);
+    const match = longestPrefixMatch(src.routingTable, dstIp, vrf);
     if (!match) return { reachedDst: false };
     const egress = findInterface(src, match.route.interfaceId);
     if (!egress || egress.adminState !== "up") return { reachedDst: false };
@@ -909,6 +927,7 @@ export class Simulation implements SimContext {
     const marker = this.events.length;
     this.echoReplies = [];
     const res = ipOutput(this, src, {
+      vrf,
       srcIp: srcAddr.address,
       dstIp,
       ttl,
@@ -962,7 +981,7 @@ export class Simulation implements SimContext {
   }
 
   // --- IPv6 ping (spec §40): ICMPv6 echo over NDP-resolved L2 ---
-  runPing6(srcDeviceId: string, dstIp: string, opts?: { count?: number; hopLimit?: number }): PingSummary {
+  runPing6(srcDeviceId: string, dstIp: string, opts?: { count?: number; hopLimit?: number; vrf?: string }): PingSummary {
     const count = opts?.count ?? 4;
     const hop = opts?.hopLimit ?? 64;
     const src = this.state.devices[srcDeviceId];
@@ -970,7 +989,7 @@ export class Simulation implements SimContext {
     if (src) {
       for (let seq = 1; seq <= count; seq++) {
         this.resetSteps();
-        replies.push(this.ping6Once(src, dstIp, this.icmpId, seq, hop));
+        replies.push(this.ping6Once(src, dstIp, this.icmpId, seq, hop, opts?.vrf));
         this.advance(5);
       }
     }
@@ -985,8 +1004,8 @@ export class Simulation implements SimContext {
     return { dstIp, transmitted: replies.length, received, replies };
   }
 
-  private ping6Once(src: Device, dstIp: string, id: number, seq: number, hop: number): PingReply {
-    const match = longestPrefixMatch6(src.routingTable6 ?? [], dstIp);
+  private ping6Once(src: Device, dstIp: string, id: number, seq: number, hop: number, vrf?: string): PingReply {
+    const match = longestPrefixMatch6(src.routingTable6 ?? [], dstIp, vrf);
     if (!match) {
       this.emit({
         type: "ROUTE_LOOKUP",
@@ -1021,6 +1040,7 @@ export class Simulation implements SimContext {
       icmp6: echo6("echo-request", id, seq),
       upperBytes: ICMP6_ECHO_TOTAL,
       summary: `ICMPv6 echo request id ${id} seq ${seq}`,
+      vrf,
     });
     if (!res.ok) {
       const reason: PingFailure = res.reason === "ndp-failed" ? "ndp-failed" : res.reason ?? "timeout";

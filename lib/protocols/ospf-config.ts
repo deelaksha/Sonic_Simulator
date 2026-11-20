@@ -42,6 +42,8 @@ export interface OspfRedist {
   protocol: RedistProto;
   metric?: number;
   metricType?: 1 | 2;
+  /** `route-map NAME`: deny keeps the route out, `set metric` sets the external metric (ospf_zebra.c ospf_redistribute_check). */
+  routeMap?: string;
 }
 
 /** Interface-level `ip ospf …` parameters (keyed by interface name). */
@@ -65,7 +67,7 @@ export interface OspfConfig {
   ifParams?: Record<string, OspfIfParams>;
   /** auto-cost reference-bandwidth (FRR stores the number as given; default 100000). */
   refBandwidth?: number;
-  /** `redistribute connected|static|bgp|kernel [metric N] [metric-type 1|2]` */
+  /** `redistribute connected|static|bgp|kernel [metric N] [metric-type 1|2] [route-map NAME]` */
   redistribute?: OspfRedist[];
   /** `default-information originate [always] [metric N] [metric-type 1|2]` */
   defaultInfo?: { always?: boolean; metric?: number; metricType?: 1 | 2 };

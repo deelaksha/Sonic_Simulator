@@ -89,8 +89,8 @@ describe("show interfaces <sub> (lacp lab, S1)", () => {
     expect(c).not.toMatch(/^Ethernet0 /m); // PortChannel1 member
     S().execCommand(byName("S1").id, "config vlan add 20");
     S().execCommand(byName("S1").id, "config vlan member add 20 Ethernet3");
-    // (the model turns the port into a trunk; its tagged VLAN lands in the Tagged column)
-    expect(sh("S1", "show interfaces switchport config")).toMatch(/^Ethernet3 +trunk {15}20$/m);
+    // (the port becomes a trunk: untagged member of VLAN 10 still, tagged member of VLAN 20)
+    expect(sh("S1", "show interfaces switchport config")).toMatch(/^Ethernet3 +trunk +10 +20$/m);
     expect(sh("S1", "show interfaces switchport status")).toMatch(/^Ethernet3 +trunk$/m);
   });
 

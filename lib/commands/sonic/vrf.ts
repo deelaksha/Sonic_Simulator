@@ -22,6 +22,7 @@ import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
 import { rebuildConnectedRoutes } from "../../models/factory";
+import { syncConnected6 } from "../../protocols/ipv6";
 import { interfaceByName } from "../../models/device";
 
 interface Vrf {
@@ -63,7 +64,9 @@ const config: SonicCmd[] = [
       st.vrfs = st.vrfs.filter((v) => v.name !== name);
       // Its routes go with it; member interfaces fall back to the default VRF.
       ctx.device.routingTable = ctx.device.routingTable.filter((r) => r.vrf !== name);
+      ctx.device.routingTable6 = (ctx.device.routingTable6 ?? []).filter((r) => r.vrf !== name);
       rebuildConnectedRoutes(ctx.device);
+      syncConnected6(ctx.device);
       return {
         output: [muted(st.vrfs.length < before ? `VRF ${name} deleted` : `VRF ${name} not configured (no-op)`)],
       };
@@ -87,6 +90,7 @@ const config: SonicCmd[] = [
       for (const v of st.vrfs) v.interfaces = v.interfaces.filter((i) => i !== iface);
       vrf.interfaces.push(iface);
       rebuildConnectedRoutes(ctx.device);
+      syncConnected6(ctx.device);
       return { output: [muted(`${iface} bound to VRF ${name}`)] };
     },
   },
@@ -104,6 +108,7 @@ const config: SonicCmd[] = [
       const before = vrf.interfaces.length;
       vrf.interfaces = vrf.interfaces.filter((i) => i !== iface);
       rebuildConnectedRoutes(ctx.device);
+      syncConnected6(ctx.device);
       return {
         output: [
           muted(vrf.interfaces.length < before ? `${iface} unbound from VRF ${name}` : `${iface} not bound to VRF ${name} (no-op)`),

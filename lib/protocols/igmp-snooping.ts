@@ -129,7 +129,7 @@ function leaveGroup(cfg: SnoopVlanCfg, vs: SnoopVlanState, group: string, port: 
 function snoop(ctx: SimContext, device: Device, iface: NetInterface, frame: Frame): void {
   const proto = ipProtoOf(frame);
   if (proto !== IPPROTO_IGMP && proto !== IPPROTO_PIM) return;
-  const vid = ingressVid(iface, frame);
+  const vid = ingressVid(lagOf(device, iface) || iface, frame); // LAG member → the PortChannel's VLANs
   const cfg = snoopConfig(device, vid);
   if (!cfg) return;
   const now = ctx.wallNow();

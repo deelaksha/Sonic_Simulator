@@ -224,7 +224,11 @@ export function sendTrafficPacket(ctx: SimContext, src: Device, spec: TrafficSpe
 export function validateTrafficSpec(spec: TrafficSpec): string | null {
   if (spec.protocol === "engine") {
     if (!spec.packet?.bytes.length) return "build the packet first";
-    if (spec.packet.bytes.length > 9216) return "packet larger than 9216 bytes (jumbo MTU)";
+    // The source is a host: a frame beyond its 1500-byte NIC MTU (+14 Ethernet, +4 with an
+    // 802.1Q tag) is refused by the kernel, as Scapy's sendp() gets "[Errno 90] Message too long".
+    const b = spec.packet.bytes;
+    const tagged = b.length > 13 && b[12] === 0x81 && b[13] === 0x00;
+    if (b.length > 1500 + 14 + (tagged ? 4 : 0)) return "Message too long: the frame exceeds the host NIC MTU (1500 bytes)";
   } else if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(spec.dstIp)) return `invalid destination IP '${spec.dstIp}'`;
   for (const [k, v] of [["source port", spec.srcPort], ["destination port", spec.dstPort]] as const) {
     if ((spec.protocol === "udp" || spec.protocol === "tcp") && (!Number.isInteger(v) || v < 1 || v > 65535)) return `${k} must be 1-65535`;

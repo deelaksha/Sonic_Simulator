@@ -42,6 +42,7 @@ import { ipToInt } from "../models/ip";
 import { isLinkLocal6, networkAddress6, parseIpv6 } from "../models/ipv6";
 import { SimContext } from "../engine/context";
 import { IPV6_NH, registerV6Receiver, transmitIpv6, multicastMac6, ip6Payload, ip6NextHeader, linkLocalOf, ensureLinkLocal } from "./ipv6";
+import { vrfOf } from "../models/vrf";
 import { Ospf6Config, Ospf6IfSpec, ospf6Capable, ospf6Config, ospf6Interfaces, ospf6RouterId, OSPF6_RXMT_DEFAULT } from "./ospf6-config";
 import {
   ALL_SPF6,
@@ -272,7 +273,8 @@ function emit(d: D, oif: Ospf6If | undefined, type: "OSPF_HELLO" | "OSPF_NEIGHBO
 function computeSig(device: Device): string {
   const cfg = liveOspf6Config(device);
   if (!cfg) return "";
-  return JSON.stringify([cfg, device.interfaces.map((i) => [i.id, i.name, i.ipv6, i.ipv4.length ? i.ipv4[0].address : "", i.adminState, i.operState, i.speed])]);
+  // VRF membership too: ospf6d (default VRF) leaves an interface that moves to a VRF.
+  return JSON.stringify([cfg, device.interfaces.map((i) => [i.id, i.name, i.ipv6, i.ipv4.length ? i.ipv4[0].address : "", i.adminState, i.operState, i.speed, vrfOf(device, i)])]);
 }
 
 function newRt(routerId: string, now: number): Ospf6Rt {

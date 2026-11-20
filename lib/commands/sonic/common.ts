@@ -12,21 +12,40 @@ import { findInterface, interfaceByName, isSwitch, isHost, isRouter } from "../.
 import { listVlans, vlanMembers } from "../../models/vlan-ops";
 import { isValidMac, normalizeMac } from "../../models/mac";
 import { ipintutil } from "./ipv6";
+import { natCompare } from "./counters";
+import { lagConfigs } from "../../protocols/lacp-daemon";
 
+/**
+ * `show interfaces status` — scripts/intfutil IntfStatus: header_stat (:460), one row per
+ * front-panel port then per PortChannel (:513-547), natsorted, tabulate "simple" with
+ * stralign='right' (:67-72). Values are the ones the APPL_DB PORT_TABLE / LAG_TABLE
+ * projection holds (lib/sonicdb/appl-state-db.ts: lanes, mtu 9100, alias etpN, oper
+ * down while admin down); Vlan = PortChannel name for a LAG member, "trunk" for a VLAN
+ * member, else "routed" (get_interface_sw_mode_dict :95-113). No FEC / pfc_asym in
+ * APPL_DB and no transceiver in STATE_DB → "N/A".
+ */
 function ifaceStatus(ctx: CommandContext): OutputLine[] {
-  const out = [
-    line("Interface      Lanes    Speed    MTU    Admin      Oper     VLAN mode"),
-    line("-------------  -------  -------  -----  ---------  -------  ----------"),
-  ];
-  ctx.device.interfaces.forEach((i, idx) => {
-    const vlan = i.vlan.mode === "access" ? `access ${i.vlan.accessVlan}` : `trunk`;
-    out.push(
-      line(
-        `${i.name.padEnd(13)}  ${String(idx * 4).padEnd(7)}  ${(i.speed + "M").padEnd(7)}  1500   ${i.adminState.padEnd(9)}  ${i.operState.padEnd(7)}  ${vlan}`,
-      ),
-    );
-  });
-  return out;
+  const d = ctx.device;
+  const lags = lagConfigs(d);
+  const vlanPorts = new Set(listVlans(d).flatMap((v) => vlanMembers(d, v.id).map((m) => m.port)));
+  const mode = (n: string) => lags.find((l) => l.members.includes(n))?.name ?? (vlanPorts.has(n) ? "trunk" : "routed");
+  const speed = (mbps: number) => (mbps >= 1000 ? `${mbps / 1000}G` : `${mbps}M`);
+  const rows: string[][] = [];
+  for (const p of d.interfaces.filter((i) => !i.management && !i.logical)) {
+    const n = Number(/\d+$/.exec(p.name)?.[0] ?? 0);
+    const oper = p.adminState === "up" ? p.operState : "down";
+    rows.push([p.name, String(n + 1), speed(p.speed), "9100", "N/A", `etp${n + 1}`, mode(p.name), oper, p.adminState, "N/A", "N/A"]);
+  }
+  for (const l of lags) {
+    const pc = d.interfaces.find((i) => i.name === l.name);
+    const sp = l.members.reduce((s, m) => s + (d.interfaces.find((i) => i.name === m)?.speed ?? 0), 0);
+    rows.push([l.name, "N/A", sp ? speed(sp) : "N/A", "9100", "N/A", "N/A", vlanPorts.has(l.name) ? "trunk" : "routed", pc?.operState ?? "down", pc?.adminState ?? "up", "N/A", "N/A"]);
+  }
+  rows.sort((a, b) => natCompare(a[0], b[0]));
+  const hdr = ["Interface", "Lanes", "Speed", "MTU", "FEC", "Alias", "Vlan", "Oper", "Admin", "Type", "Asym PFC"];
+  const w = hdr.map((h, c) => Math.max(h.length, ...rows.map((r) => r[c].length)));
+  const fmt = (r: string[]) => r.map((v, c) => v.padStart(w[c])).join("  ");
+  return [line(fmt(hdr)), line(w.map((n) => "-".repeat(n)).join("  ")), ...rows.map((r) => line(fmt(r)))];
 }
 
 /**

@@ -272,6 +272,7 @@ function ospfInstance(d: Device, t: Tables, vrf: string, ospf: OspfConfig): void
     if (rd.metric !== undefined) row.metric = str(rd.metric);
     const mt = metricType(rd.metricType);
     if (mt) row["metric-type"] = mt;
+    if (rd.routeMap) row["route-map"] = rd.routeMap;
     put(t, "OSPFV2_ROUTER_DISTRIBUTE_ROUTE", `${vrf}|${OSPF_PROTO[rd.protocol] ?? rd.protocol.toUpperCase()}|IMPORT`, row);
   }
   if (ospf.defaultInfo) {

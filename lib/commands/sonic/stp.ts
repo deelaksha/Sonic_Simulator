@@ -6,6 +6,7 @@ import { line, err, muted, OutputLine, CommandContext } from "../types";
 import { Device, isSwitch } from "../../models/device";
 import { cpSet, cpGet, cpList } from "../sonic-cli/config-plane";
 import { getStpBridgeOper, stpCounters, StpBridgeOper } from "../../protocols/stp-daemon";
+import { errdisabledPorts } from "../../protocols/errdisable";
 import { listVlans, vlanMembers } from "../../models/vlan-ops";
 import { natCompare } from "./counters";
 import { clickUsageError } from "./types";
@@ -114,7 +115,7 @@ function renderBpduGuard(d: Device): string[] {
   const rows = cpList(d, "stp", "interfaces").filter((r) => r.bpduguard === true && r.enable !== false);
   for (const r of rows.sort((a, b) => natCompare(String(a.ifname), String(b.ifname)))) {
     if (!out.length) out.push(fmt(["PortNum", "Shutdown", "Port Shut"], [17, 13]), fmt(["", "Configured", "due to BPDU guard"], [17, 13]), "-------------------------------------------");
-    out.push(fmt([String(r.ifname), r.bpduguard_shutdown ? "Yes" : "No", r.bpduguard_shutdown ? "No" : "NA"], [17, 13]));
+    out.push(fmt([String(r.ifname), r.bpduguard_shutdown ? "Yes" : "No", r.bpduguard_shutdown ? (errdisabledPorts(d)[String(r.ifname)]?.cause === "bpduguard" ? "Yes" : "No") : "NA"], [17, 13]));
   }
   return out;
 }

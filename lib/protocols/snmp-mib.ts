@@ -13,6 +13,7 @@ import { Device, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Oid, SnmpValue, VarBind, bytesToString, oidCompare, str } from "./snmp-ber";
 import { AgentRuntime } from "./snmp-config";
+import { portDiscards } from "../control/drops";
 
 // ------------------------------------------------------------------ names
 
@@ -330,6 +331,8 @@ export function buildMib(device: Device, rt: AgentRuntime, nowMs: number): MibRo
     const outNU = c((s.txBroadcast ?? 0) + (s.txMulticast ?? 0));
     const inU = c(s.rxFrames - (s.rxBroadcast ?? 0) - (s.rxMulticast ?? 0));
     const outU = c(s.txFrames - (s.txBroadcast ?? 0) - (s.txMulticast ?? 0));
+    // ifIn/OutDiscards: COUNTERS_DB SAI_PORT_STAT_IF_IN/OUT_DISCARDS (rfc1213.py:401-409), as portstat shows them.
+    const disc = portDiscards(device, iface.name);
     const status = (x: "up" | "down") => ({ type: "integer" as const, value: x === "up" ? 1 : 2 });
     const ifType = /^PortChannel/.test(iface.name) ? 161 : /^Vlan/.test(iface.name) ? 136 : 6; // rfc1213.py:569-588
     const c32 = (n: number): SnmpValue => ({ type: "counter32", value: n % 4294967296 });
@@ -337,7 +340,7 @@ export function buildMib(device: Device, rt: AgentRuntime, nowMs: number): MibRo
       { type: "integer", value: row - 1 }, // if_index(): the 0-based id (rfc1213.py:313-319)
       str(iface.name), // alias (no PORT alias in the simulator → the name)
       { type: "integer", value: ifType },
-      { type: "integer", value: 1500 },
+      { type: "integer", value: mgmt ? 1500 : 9100 }, // get_mtu(): APPL_DB PORT/LAG/VLAN_TABLE mtu (rfc1213.py:545-553)
       { type: "gauge32", value: Math.min(4294967295, iface.speed * 1_000_000) },
       str(""), // ifPhysAddress: placeholder '' (rfc1213.py:621-622)
       status(iface.adminState),
@@ -346,13 +349,13 @@ export function buildMib(device: Device, rt: AgentRuntime, nowMs: number): MibRo
       c32(c(s.rxBytes)),
       c32(inU),
       c32(inNU),
-      c32(c(s.rxDropped)),
+      c32(c(disc.rx)),
       c32(0),
       c32(0),
       c32(c(s.txBytes)),
       c32(outU),
       c32(outNU),
-      c32(c(s.txDropped)),
+      c32(c(disc.tx)),
       c32(0),
       { type: "gauge32", value: 0 },
       { type: "oid", value: [0, 0] },

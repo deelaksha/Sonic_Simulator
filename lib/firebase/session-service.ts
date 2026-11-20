@@ -41,6 +41,34 @@ function cleanForFirestore<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
+/**
+ * Firestore rejects nested arrays ("Nested arrays are not supported"), and daemon state
+ * holds them (e.g. bgpd EVPN extended communities, number[][]). The device model fields
+ * travel as JSON strings ("<key>Json") in the Firestore document and are parsed back on read.
+ */
+function packForFirestore<T extends object>(obj: T, keys: (keyof T & string)[]): Record<string, unknown> {
+  const out = { ...obj } as Record<string, unknown>;
+  for (const k of keys) {
+    if (out[k] === undefined) continue;
+    out[`${k}Json`] = JSON.stringify(out[k]);
+    delete out[k];
+  }
+  return out;
+}
+
+function unpackFromFirestore<T>(data: Record<string, unknown>, keys: string[]): T {
+  const out: Record<string, unknown> = { ...data };
+  for (const k of keys) {
+    if (typeof out[`${k}Json`] !== "string") continue;
+    out[k] = JSON.parse(out[`${k}Json`] as string);
+    delete out[`${k}Json`];
+  }
+  return out as T;
+}
+
+const SESSION_JSON_KEYS = ["network", "switches"] as const;
+const SNAPSHOT_JSON_KEYS = ["config", "interfaces", "features"] as const;
+
 function withTimeout<T>(promise: Promise<T>, ms = 1200): Promise<T> {
   let timer: NodeJS.Timeout;
   const timeoutPromise = new Promise<T>((_, reject) => {
@@ -204,10 +232,10 @@ export async function saveSession(params: {
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SESSIONS_COLLECTION, sessionId);
-      const cleanData = cleanForFirestore({
-        ...sessionData,
+      const cleanData = {
+        ...cleanForFirestore(packForFirestore(sessionData, [...SESSION_JSON_KEYS])),
         firebaseUpdatedAt: serverTimestamp(),
-      });
+      };
       await withTimeout(setDoc(docRef, cleanData), 1200);
     } catch (err) {
       console.warn("Failed to write to Firestore, saved to local cache instead", err);
@@ -278,7 +306,7 @@ export async function loadSession(sessionId: string): Promise<CloudSessionData |
       const docRef = doc(db, SESSIONS_COLLECTION, sessionId);
       const snapshot = await withTimeout(getDoc(docRef), 1200);
       if (snapshot.exists()) {
-        const data = snapshot.data() as CloudSessionData;
+        const data = unpackFromFirestore<CloudSessionData>(snapshot.data(), [...SESSION_JSON_KEYS]);
         saveLocalSession(data); // update local cache
         return data;
       }
@@ -348,7 +376,7 @@ export async function saveSwitchSnapshot(
   if (db && isFirebaseConfigured()) {
     try {
       const docRef = doc(db, SWITCH_SNAPSHOTS_COLLECTION, id);
-      await withTimeout(setDoc(docRef, cleanForFirestore(snapshot)), 1200);
+      await withTimeout(setDoc(docRef, cleanForFirestore(packForFirestore(snapshot, [...SNAPSHOT_JSON_KEYS]))), 1200);
     } catch (err) {
       console.warn("Failed to save switch snapshot to Firestore", err);
     }
@@ -367,7 +395,7 @@ export async function listSwitchSnapshots(): Promise<SwitchSnapshot[]> {
       const colRef = collection(db, SWITCH_SNAPSHOTS_COLLECTION);
       const snapshot = await withTimeout(getDocs(colRef), 1200);
       snapshot.forEach((d) => {
-        const item = d.data() as SwitchSnapshot;
+        const item = unpackFromFirestore<SwitchSnapshot>(d.data(), [...SNAPSHOT_JSON_KEYS]);
         seenIds.add(item.id);
         list.push(item);
       });

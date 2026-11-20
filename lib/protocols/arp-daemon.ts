@@ -19,7 +19,7 @@
  *   STALE in use → DELAY → unicast probe 5 s later, up to 3 probes 1 s apart,
  *       then the entry is deleted (FAILED). See ./arp.ts resolveArp.
  *   Carrier/admin down → the interface's dynamic entries are flushed
- *       (neigh_carrier_down / neigh_ifdown).
+ *       (neigh_carrier_down / neigh_ifdown), IPv6 neighbours (ndpTable) included.
  *   Gratuitous ARP (request, sender IP = target IP, broadcast) when an L3
  *       interface comes up — SONiC sets net.ipv4.conf.all.arp_notify=1
  *       (sysctl-net.conf:24; devinet.c NETDEV_UP → inetdev_send_gratuitous_arp) —
@@ -112,6 +112,8 @@ registerDaemon({
       const [wasUp, prevMac = "", prevAddrs = ""] = (prev ?? "0||").split("|");
       if (!isUp(i)) {
         for (const e of device.arpTable.filter((x) => x.interfaceId === i.id && !rt.nb[x.ip]?.perm)) deleteArp(device, e.ip);
+        // neigh_carrier_down / neigh_ifdown flush the IPv6 neighbour table (nd_tbl) too.
+        if (device.ndpTable?.some((x) => x.interfaceId === i.id)) device.ndpTable = device.ndpTable.filter((x) => x.interfaceId !== i.id);
         continue;
       }
       const macChanged = prevMac && prevMac !== i.mac.toUpperCase();

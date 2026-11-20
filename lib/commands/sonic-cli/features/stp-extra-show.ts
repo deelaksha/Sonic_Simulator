@@ -19,6 +19,7 @@ import { Device } from "../../../models/device";
 import { listVlans, vlanMembers } from "../../../models/vlan-ops";
 import { natCompare } from "../../sonic/counters";
 import { stpCounters } from "../../../protocols/stp-daemon";
+import { errdisabledPorts } from "../../../protocols/errdisable";
 
 const L = (ss: string[]): { output: OutputLine[] } => ({ output: ss.map((s) => line(s)) });
 
@@ -53,7 +54,7 @@ function bpduGuard(d: Device): string[] {
   const out = ["PortNum".padEnd(19) + "Shutdown".padEnd(14) + "Port Shut", "".padEnd(19) + "Configured".padEnd(14) + "due to BPDU guard", "-".repeat(49)];
   const rows = cpList(d, "stp", "interfaces").filter((r) => r.bpduguard === true);
   rows.sort((a, b) => natCompare(String(a.ifname), String(b.ifname)));
-  for (const r of rows) out.push(String(r.ifname).padEnd(19) + (r.bpduguard_shutdown ? "Yes" : "No").padEnd(14) + (r.bpduguard_shutdown ? "No" : "NA"));
+  for (const r of rows) out.push(String(r.ifname).padEnd(19) + (r.bpduguard_shutdown ? "Yes" : "No").padEnd(14) + (r.bpduguard_shutdown ? (errdisabledPorts(d)[String(r.ifname)]?.cause === "bpduguard" ? "Yes" : "No") : "NA"));
   return out;
 }
 

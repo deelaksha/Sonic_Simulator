@@ -113,7 +113,7 @@ describe("drops, WRED and PFC", () => {
     expect(queues()[0].dropPkts).toBeGreaterThan(10000);
     expect(queues()[0].dropBytes).toBe(queues()[0].dropPkts * 1506);
     expect(port("Ethernet2").statistics.txDropped).toBe(queues()[0].dropPkts);
-    expect(peekDrops(byName("S1"))?.Ethernet2?.OTHER).toBe(queues()[0].dropPkts);
+    expect(peekDrops(byName("S1"))?.Ethernet2?.EGRESS_QUEUE).toBe(queues()[0].dropPkts);
     expect(queues()[0].occ).toBe(1_048_576); // tail drop: queue full
   });
 

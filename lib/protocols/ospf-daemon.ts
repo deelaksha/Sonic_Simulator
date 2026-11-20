@@ -71,11 +71,12 @@
 import { registerDaemon } from "../control/daemon";
 import { transmitIpv4, multicastMac, ipPayload } from "../control/packet";
 import { bfd } from "../control/bfd-api";
+import { applyRouteMap, policySig } from "./bgp-policy";
 import { logEvent } from "../control/syslog";
 import { Device, findInterface } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame } from "../models/packet";
-import { Route, carryInstallTime } from "../models/route";
+import { Route, carryInstallTime, isSelectedRoute } from "../models/route";
 import { cidrContains, ipToInt, networkAddress, prefixToMask, sameSubnet } from "../models/ip";
 import { DEFAULT_VRF, vrfOf } from "../models/vrf";
 import { SimContext } from "../engine/context";
@@ -412,7 +413,9 @@ function computeSig(device: Device, vrf: string): string {
   const rib = cfg.redistribute?.length || cfg.defaultInfo
     ? device.routingTable.filter((r) => r.type !== "ospf" && (r.vrf ?? DEFAULT_VRF) === vrf).map((r) => [r.type, r.destination, r.prefix, r.nextHop])
     : null;
-  return JSON.stringify([cfg, vrfState, rib, device.interfaces.map((i) => [i.id, i.name, i.ipv4, i.adminState, i.operState, i.speed])]);
+  // Route-map / prefix-list edits re-run redistribution (ospf_routemap.c ospf_route_map_update).
+  const policy = cfg.redistribute?.some((r) => r.routeMap) ? policySig(device) : null;
+  return JSON.stringify([cfg, vrfState, rib, policy, device.interfaces.map((i) => [i.id, i.name, i.ipv4, i.adminState, i.operState, i.speed])]);
 }
 
 function newRt(routerId: string, now: number): OspfRt {
@@ -556,8 +559,9 @@ function nbrDown(d: D, oif: OspfIf, n: OspfNbr, why: string): void {
   const was = n.state;
   setNbrState(d, oif, n, "Down");
   // ospf_nsm.c:631 — interface down = KillNbr (ospf_interface.c:355); dead timer and BFD down = InactivityTimer (ospf_bfd.c:60).
+  // Both run nsm_kill_nbr with next state NSM_Deleted (ospf_nsm.c:481-483), logged as "Deleted".
   if (was !== "Down" && d.cfg.logAdjacencyChanges)
-    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (${d.vrf}) on ${oif.name}:${oif.ip}: ${was} -> Down (${why === "interface down" ? "KillNbr" : "InactivityTimer"})`);
+    logEvent(d.device, d.now, "NOTICE", "bgp#ospfd", `AdjChg: Nbr ${n.rid}, NbrIP ${n.ip} (${d.vrf}) on ${oif.name}:${oif.ip}: ${was} -> Deleted (${why === "interface down" ? "KillNbr" : "InactivityTimer"})`);
   oif.nbrs = oif.nbrs.filter((x) => x !== n);
   emit(d, oif, "OSPF_NEIGHBOR", `OSPF neighbor ${n.rid} (${n.ip}) on ${oif.name} Down: ${why}`);
 }
@@ -1463,12 +1467,20 @@ function externalTask(d: D): void {
   for (const red of cfg.redistribute ?? []) {
     for (const r of device.routingTable) {
       if (PROTO[r.type] !== red.protocol || (r.vrf ?? DEFAULT_VRF) !== d.vrf || r.prefix === 0) continue;
+      if (!isSelectedRoute(device.routingTable, r)) continue; // zebra only redistributes the selected route
       const dest = networkAddress(r.destination, r.prefix);
       if (own.some((o) => o.dest === dest && o.prefix === r.prefix)) continue;
       // Connected networks OSPF already runs on are not redistributed (ospf_distribute_check_connected).
       if (r.type === "connected" && rt.oifs.some((o) => r.prefix >= o.prefix && cidrContains(networkAddress(o.ip, o.prefix), o.prefix, dest))) continue;
       const fwd = r.nextHop && onOspfNet(r.nextHop) ? r.nextHop : ZERO; // ospf_external_lsa_nexthop_get
-      own.push({ dest, prefix: r.prefix, body: encodeExternalBody({ mask: prefixToMask(r.prefix), e2: red.metricType !== 1, metric: red.metric ?? 20, fwd, tag: 0 }) });
+      let metric = red.metric ?? 20;
+      if (red.routeMap) {
+        // ospf_redistribute_check: deny → not redistributed; `set metric` overrides the metric.
+        const a = { origin: 2, asPath: [], nextHop: r.nextHop ?? ZERO, med: undefined as number | undefined, weight: 0 };
+        if (applyRouteMap(device, red.routeMap, { prefix: `${dest}/${r.prefix}`, af: "ipv4", protocol: red.protocol }, a) === "deny") continue;
+        if (a.med !== undefined) metric = a.med;
+      }
+      own.push({ dest, prefix: r.prefix, body: encodeExternalBody({ mask: prefixToMask(r.prefix), e2: red.metricType !== 1, metric, fwd, tag: 0 }) });
     }
   }
   const di = cfg.defaultInfo;

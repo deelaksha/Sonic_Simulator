@@ -28,6 +28,24 @@ export function routeDistance(r: Route): number {
   return r.distance ?? DEFAULT_DISTANCE[r.type];
 }
 
+/**
+ * True when `r` is the route zebra selects for its prefix (rib_choose_best:
+ * lowest distance, then lowest metric, per VRF). Only selected routes are
+ * redistributed to other protocols (zebra_redistribute.c redistribute_update).
+ */
+export function isSelectedRoute(table: Route[], r: Route): boolean {
+  const vrf = r.vrf ?? "default";
+  const d = routeDistance(r);
+  return !table.some(
+    (o) =>
+      o !== r &&
+      o.destination === r.destination &&
+      o.prefix === r.prefix &&
+      (o.vrf ?? "default") === vrf &&
+      (routeDistance(o) < d || (routeDistance(o) === d && o.metric < r.metric)),
+  );
+}
+
 export interface RouteMatch {
   route: Route;
   /** The IP we must actually resolve at L2: next hop, or the destination on a connected route. */

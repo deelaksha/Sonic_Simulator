@@ -158,9 +158,18 @@ export function projectConfigDb(d: Device): Tables {
     for (const a of addrs) put(t, table, `${i.name}|${a}`);
   }
 
+  // DHCP relay servers: leaf-list dhcp_servers on the VLAN row (sonic-vlan.yang:304) or the
+  // interface's base row (sonic-interface.yang:196, sonic-portchannel.yang:263, sonic-loopback-interface.yang:118).
+  for (const [ifname, servers] of Object.entries(peekFeatureState<Record<string, string[]>>(d, "dhcpRelay") ?? {})) {
+    if (!servers.length) continue;
+    const table = /^Vlan\d+$/.test(ifname) ? "VLAN" : intfTable(ifname);
+    if (table === "VLAN" && !t.VLAN?.[ifname]) continue;
+    ((t[table] ??= {})[ifname] ??= {}).dhcp_servers = [...servers];
+  }
+
   // STATIC_ROUTE (sonic-static-route.yang:69-150): key "prefix" or "vrf|prefix"
   // Unresolved (inactive) statics are still configured.
-  for (const r of [...d.routingTable.filter((x) => x.type === "static"), ...inactiveStatics(d)]) {
+  for (const r of [...d.routingTable.filter((x) => x.type === "static"), ...inactiveStatics(d), ...(d.routingTable6 ?? []).filter((x) => x.type === "static")]) {
     const vrf = r.vrf ?? DEFAULT_VRF;
     const key = `${vrf === DEFAULT_VRF ? "" : vrf + "|"}${r.destination}/${r.prefix}`;
     const ifname = d.interfaces.find((i) => i.id === r.interfaceId)?.name ?? "";
@@ -289,6 +298,64 @@ export function projectConfigDb(d: Device): Tables {
     for (const s of ntp.servers) put(t, "NTP_SERVER", s, { association_type: "server", iburst: "on" });
   }
   for (const ns of peekFeatureState<{ nameservers: string[] }>(d, "dns")?.nameservers ?? []) put(t, "DNS_NAMESERVER", ns);
+
+  // AAA / TACACS+ / RADIUS (sonic-system-aaa.yang:28-80, sonic-system-tacacs.yang:51-144,
+  // sonic-system-radius.yang:72-221; field names as sonic-utilities config/aaa.py writes them)
+  const aaa = peekFeatureState<{ loginMethods: string[]; failthrough: boolean; fallback: boolean }>(d, "aaa");
+  if (aaa && (aaa.loginMethods.length || aaa.failthrough || aaa.fallback)) {
+    const row: Row = {};
+    if (aaa.loginMethods.length) row.login = aaa.loginMethods.join(",");
+    if (aaa.failthrough) row.failthrough = "True";
+    if (aaa.fallback) row.fallback = "True";
+    put(t, "AAA", "authentication", row);
+  }
+  type Srv = { ip: string; key?: string; priority?: number; type?: string; timeout?: number; port?: number; vrf?: string };
+  const tac = peekFeatureState<{ servers: Srv[]; globalKey?: string; authType?: string; timeout?: number }>(d, "tacacs");
+  if (tac) {
+    const g: Row = {};
+    if (tac.authType) g.auth_type = tac.authType;
+    if (tac.timeout !== undefined) g.timeout = str(tac.timeout);
+    if (tac.globalKey) g.passkey = tac.globalKey;
+    if (Object.keys(g).length) put(t, "TACPLUS", "global", g);
+    for (const sv of tac.servers) {
+      const row: Row = { tcp_port: str(sv.port ?? 49), priority: str(sv.priority ?? 1) };
+      if (sv.type) row.auth_type = sv.type;
+      if (sv.timeout !== undefined) row.timeout = str(sv.timeout);
+      if (sv.key) row.passkey = sv.key;
+      if (sv.vrf && sv.vrf !== "default") row.vrf = sv.vrf;
+      put(t, "TACPLUS_SERVER", sv.ip, row);
+    }
+  }
+  const rad = peekFeatureState<{ servers: (Srv & { authType?: string; authPort?: number; retransmit?: number; sourceInterface?: string })[]; global: Record<string, string> }>(d, "radius");
+  if (rad) {
+    const leaf: Record<string, string> = { key: "passkey", "auth-type": "auth_type", "nas-ip": "nas_ip", timeout: "timeout", retransmit: "retransmit", statistics: "statistics" };
+    const g: Row = {};
+    for (const [k, v] of Object.entries(rad.global)) if (leaf[k]) g[leaf[k]] = v;
+    if (Object.keys(g).length) put(t, "RADIUS", "global", g);
+    for (const sv of rad.servers) {
+      const row: Row = {};
+      if (sv.authPort !== undefined) row.auth_port = str(sv.authPort);
+      if (sv.key) row.passkey = sv.key;
+      if (sv.authType) row.auth_type = sv.authType;
+      if (sv.priority !== undefined) row.priority = str(sv.priority);
+      if (sv.timeout !== undefined) row.timeout = str(sv.timeout);
+      if (sv.retransmit !== undefined) row.retransmit = str(sv.retransmit);
+      if (sv.vrf) row.vrf = sv.vrf;
+      if (sv.sourceInterface) row.src_intf = sv.sourceInterface;
+      put(t, "RADIUS_SERVER", sv.ip, row);
+    }
+  }
+
+  // Remote syslog (sonic-syslog.yang:92-150), shared by Click `config syslog` and KLISH `logging server`
+  for (const sv of cpList(d, "logging", "servers")) {
+    const row: Row = {};
+    if (sv.source !== undefined) row.source = String(sv.source);
+    if (sv.port !== undefined) row.port = String(sv.port);
+    if (sv.vrf !== undefined) row.vrf = String(sv.vrf);
+    if (sv.protocol !== undefined) row.protocol = String(sv.protocol);
+    if (sv.severity !== undefined) row.severity = String(sv.severity);
+    put(t, "SYSLOG_SERVER", String(sv.host), row);
+  }
 
   // Features whose rows extend the tables above (VRF vni, PORT trust, INTERFACE nat_zone,
   // STATIC_ROUTE track): ./config-db-features.ts

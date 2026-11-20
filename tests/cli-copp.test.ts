@@ -51,17 +51,21 @@ describe("sonic-cli copp modal CLI", () => {
 
   it("no copp-action deletes a single group, leaving the others", () => {
     const { state, device } = sw();
-    session(state, device, ["exec"], ["configure terminal", "copp-action a1", "copp-action a2", "no copp-action a1", "exit"]);
+    session(state, device, ["exec"], ["configure terminal", "copp-action a1", "exit", "copp-action a2", "exit", "no copp-action a1", "exit"]);
     const show = execute("show copp actions", ctxFor(state, device)).output.map((o) => o.text).join("\n");
     expect(show).toContain("CoPP action group a2");
     expect(show).not.toContain("CoPP action group a1");
   });
 
-  it("copp-action emits the Click create message and does not enter a sub-view (stays in config)", () => {
+  it("copp-action creates the group silently and enters copp-action-view (copp.xml), where police/set apply to it", () => {
     const { state, device } = sw();
     const r = runSonicCli("copp-action foo", ["exec", "config"], ctxFor(state, device));
-    expect(r.output.map((o) => o.text).join("\n")).toContain("CoPP action group foo created");
-    expect(r.stack).toEqual(["exec", "config"]); // sub-view entry is deferred
+    expect(r.output).toEqual([]);
+    expect(r.stack[r.stack.length - 1]).toMatch(/^gv:copp-action-view\|.*\|foo$/);
+    const p = runSonicCli("police cir 300 cbs 400", r.stack, ctxFor(state, device));
+    expect(p.output).toEqual([]);
+    const show = execute("show copp actions", ctxFor(state, device)).output.map((o) => o.text).join("\n");
+    expect(show).toContain("police cir 300 cbs 400");
   });
 
   it("copp-action without a name is rejected", () => {

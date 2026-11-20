@@ -8,10 +8,9 @@
  *   config dhcp-relay del <iface> <server-ip>   remove a helper address
  *   show dhcp-relay                             show configured relay helpers
  *
- * NO packet engine is involved: configuring a relay does NOT run a DORA exchange
- * or hand out a lease — the broadcast-relaying engine does not exist yet — so
- * nothing here fabricates lease/DORA output. Only the configured relay state is
- * rendered.
+ * The helpers are stored in features["dhcpRelay"], which the relay data plane
+ * (lib/protocols/dhcp-relay.ts) acts on; nothing here fabricates lease/DORA
+ * output. Only the configured relay state is rendered.
  *
  * SOURCE NOTE: the authoritative sheet dhcp_udaykum.txt documents a DIFFERENT
  * DHCP surface — the "renew dhcp-lease interface Management 0" exec ACTION, which
@@ -27,14 +26,16 @@ import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { featureState, peekFeatureState } from "../../models/feature-state";
 import { isValidIpv4 } from "../../models/ip";
 import { interfaceByName } from "../../models/device";
+import type { DhcpRelayConfig } from "../../protocols/dhcp-relay";
 
-interface DhcpRelayState {
-  /** interface name -> ordered list of DHCP server (helper) IPs. */
-  relays: Record<string, string[]>;
-}
-
-function state(ctx: CommandContext): DhcpRelayState {
-  return featureState<DhcpRelayState>(ctx.device, "dhcp", () => ({ relays: {} }));
+/**
+ * interface name -> ordered list of DHCP server (helper) IPs. The same store the KLISH
+ * `ip dhcp-relay` handler (features/dhcp-relay-agent.ts), the relay data plane
+ * (lib/protocols/dhcp-relay.ts), the running-config and the CONFIG_DB dhcp_servers
+ * projection read: Click and KLISH write one CONFIG_DB leaf-list on the real switch.
+ */
+function relayMap(ctx: CommandContext): DhcpRelayConfig {
+  return featureState<DhcpRelayConfig>(ctx.device, "dhcpRelay", () => ({}));
 }
 
 const config: SonicCmd[] = [
@@ -52,7 +53,7 @@ const config: SonicCmd[] = [
       if (!isValidIpv4(ip)) {
         return { output: [err(`config dhcp-relay add: '${ip}' is not a valid IPv4 address`)] };
       }
-      const relays = state(ctx).relays;
+      const relays = relayMap(ctx);
       if (!relays[iface]) relays[iface] = [];
       if (relays[iface].includes(ip)) {
         return { output: [muted(`DHCP relay ${ip} already configured on ${iface} (no-op)`)] };
@@ -72,7 +73,7 @@ const config: SonicCmd[] = [
       if (!interfaceByName(ctx.device, iface)) {
         return { output: [err(`config dhcp-relay del: interface ${iface} not found on ${ctx.device.name}`)] };
       }
-      const relays = state(ctx).relays;
+      const relays = relayMap(ctx);
       const list = relays[iface] ?? [];
       const idx = list.indexOf(ip);
       if (idx < 0) {
@@ -86,7 +87,7 @@ const config: SonicCmd[] = [
 ];
 
 function renderRelays(ctx: CommandContext): OutputLine[] {
-  const relays = peekFeatureState<DhcpRelayState>(ctx.device, "dhcp")?.relays ?? {};
+  const relays = peekFeatureState<DhcpRelayConfig>(ctx.device, "dhcpRelay") ?? {};
   const ifaces = Object.keys(relays)
     .filter((i) => relays[i].length > 0)
     .sort();

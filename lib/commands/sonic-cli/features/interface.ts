@@ -34,7 +34,8 @@ registerModal({
         // `no switchport access Vlan` takes no id: it DELETEs the port's access-vlan
         // (interface.xml:1059-1062).
         const port = ctx.device.interfaces.find((i) => i.name === name);
-        if (isNo && port?.vlan.mode !== "access") return { output: [] };
+        const hybrid = port?.vlan.mode === "trunk" && port.vlan.nativeVlan !== 1 && port.vlan.nativeVlan === port.vlan.accessVlan;
+        if (isNo && port?.vlan.mode !== "access" && !hybrid) return { output: [] };
         const id = isNo ? String(port?.vlan.accessVlan ?? "") : args[2];
         if (!id) return { output: [err("% VLAN id required.")] };
         return { output: delegate(`config vlan member ${isNo ? `del ${id}` : `add -u ${id}`} ${name}`) };

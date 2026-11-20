@@ -37,7 +37,9 @@ describe("bug 2: static route with an unresolvable next hop", () => {
     expect(longestPrefixMatch(byName("S1").routingTable, "172.16.1.1")).toBeNull();
     expect(click("S1", "show runningconfiguration all")).toContain('"172.16.0.0/16"');
 
-    // The next hop becomes reachable: zebra installs the route.
+    // The next hop becomes reachable (an addressed, cabled port): zebra installs the route.
+    const pc = S().addDevice("pc", { x: 0, y: 0 });
+    S().connect(pc, `${pc}-if0`, byName("S1").id, `${byName("S1").id}-if3`, { autoDhcp: false });
     klish("S1", ["configure terminal", "interface Ethernet 3", "ip address 10.9.9.1/30", "end"]);
     expect(click("S1", "show ip route")).toMatch(/^S>\* 172\.16\.0\.0\/16 \[1\/0\] via 10\.9\.9\.2, Ethernet3, weight 1/m);
     expect(longestPrefixMatch(byName("S1").routingTable, "172.16.1.1")?.route.nextHop).toBe("10.9.9.2");

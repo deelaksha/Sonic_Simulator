@@ -29,6 +29,7 @@ import { getBgpConfig, bgpVrfNames, BgpConfig, BgpAfConfig, BgpNbrAf, BgpNeighbo
 import { BgpListsState } from "../../../protocols/bgp-policy";
 import { cpRunningLines } from "../config-plane";
 import { inactiveStatics } from "../../../models/static-routes";
+import { isLinkLocal6 } from "../../../models/ipv6";
 import { registerRcSection, natCompare, vlanRanges, isSet } from "./registry";
 
 const ifByName = (dev: Device, name: string) => dev.interfaces.find((i) => i.name === name);
@@ -100,7 +101,8 @@ function coreIfLines(dev: Device, i: NetInterface): string[] {
 
 function ipLines(i: NetInterface): string[] {
   const out = i.ipv4.map((a, n) => ` ip address ${a.address}/${a.prefix}${n > 0 ? " secondary" : ""}`);
-  for (const a of i.ipv6) out.push(` ipv6 address ${a.address}/${a.prefix}`);
+  // The kernel's link-local is not configuration (no INTERFACE key, like config-db.ts).
+  for (const a of i.ipv6) if (!isLinkLocal6(a.address)) out.push(` ipv6 address ${a.address}/${a.prefix}`);
   return out;
 }
 
@@ -161,7 +163,7 @@ function ospfBlock(dev: Device, vrf: string, c: OspfConfig): string[] {
       continue;
     }
     const r = c.redistribute?.find((x) => x.protocol === proto);
-    if (r) out.push(` redistribute ${proto}${metric(r.metric, r.metricType)}`);
+    if (r) out.push(` redistribute ${proto}${metric(r.metric, r.metricType)}${r.routeMap ? ` route-map ${r.routeMap}` : ""}`);
   }
   const areas = [...(c.areas ?? [])].sort((a, b) => natCompare(a.id, b.id));
   for (const a of areas) {

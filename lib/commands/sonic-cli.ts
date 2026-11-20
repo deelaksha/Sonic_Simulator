@@ -19,7 +19,9 @@ import { Device, isSwitch } from "../models/device";
 import { createInterface } from "../models/interface";
 import { generateMac } from "../models/mac";
 import { SimEvent } from "../engine";
-import { CommandContext, OutputLine, muted, err } from "./types";
+import { CommandContext, OutputLine, line, muted, err } from "./types";
+import { saveConfig } from "../sonicdb/persist";
+import { rebuildConnectedRoutes, rebuildConnectedRoutes6 } from "../models/factory";
 import { execute } from "./index";
 import { runModalHandlers } from "./sonic-cli/registry";
 import { cpStoreLine } from "./sonic-cli/config-plane";
@@ -174,6 +176,12 @@ function dispatch(raw: string, stack: CliStack, ctx: CommandContext, delegate: D
   if (["ping", "ping6", "traceroute", "traceroute6", "tracepath", "tcpdump", "curl", "ss", "netstat"].includes(cmd)) {
     return stay(delegate(raw));
   }
+  // `write memory` (config_mgmt.xml → sonic_cli_cfg_mgmt.py rpc_write_memory → xfmr_file_mgmt.go
+  // rpc_copy_cb → host config.save): the same snapshot `config save -y` writes to config_db.json.
+  if (cmd === "write" && rest[0]?.toLowerCase() === "memory" && rest.length === 1) {
+    saveConfig(ctx.device);
+    return stay([line("Configuration saved successfully to startup-configuration")]);
+  }
   if (cmd === "write" || cmd === "copy" || cmd === "commit") {
     return stay([muted("running-config is applied live in this simulator (no save needed).")]);
   }
@@ -247,7 +255,12 @@ function configMode(cmd: string, rest: string[], raw: string, stack: CliStack, c
         }
         return stay(delegate(`config portchannel del ${name}`).filter((o) => o.kind === "error"));
       }
+      // The netdev goes away: the kernel flushes its neighbours and zebra its connected routes.
       ctx.device.interfaces = ctx.device.interfaces.filter((i) => i.name !== name);
+      ctx.device.arpTable = ctx.device.arpTable.filter((a) => a.interfaceId !== iface.id);
+      ctx.device.ndpTable = ctx.device.ndpTable.filter((a) => a.interfaceId !== iface.id);
+      rebuildConnectedRoutes(ctx.device);
+      rebuildConnectedRoutes6(ctx.device);
       return stay();
     }
     // Ethernet/Management must already exist; Vlan SVI / Loopback / PortChannel are

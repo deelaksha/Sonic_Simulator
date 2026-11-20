@@ -10,6 +10,7 @@
  *   show interface Loopback [<id>]         show_interface_loopback.j2
  *   show interface Management [0]          show_interface_management.j2 (eth0)
  *   show interface description [<if>]      show_interface_description.j2
+ *   show interface status                  real box capture (klish-show.txt:86)
  *   show interface fec status [<range>]    show_intf_fec_status.j2
  *   show interface link-training [<range>] show_interface_link_training.j2
  *   show interface advertise [<range>]     autoneg advertisement (no template in tree)
@@ -187,6 +188,22 @@ function renderDescription(d: Device, a: IfArg | null): string[] {
   return out;
 }
 
+/**
+ * `show interface status` (real box capture data/device-capture/sflow-live/klish-show.txt:86-90):
+ * Ethernet ports only; data cells are one column wider under Reason than the header.
+ * Alternate Name = the port alias (APPL_DB PORT_TABLE alias, etpN).
+ */
+function renderStatus(d: Device): string[] {
+  const dash = "-".repeat(134);
+  const hdr = "Name".padEnd(20) + "Description".padEnd(30) + "Oper".padEnd(12) + "Reason".padEnd(15) + "AutoNeg".padEnd(10) + "Speed".padEnd(15) + "MTU".padEnd(15) + "Alternate Name".padEnd(20);
+  const out = [dash, hdr, dash];
+  for (const i of ifacesOfType(d, "Ethernet")) {
+    const n = Number(/\d+$/.exec(i.name)?.[0] ?? 0);
+    out.push(displayName(i).padEnd(20) + "-".padEnd(30) + i.operState.padEnd(12) + ifState(i).padEnd(17) + "off".padEnd(10) + String(i.speed).padEnd(15) + String(DEFAULT_MTU).padEnd(15) + `etp${n + 1}`.padEnd(20));
+  }
+  return out;
+}
+
 const ethRange = (d: Device, toks: string[]): NetInterface[] | null => {
   if (!toks.length) return ifacesOfType(d, "Ethernet");
   const a = parseIf(toks);
@@ -361,6 +378,8 @@ function showInterface(a: ModalArgs): { output: OutputLine[] } | null {
   if (!t.length) return L(renderBrief(d));
 
   switch (k0) {
+    case "status":
+      return t.length === 1 ? L(renderStatus(d)) : null;
     case "description": {
       if (t.length === 1) return L(renderDescription(d, null));
       const ia = parseIf(t.slice(1));

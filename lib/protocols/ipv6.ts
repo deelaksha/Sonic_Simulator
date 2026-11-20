@@ -193,11 +193,12 @@ export function syncConnected6(device: Device): boolean {
   for (const iface of device.interfaces) {
     if (iface.operState !== "up" && iface.adminState !== "up") continue;
     if (iface.management && isSwitch(device.type)) continue;
+    const vrf = vrfOf(device, iface); // each VRF is its own IPv6 table, as for IPv4
     for (const a of iface.ipv6) {
       if (isLinkLocal6(a.address)) continue;
       const destination = networkAddress6(a.address, a.prefix);
       if (next.some((r) => r.destination === destination && r.prefix === a.prefix && r.interfaceId === iface.id)) continue;
-      next.push({ destination, prefix: a.prefix, nextHop: null, interfaceId: iface.id, type: "connected", metric: 0 });
+      next.push({ destination, prefix: a.prefix, nextHop: null, interfaceId: iface.id, type: "connected", metric: 0, ...(vrf !== "default" ? { vrf } : {}) });
     }
   }
   const strip = (l: Route[]) => JSON.stringify(l.map(({ installedAtMs: _t, ...rest }) => rest));
@@ -468,6 +469,7 @@ function localEcho6(ctx: SimContext, device: Device, ingress: NetInterface, fram
       icmp6: echo6("echo-reply", icmp6.identifier ?? 0, icmp6.sequence ?? 0),
       upperBytes: ICMP6_ECHO_TOTAL,
       summary: `ICMPv6 echo reply id ${icmp6.identifier} seq ${icmp6.sequence}`,
+      vrf: vrfOf(device, ingress),
     });
     return;
   }
@@ -530,6 +532,7 @@ function sendIcmp6Error(ctx: SimContext, device: Device, ingress: NetInterface, 
     },
     upperBytes: ICMP6_ERROR_UPPER_BYTES,
     summary: `ICMPv6 ${type} → ${ip6.srcIp}`,
+    vrf: vrfOf(device, ingress),
   });
 }
 

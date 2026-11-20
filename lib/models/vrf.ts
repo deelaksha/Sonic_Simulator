@@ -23,7 +23,11 @@ export function vrfNames(device: Device): string[] {
   return [DEFAULT_VRF, ...(st?.vrfs.map((v) => v.name) ?? [])];
 }
 
-/** Does any interface in `vrf` own `ip`? (local delivery is per VRF) */
+/**
+ * Does any interface in `vrf` own `ip`? (local delivery is per VRF). An
+ * admin-down interface's addresses are not local any more (Linux flushes their
+ * local routes on NETDEV_DOWN, fib_disable_ip).
+ */
 export function ownsIpInVrf(device: Device, ip: string, vrf: string): boolean {
-  return device.interfaces.some((i) => vrfOf(device, i) === vrf && i.ipv4.some((a) => a.address === ip));
+  return device.interfaces.some((i) => i.adminState === "up" && vrfOf(device, i) === vrf && i.ipv4.some((a) => a.address === ip));
 }

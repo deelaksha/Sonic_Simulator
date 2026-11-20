@@ -33,12 +33,17 @@ export type DropReason =
   | "DIP_LOCAL_NO_LISTENER"
   | "STORM_CONTROL"
   | "DHCP_SNOOPING"
+  /** Egress queue tail / WRED drop under congestion (qos-model): an OUT discard on the egress port. */
+  | "EGRESS_QUEUE"
   | "OTHER";
 
 /** Per-interface drop counters: { [ifaceName]: { [reason]: count } }. */
 export type DropCounters = Record<string, Partial<Record<DropReason, number>>>;
 
-const RULES: [RegExp, DropReason][] = [
+const RULES: [RegExp, DropReason | null][] = [
+  // acl-daemon's per-rule explanation of a drop the engine then reports itself
+  // as "dropped on ingress/egress by acl" — counted once, under that event.
+  [/: (ingress|egress) ACL \S+ .* denied$/, null],
   [/STP port in BLOCKING/i, "INGRESS_STP_FILTER"],
   [/not allowed on trunk/i, "INGRESS_VLAN_FILTER"],
   [/tagged frame arrived on access port/i, "VLAN_TAG_NOT_ALLOWED"],
@@ -60,7 +65,7 @@ const RULES: [RegExp, DropReason][] = [
   [/no listener/i, "DIP_LOCAL_NO_LISTENER"],
 ];
 
-export function classifyDrop(message: string): DropReason {
+export function classifyDrop(message: string): DropReason | null {
   for (const [re, r] of RULES) if (re.test(message)) return r;
   return "OTHER";
 }
@@ -78,7 +83,7 @@ export function peekDrops(device: Device): DropCounters | undefined {
 // --- port discards (SAI_PORT_STAT_IF_IN/OUT_DISCARDS) -------------------------
 
 /** Drops the simulator attributes to the egress port (counted as TX discards). */
-export const EGRESS_REASONS: readonly DropReason[] = ["ACL_EGRESS_PORT", "L3_EGRESS_LINK_DOWN"];
+export const EGRESS_REASONS: readonly DropReason[] = ["ACL_EGRESS_PORT", "L3_EGRESS_LINK_DOWN", "EGRESS_QUEUE"];
 /** CPU-path drops (CoPP policer, no socket) are not port discards on an ASIC. */
 const NOT_PORT_DISCARDS: readonly DropReason[] = ["COPP_POLICER", "DIP_LOCAL_NO_LISTENER"];
 

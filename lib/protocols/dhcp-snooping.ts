@@ -21,7 +21,7 @@
  * Dynamic ARP inspection is not part of this KLISH model (no `ip arp
  * inspection` in the captured XML), so ARP is not filtered.
  */
-import { registerDataPlaneHook } from "../control/hooks";
+import { lagOf, registerDataPlaneHook } from "../control/hooks";
 import { cpGet, cpList } from "../commands/sonic-cli/config-plane";
 import { Device, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
@@ -94,8 +94,9 @@ const vlanOf = (iface: NetInterface, frame: Frame) =>
 
 registerDataPlaneHook({
   id: "dhcp-snooping",
-  portIngress(ctx, device, iface, frame) {
+  portIngress(ctx, device, member, frame) {
     if (!isSwitch(device.type) || !frame.udp || !device.config.features?.cp_dhcp_snooping) return true;
+    const iface = lagOf(device, member) || member; // a LAG member's bridge port (VLAN, trust) is its PortChannel
     const u = frame.udp;
     const fromServer = frame.dhcp ? ["offer", "ack", "nak"].includes(frame.dhcp.messageType) : u.srcPort === 67 && u.dstPort === 68;
     const fromClient = frame.dhcp ? !fromServer : u.srcPort === 68 && u.dstPort === 67;

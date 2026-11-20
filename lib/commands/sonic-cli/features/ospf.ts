@@ -8,7 +8,7 @@
  *   sonic(config-router-ospf)# network 10.10.3.0/24 area 1
  *   sonic(config-router-ospf)# area 0.0.0.1 stub [no-summary] | nssa [no-summary]
  *   sonic(config-router-ospf)# area 0.0.0.1 range 10.1.0.0/16 [not-advertise|cost N] (ospf.xml:99)
- *   sonic(config-router-ospf)# redistribute connected|static|bgp [metric N] [metric-type 1|2] (ospf.xml:1057)
+ *   sonic(config-router-ospf)# redistribute connected|static|bgp [metric N] [metric-type 1|2] [route-map R] (ospf.xml:1057)
  *   sonic(config-router-ospf)# default-information originate [always] [metric N] [metric-type 1|2] (ospf.xml:580)
  *   sonic(config-router-ospf)# log-adjacency-changes [detail]                    (ospf.xml:763)
  *   sonic(config-router-ospf)# passive-interface Ethernet0 | default     (ospf.xml:1001)
@@ -64,7 +64,6 @@ registerModal({
       return { output: delegate(`${base} ${no}auto-cost reference-bandwidth ${args.slice(1).join(" ")}`) };
     }
     if (head === "redistribute") {
-      if (args.includes("route-map")) return null; // route-maps not modelled
       return { output: delegate(`${base} ${no}redistribute ${(isNo ? args.slice(0, 1) : args).join(" ")}`) };
     }
     if (head === "default-information" && args[0]?.toLowerCase() === "originate") {

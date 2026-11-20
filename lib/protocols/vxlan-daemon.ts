@@ -77,7 +77,7 @@
  * horizon there, aliasing in forwardVirtual).
  */
 import { fdbAgingTime } from "./macaging-daemon";
-import { Device, isSwitch } from "../models/device";
+import { Device, MacEntry, isSwitch } from "../models/device";
 import { NetInterface } from "../models/interface";
 import { Frame, cloneFrame } from "../models/packet";
 import { normalizeMac } from "../models/mac";
@@ -260,6 +260,13 @@ function drop(ctx: SimContext, sw: Device, frame: Frame, why: string): void {
   ctx.emit({ type: "FRAME_DROPPED", deviceId: sw.id, deviceName: sw.name, message: `${sw.name}: VXLAN ${why}`, osiLayers: [2, 3], frame });
 }
 
+/**
+ * Inner frame of each outer packet (keyed by its bytes array, which crosses the
+ * underlay unchanged). frameToBytes serialises only the headers, so model-level
+ * payloads (DHCP, DNS, NTP, ICMP error quotes …) are restored from here on decap.
+ */
+const tunnelled = new WeakMap<number[], Frame>();
+
 function encapsulate(ctx: SimContext, sw: Device, cfg: VxlanConfig, remote: string, vni: number, frame: Frame): void {
   const inner = cloneFrame(frame);
   if (inner.vlan) {
@@ -274,6 +281,7 @@ function encapsulate(ctx: SimContext, sw: Device, cfg: VxlanConfig, remote: stri
   const udpLen = 8 + payload.length;
   const udp = [sport >> 8, sport & 0xff, VXLAN_PORT >> 8, VXLAN_PORT & 0xff, udpLen >> 8, udpLen & 0xff, 0, 0, ...payload]; // checksum 0 (RFC 7348 §5)
   const rawL3 = ipv4Packet({ src: cfg.sourceIp, dst: remote, proto: IPPROTO.UDP, ttl: TTL, payload: udp });
+  tunnelled.set(rawL3, inner);
   const summary = `VXLAN vni ${vni} ${cfg.sourceIp} → ${remote} [${inner.meta.summary}]`;
   const r = ipOutput(ctx, sw, { srcIp: cfg.sourceIp, dstIp: remote, ttl: TTL, protocol: "UDP", identification: 0, udp: { srcPort: sport, dstPort: VXLAN_PORT, length: udpLen }, rawL3, upperBytes: 0, summary });
   if (!r.ok) return drop(ctx, sw, frame, `encap to ${remote} failed (${r.reason})`);
@@ -296,6 +304,8 @@ function decapsulate(ctx: SimContext, sw: Device, cfg: VxlanConfig, frame: Frame
   } catch {
     return drop(ctx, sw, frame, `from ${src}: bad inner frame`);
   }
+  const orig = frame.rawL3 && tunnelled.get(frame.rawL3);
+  if (orig) inner = { ...cloneFrame(orig), id: inner.id, rawL3: orig.rawL3 ?? inner.rawL3 };
   inner.meta.summary = innerSummary(inner);
   const st = tunnel(runtime(sw), src, Math.floor(ctx.wallNow()));
   st.rxPkts++;
@@ -344,6 +354,7 @@ registerDataPlaneHook({
       if (sagGateway(sw, vid, arp.targetIp)) return; // the anycast gateway answers locally
       if (cfg.suppress.includes(vid) && suppressArp(ctx, sw, vid, frame)) return;
     }
+    if (frame.icmp6?.type === "neighbor-solicitation" && frame.icmp6.targetAddr && sagGateway(sw, vid, frame.icmp6.targetAddr)) return; // IPv6 anycast gateway: answered locally
     for (const ip of floodList(peekVxlanRuntime(sw), vni)) encapsulate(ctx, sw, cfg, ip, vni, frame);
   },
   forwardVirtual(ctx, sw, entryId, vid, frame) {
@@ -619,8 +630,18 @@ function localSig(device: Device, cfg: VxlanConfig, rt: VxlanRt): string {
 
 /** Bridge entries on a tunnel port that no EVPN route backs (data-plane learned). */
 function unbacked(device: Device, cfg: VxlanConfig, rt: VxlanRt): boolean {
-  if (!evpnActive(device, cfg)) return false;
-  return device.macTable.some((e) => isVirtual(e.interfaceId) && vniForVlan(cfg, e.vlan) !== undefined && rt.macs[mkey(e.vlan, e.mac)]?.vtep !== e.interfaceId.slice(5));
+  return device.macTable.some((e) => staleTunnelEntry(device, cfg, rt, e));
+}
+
+/**
+ * A tunnel entry nothing backs: EVPN does not back it (learning is off on the VXLAN
+ * port), or its VLAN no longer maps to a VNI (`no map vni`) — the VLAN has no tunnel,
+ * so even a data-plane learned entry goes (zebra/fdbsyncd flush the VNI's FDB).
+ */
+function staleTunnelEntry(device: Device, cfg: VxlanConfig, rt: VxlanRt, e: MacEntry): boolean {
+  if (!isVirtual(e.interfaceId)) return false;
+  if (vniForVlan(cfg, e.vlan) !== undefined && !evpnActive(device, cfg)) return false;
+  return rt.macs[mkey(e.vlan, e.mac)]?.vtep !== e.interfaceId.slice(5);
 }
 
 function nextAging(device: Device, cfg: VxlanConfig, rt: VxlanRt): number | undefined {
@@ -673,12 +694,7 @@ function tick(ctx: SimContext, device: Device, now: number): boolean {
   }
   for (const k of Object.keys(rt.lastSeen)) if (!live.has(k)) delete rt.lastSeen[k];
   // Learning is off on the VXLAN port: drop tunnel entries EVPN does not back.
-  if (evpnActive(device, cfg)) {
-    device.macTable = device.macTable.filter((e) => {
-      if (!isVirtual(e.interfaceId) || vniForVlan(cfg, e.vlan) === undefined) return true;
-      return rt.macs[mkey(e.vlan, e.mac)]?.vtep === e.interfaceId.slice(5);
-    });
-  }
+  device.macTable = device.macTable.filter((e) => !staleTunnelEntry(device, cfg, rt, e));
   // MAC mobility sequence numbers for local MACs.
   const seqLive = new Set<string>();
   const ess = localEss(device);

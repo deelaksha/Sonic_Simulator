@@ -5,6 +5,7 @@
 import { CommandHandler, CommandContext, CommandResult, OutputLine, line, err, muted } from "./types";
 import { takeFlagValue, firstPositional } from "./parser";
 import { isValidIpv6 } from "../models/ipv6";
+import { vrfNames } from "../models/vrf";
 import { PingFailure } from "../engine";
 
 function diagnose(ctx: CommandContext, dst: string, reason?: PingFailure): OutputLine[] {
@@ -43,11 +44,19 @@ export const ping6Command: CommandHandler = {
     const a = [...args];
     const countStr = takeFlagValue(a, "-c");
     const count = countStr ? Math.max(1, Math.min(5000, parseInt(countStr, 10) || 4)) : 4;
+    // VRF: `ping6 -I Vrf-red …` (binds to the VRF device) or KLISH `ping6 vrf Vrf-red …`, as ping.ts.
+    let vrf = takeFlagValue(a, "-I");
+    const vi = a.indexOf("vrf");
+    if (vi >= 0 && a[vi + 1]) {
+      vrf = a[vi + 1];
+      a.splice(vi, 2);
+    }
+    if (vrf && !vrfNames(ctx.device).includes(vrf)) return { output: [err(`ping6: ${vrf}: unknown VRF or interface`)] };
     const dst = firstPositional(a);
     if (!dst) return { output: [err("ping6: usage: ping6 [-c count] <ipv6-destination>")] };
     if (!isValidIpv6(dst)) return { output: [err(`ping6: ${dst}: invalid IPv6 address`)] };
 
-    const { value: summary, events } = ctx.runSim((sim) => sim.runPing6(ctx.device.id, dst, { count }));
+    const { value: summary, events } = ctx.runSim((sim) => sim.runPing6(ctx.device.id, dst, { count, vrf }));
     const out: OutputLine[] = [line(`PING ${dst}(${dst}) 56 data bytes`)];
 
     if (count <= 20) {

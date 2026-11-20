@@ -62,10 +62,11 @@ registerModal({
   },
 });
 
-// configure-if-view: `[no] ip|ipv6 dhcp snooping trust` — mark the port trusted.
+// configure-if-view / -lag-view: `[no] ip|ipv6 dhcp snooping trust` — mark the port trusted
+// (dhcp_snooping.xml:342-386: both views).
 registerModal({
   id: "dhcp-snooping-trust",
-  views: ["configure-if-view"],
+  views: ["configure-if-view", "configure-lag-view"],
   keywords: ["ip", "ipv6"],
   run({ head, isNo, args, ifname, ctx }) {
     if (args[0]?.toLowerCase() !== "dhcp" || args[1]?.toLowerCase() !== "snooping") return null;

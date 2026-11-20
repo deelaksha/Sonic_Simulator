@@ -38,7 +38,7 @@ function ctxFor(state: NetworkState, device: Device): CommandContext {
 }
 
 function relays(dev: Device): Record<string, string[]> {
-  return peekFeatureState<DhcpRelayState>(dev, "dhcp")?.relays ?? {};
+  return peekFeatureState<Record<string, string[]>>(dev, "dhcpRelay") ?? {};
 }
 
 describe("SONiC DHCP relay feature (config-plane only)", () => {

@@ -52,6 +52,8 @@ export interface IpOutputOpts {
   protocolNumber?: number;
   /** VRF whose routing table is used (default "default"). */
   vrf?: string;
+  /** Bound output interface (SO_BINDTODEVICE, `ping -I <iface>`): only routes out of it are used. */
+  oif?: string;
   /** Set when a router/switch forwards a transit packet (not CPU-originated). */
   forwarded?: boolean;
   upperBytes: number; // bytes above the IP header (L4 + data)
@@ -67,7 +69,8 @@ export interface IpOutputResult {
 export function ipOutput(ctx: SimContext, device: Device, opts: IpOutputOpts): IpOutputResult {
   const l4 = opts.udp ? [opts.udp.srcPort, opts.udp.dstPort] : opts.tcp ? [opts.tcp.srcPort, opts.tcp.dstPort] : [0, 0];
   const flow = ecmpFlowHash(device, opts.srcIp, opts.dstIp, opts.protocolNumber ?? opts.protocol, l4[0], l4[1]);
-  const match = longestPrefixMatch(device.routingTable, opts.dstIp, opts.vrf, flow);
+  const table = opts.oif ? device.routingTable.filter((r) => r.interfaceId === opts.oif) : device.routingTable;
+  const match = longestPrefixMatch(table, opts.dstIp, opts.vrf, flow);
   const egress = match ? findInterface(device, match.route.interfaceId) : undefined;
 
   ctx.emit({

@@ -171,6 +171,22 @@ registerRcSection({
   ifOrder: 110,
 });
 
+// --- NTP (renderer/templates/show_ntp_config.j2; show_all_config: after bgp/aaa, before lldp)
+registerRcSection({
+  id: "ntp",
+  order: 100,
+  keywords: [["ntp"]],
+  global(dev) {
+    const st = peekFeatureState<{ servers: string[]; sourceInterface?: string; vrf?: string }>(dev, "ntp");
+    if (!st) return [];
+    const out: string[] = [];
+    if (st.sourceInterface) out.push(`ntp source-interface ${st.sourceInterface}`);
+    if (st.vrf && st.vrf !== "default") out.push(`ntp vrf ${st.vrf}`);
+    for (const a of st.servers) out.push(`ntp server ${a}`);
+    return out.length ? [out] : [];
+  },
+});
+
 // --- link state tracking --------------------------------------------------------
 interface LstGroup {
   name: string;

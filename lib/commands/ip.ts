@@ -21,6 +21,8 @@ import { broadcastAddress, isValidIpv4, isValidPrefix, networkAddress } from "..
 import { rebuildConnectedRoutes } from "../models/factory";
 import { markStatic } from "../models/auto-dhcp";
 import { renderIp6Addr, renderIp6Route } from "../protocols/radv-daemon";
+import { addGlobal6, ensureLinkLocal, syncConnected6 } from "../protocols/ipv6";
+import { contains6, isLinkLocal6, isValidIpv6, isValidPrefix6, networkAddress6, normalizeIpv6 } from "../models/ipv6";
 import { renderMaddr } from "../protocols/mcast-host";
 
 // ---- formatting shared with other commands ----
@@ -115,6 +117,53 @@ function addrDel(ctx: CommandContext, args: string[]): CommandResult {
   iface.ipv4 = iface.ipv4.filter((a) => a.address !== parsed.address);
   rebuildConnectedRoutes(ctx.device);
   return { output: [muted(`removed ${parsed.address}/${parsed.prefix} from ${iface.name}`)] };
+}
+
+/** `ip -6 addr add|del <addr>/<len> dev <if>`: a static IPv6 address (before the link-local). */
+function addr6(ctx: CommandContext, args: string[], add: boolean): CommandResult {
+  const cidr = args.find((a) => a.includes("/"));
+  const [addr, len] = (cidr ?? "").split("/");
+  if (!cidr || !isValidIpv6(addr) || !isValidPrefix6(Number(len))) return { output: [err(`Usage: ip -6 addr ${add ? "add" : "del"} <ipv6>/<prefix> dev <iface>`)] };
+  const iface = requireIface(ctx, args);
+  if (!("id" in iface)) return { output: [iface] };
+  const key = normalizeIpv6(addr);
+  if (add) {
+    if (!addGlobal6(iface, key, Number(len))) return { output: [err("RTNETLINK answers: File exists")] };
+    ensureLinkLocal(iface);
+  } else {
+    if (!iface.ipv6.some((a) => normalizeIpv6(a.address) === key)) return { output: [err("RTNETLINK answers: Cannot assign requested address")] };
+    iface.ipv6 = iface.ipv6.filter((a) => normalizeIpv6(a.address) !== key);
+  }
+  syncConnected6(ctx.device);
+  return { output: [] };
+}
+
+/** `ip -6 route add|del <default|prefix> via <gw> [dev <if>]` (a link-local gateway needs dev). */
+function route6(ctx: CommandContext, args: string[], add: boolean): CommandResult {
+  const dest = args[0];
+  const gw = args[args.indexOf("via") + 1];
+  const devName = args.includes("dev") ? args[args.indexOf("dev") + 1] : undefined;
+  const [a, l] = dest === "default" ? ["::", "0"] : (dest ?? "").split("/");
+  if (!dest || !isValidIpv6(a) || !isValidPrefix6(Number(l)) || !args.includes("via") || !gw || !isValidIpv6(gw)) {
+    return { output: [err(`Usage: ip -6 route ${add ? "add" : "del"} <prefix|default> via <ipv6> [dev <iface>]`)] };
+  }
+  const destination = networkAddress6(a, Number(l));
+  const prefix = Number(l);
+  const nh = normalizeIpv6(gw);
+  const table = (ctx.device.routingTable6 ??= []);
+  const same = (r: Route) => r.type === "static" && r.destination === destination && r.prefix === prefix && r.nextHop === nh;
+  if (!add) {
+    if (!table.some(same)) return { output: [err("RTNETLINK answers: No such process")] };
+    ctx.device.routingTable6 = table.filter((r) => !same(r));
+    return { output: [] };
+  }
+  const iface = devName
+    ? interfaceByName(ctx.device, devName)
+    : ctx.device.interfaces.find((i) => i.ipv6.some((x) => !isLinkLocal6(x.address) && contains6(networkAddress6(x.address, x.prefix), x.prefix, nh)));
+  if (!iface) return { output: [err(devName ? `Cannot find device "${devName}"` : "RTNETLINK answers: No route to host")] };
+  if (table.some(same)) return { output: [err("RTNETLINK answers: File exists")] };
+  table.push({ destination, prefix, nextHop: nh, interfaceId: iface.id, type: "static", metric: 1024, installedAtMs: Date.now() });
+  return { output: [] };
 }
 
 /**
@@ -306,6 +355,9 @@ export const ipCommand: CommandHandler = {
     // `ip -6 addr|route [show]` (iproute2 family flag): IPv6 views incl. SLAAC/RA state.
     if (argv[0] === "-6") {
       const o = argv[1];
+      const act = argv[2];
+      if ((o === "a" || o === "addr" || o === "address") && (act === "add" || act === "del" || act === "delete")) return addr6(ctx, argv.slice(3), act === "add");
+      if ((o === "r" || o === "route") && (act === "add" || act === "del" || act === "delete")) return route6(ctx, argv.slice(3), act === "add");
       if (o === "a" || o === "addr" || o === "address") return { output: renderIp6Addr(ctx.device, Date.now()).map((t) => line(t)) };
       if (o === "r" || o === "route") return { output: renderIp6Route(ctx.device, Date.now()).map((t) => line(t)) };
       return { output: [err(`ip -6: only "addr" and "route" are supported`)] };

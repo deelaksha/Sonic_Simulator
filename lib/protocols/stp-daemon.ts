@@ -18,6 +18,11 @@ import { SimContext } from "../engine/context";
 import { ControlDaemon, registerDaemon } from "../control/daemon";
 import { normalizeMac } from "../models/mac";
 import { featureState, peekFeatureState } from "../models/feature-state";
+import { lagOf } from "../control/hooks";
+import { cpGet, cpList } from "../commands/sonic-cli/config-plane";
+import { errdisablePort } from "./errdisable";
+import { flushDynamicFdb } from "./macaging-daemon";
+import { logEvent } from "../control/syslog";
 
 /** Per-port BPDU counters (stpd STP_PORT_TABLE bpdu_sent / bpdu_received) for `show spanning-tree counters`. */
 export type StpCounters = Record<string, { tx: number; rx: number }>;
@@ -64,10 +69,30 @@ export interface StpBridgeOper {
   ports: Record<string, StpPortOper>;
 }
 
-/** Get the configured or default STP priority for a switch. */
+/** Get the configured or default STP priority for a switch (KLISH / Click `spanning-tree priority` → cp_stp). */
 export function getStpPriority(dev: Device): number {
-  const p = (dev.config.features?.stp as { priority?: number } | undefined)?.priority;
+  const p = (dev.config.features?.stp as { priority?: number } | undefined)?.priority ?? cpGet(dev, "stp")?.priority;
   return typeof p === "number" && p >= 0 ? p : DEFAULT_STP_PRIORITY;
+}
+
+/** Per-interface `spanning-tree …` config row (cp_stp.interfaces). */
+const stpIntf = (dev: Device, name: string) => cpList(dev, "stp", "interfaces").find((r) => r.ifname === name);
+
+const isUp = (i: NetInterface) => i.adminState === "up" && i.operState === "up";
+
+/** A bridge port STP runs on: a switchport that is not a LAG member, or a PortChannel; never routed/mgmt. */
+function isStpPort(sw: Device, i: NetInterface): boolean {
+  if (i.management || i.ipv4.length > 0) return false;
+  if (i.logical) return /^PortChannel\d+$/.test(i.name);
+  return lagOf(sw, i) === undefined;
+}
+
+/** STP port a cabled interface belongs to: itself, or its PortChannel while the member is aggregated. */
+function stpPortOf(sw: Device, i: NetInterface): NetInterface | undefined {
+  if (i.management || i.logical || i.ipv4.length > 0) return undefined;
+  const lag = lagOf(sw, i);
+  if (lag === undefined) return i;
+  return lag && isStpPort(sw, lag) ? lag : undefined;
 }
 
 /** Format Bridge ID as <priority>.<mac> in lower-case hex. */
@@ -109,17 +134,21 @@ export function computeStp(state: NetworkState): Record<string, StpBridgeOper> {
 
     const ports: Record<string, StpPortOper> = {};
     let portNum = 1;
-    for (const iface of sw.interfaces) {
-      if (iface.management || iface.logical) continue;
+    // Physical ports first (numbering unchanged), then PortChannels.
+    for (const iface of [...sw.interfaces.filter((i) => !i.logical), ...sw.interfaces.filter((i) => i.logical)]) {
+      if (iface.management || (iface.logical && !isStpPort(sw, iface))) continue;
+      const num = portNum++;
+      if (!isStpPort(sw, iface)) continue; // LAG member / routed port: not a bridge port
       const adminUp = iface.adminState === "up";
+      const cost = stpIntf(sw, iface.name)?.cost;
       ports[iface.id] = {
         interfaceId: iface.id,
         interfaceName: iface.name,
         role: adminUp ? "Designated" : "Disabled",
         state: adminUp ? "FORWARDING" : "BLOCKING",
-        cost: DEFAULT_PORT_COST,
+        cost: typeof cost === "number" ? cost : DEFAULT_PORT_COST,
         priority: 128,
-        portNumber: portNum++,
+        portNumber: num,
       };
     }
 
@@ -149,6 +178,7 @@ export function computeStp(state: NetworkState): Record<string, StpBridgeOper> {
     costB: number;
   }
   const switchLinks: SwitchLink[] = [];
+  const seen = new Set<string>();
 
   for (const conn of state.connections) {
     if (conn.state !== "up") continue;
@@ -157,11 +187,16 @@ export function computeStp(state: NetworkState): Record<string, StpBridgeOper> {
     if (!devA || !devB) continue;
     if (!isSwitch(devA.type) || !isSwitch(devB.type)) continue;
 
-    const ifA = devA.interfaces.find((i) => i.id === conn.a.interfaceId);
-    const ifB = devB.interfaces.find((i) => i.id === conn.b.interfaceId);
-    if (!ifA || !ifB) continue;
-    if (ifA.adminState !== "up" || ifB.adminState !== "up") continue;
-    if (ifA.management || ifB.management || ifA.logical || ifB.logical) continue;
+    const cabA = devA.interfaces.find((i) => i.id === conn.a.interfaceId);
+    const cabB = devB.interfaces.find((i) => i.id === conn.b.interfaceId);
+    if (!cabA || !cabB || !isUp(cabA) || !isUp(cabB)) continue; // err-disabled / LST-downed links carry no BPDUs
+    // LAG members map to their PortChannel: the bundle is one STP port and one link.
+    const ifA = stpPortOf(devA, cabA);
+    const ifB = stpPortOf(devB, cabB);
+    if (!ifA || !ifB || !isUp(ifA) || !isUp(ifB)) continue;
+    const key = `${devA.id}/${ifA.id}|${devB.id}/${ifB.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
     // Record peer info on ports
     if (result[devA.id]?.ports[ifA.id]) {
@@ -400,6 +435,20 @@ export function buildBpduFrame(sw: Device, iface: NetInterface, oper: StpBridgeO
 }
 
 /**
+ * BPDU guard (stp_mgr.c stpmgr_protect_process): a BPDU on a port with
+ * `spanning-tree bpduguard port-shutdown` disables the port (err-disable cause
+ * bpduguard, recovered by `errdisable recovery cause bpduguard`). Without
+ * port-shutdown the BPDU is only ignored. Returns true when the port was shut.
+ */
+function bpduGuardTrips(ctx: SimContext, device: Device, iface: NetInterface, nowMs: number): boolean {
+  const row = stpIntf(device, iface.name);
+  if (row?.bpduguard !== true || row.bpduguard_shutdown !== true) return false;
+  logEvent(device, nowMs, "WARNING", "stpd", `STP: BPDU received, interface ${iface.name} disabled due to BPDU guard trigger`);
+  errdisablePort(ctx, device, iface, "bpduguard", nowMs);
+  return true;
+}
+
+/**
  * STP Control-Plane Daemon.
  * Periodically emits BPDUs on Designated ports and receives BPDUs.
  */
@@ -425,15 +474,31 @@ export const stpDaemon: ControlDaemon = {
     const cfg = (device.config.features ??= {});
     cfg._stpLastHello = nowMs;
 
-    const oper = getStpBridgeOper(ctx.state, device);
+    const all = computeStp(ctx.state);
+    const oper = all[device.id] ?? getStpBridgeOper(ctx.state, device);
 
-    // BPDUs are transmitted out of Designated L2 switchports
+    // Topology change (a port of this spanning tree changed state, a link joined or
+    // left): flush the learned FDB, as stpd does on TC, so frames stop following
+    // the old path.
+    const sig = Object.values(all)
+      .filter((b) => b.rootBridgeId === oper.rootBridgeId)
+      .flatMap((b) => Object.values(b.ports).filter((p) => p.peerDeviceId).map((p) => `${b.deviceId}/${p.interfaceId}:${p.state}`))
+      .sort()
+      .join(",");
+    if (cfg._stpTopoSig !== undefined && cfg._stpTopoSig !== sig && flushDynamicFdb(device) > 0) {
+      logEvent(device, nowMs, "NOTICE", "stpd", "STP: topology change, flushing learned MAC addresses");
+    }
+    cfg._stpTopoSig = sig;
+
+    // BPDUs are transmitted out of Designated bridge ports (switchports and PortChannels)
     for (const iface of device.interfaces) {
-      if (iface.adminState !== "up" || iface.operState !== "up") continue;
-      if (iface.management || iface.logical) continue;
-      if (iface.ipv4.length > 0) continue; // Routed port does not run STP
+      if (!isUp(iface)) continue;
       const port = oper.ports[iface.id];
-      if (port && port.role === "Designated" && port.state === "FORWARDING") {
+      if (!port) continue; // mgmt, routed, LAG member: not an STP port
+      // BPDU guard: the bridge at the far end sends BPDUs on this link (every RSTP
+      // port proposes on link-up, whatever role it settles in) → guard trips.
+      if (port.peerDeviceId && bpduGuardTrips(ctx, device, iface, nowMs)) continue;
+      if (port.role === "Designated" && port.state === "FORWARDING") {
         const bpdu = buildBpduFrame(device, iface, oper);
         ctx.emit({
           type: "STP_BPDU_SENT",
@@ -458,6 +523,7 @@ export const stpDaemon: ControlDaemon = {
 
     if (frame.stp) {
       bumpBpdu(device, ingress.name, "rx");
+      if (bpduGuardTrips(ctx, device, lagOf(device, ingress) || ingress, ctx.wallNow())) return true;
       ctx.emit({
         type: "STP_BPDU_RECEIVED",
         deviceId: device.id,

@@ -123,6 +123,6 @@ describe("log-adjacency-changes", () => {
     expect(bash("S1", "show ip ospf")).toContain(" Adjacency changes are logged");
     S().disconnect(conn("S1", "S2").id);
     advance(300);
-    expect(bash("S1", "show logging")).toMatch(/AdjChg: Nbr 2\.2\.2\.2, NbrIP 10\.0\.12\.2 \(default\) on Ethernet0:10\.0\.12\.1: Full -> Down \(KillNbr\)$/m);
+    expect(bash("S1", "show logging")).toMatch(/AdjChg: Nbr 2\.2\.2\.2, NbrIP 10\.0\.12\.2 \(default\) on Ethernet0:10\.0\.12\.1: Full -> Deleted \(KillNbr\)$/m);
   });
 });

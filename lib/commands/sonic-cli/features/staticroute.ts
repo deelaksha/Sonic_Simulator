@@ -7,8 +7,11 @@
  * Delegates to the tested Click `config route add/del prefix <cidr> nexthop <ip>`
  * (lib/commands/sonic/staticroute.ts) so forwarding behaviour is not duplicated.
  *
+ *   ipv6 route [vrf <name>] <prefix> <next-hop-addr>   (KLISH route_static.xml ipv6
+ *                                              form) → the same Click command, IPv6 branch
+ *
  * The single next-hop-ADDRESS form is wired, in the default VRF or with
- * `ip route vrf <name> <prefix> <next-hop>`. `ipv6 route ...`, `blackhole`,
+ * `ip route vrf <name> <prefix> <next-hop>`. `blackhole`,
  * next-hop `interface`, and tag/weight/pref/track options have no Click
  * equivalent, so those fall through (return null).
  */
@@ -19,9 +22,9 @@ import { networkAddress } from "../../../models/ip";
 registerModal({
   id: "staticroute",
   views: ["configure-view"],
-  keywords: ["ip"],
+  keywords: ["ip", "ipv6"],
   run({ head, isNo, args, ctx, delegate }) {
-    if (head !== "ip" || args[0]?.toLowerCase() !== "route") return null;
+    if ((head !== "ip" && head !== "ipv6") || args[0]?.toLowerCase() !== "route") return null;
     // Tokens after "route". The Click form is exactly <prefix> <next-hop-addr>.
     let rest = args.slice(1);
     let vrf = "";
@@ -34,7 +37,8 @@ registerModal({
     if (rest.length !== 2) return null; // interface / tag / weight / pref / track: not modelled
     const [prefix, nexthop] = rest;
     if (!prefix.includes("/") || nexthop.toLowerCase() === "blackhole") return null; // blackhole: not modelled
-    if (isNo) {
+    if ((head === "ipv6") !== prefix.includes(":")) return null; // family mismatch: grammar error
+    if (isNo && head === "ip") {
       const [addr, len] = prefix.split("/");
       forgetTracked(ctx.device, networkAddress(addr, Number(len)), Number(len), nexthop, vrfName);
     }

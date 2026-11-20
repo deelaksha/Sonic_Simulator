@@ -344,7 +344,7 @@ function counterSample(rt: SflowRuntime, iface: NetInterface, ifIndex: number): 
 /** Egress interface the switch kernel would use to reach a collector (connected routes). */
 function collectorEgress(sw: Device, c: SflowCollector): NetInterface | undefined {
   return sw.interfaces
-    .filter((i) => i.adminState === "up" && (i.management || i.logical) && (c.vrf !== "mgmt" || i.management))
+    .filter((i) => i.adminState === "up" && (c.vrf !== "mgmt" || i.management)) // eth0, SVIs and routed ports are all kernel netdevs
     .flatMap((i) => i.ipv4.filter((a) => cidrContains(a.address, a.prefix, c.ip)).map((a) => ({ i, prefix: a.prefix })))
     .sort((a, b) => b.prefix - a.prefix)[0]?.i;
 }
@@ -417,7 +417,7 @@ export function sflowAgentTick(ctx: SimContext, sw: Device, nowMs: number): Sflo
   for (const c of st.collectors) {
     const egress = collectorEgress(sw, c);
     if (!egress) {
-      result.errors.push(`no route to collector ${c.ip} (vrf ${c.vrf}) — configure an SVI or eth0 address in its subnet`);
+      result.errors.push(`no route to collector ${c.ip} (vrf ${c.vrf}) — configure an SVI, routed-port or eth0 address in its subnet`);
       continue;
     }
     const srcIp = egress.ipv4[0].address;

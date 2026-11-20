@@ -118,7 +118,7 @@ describe("ospfd AdjChg (ospf_nsm.c:626-636)", () => {
     expect(text).not.toMatch(/-> (Init|2-Way|ExStart|Exchange|Loading) /); // upward non-Full changes need "detail"
     S().disconnect(conn("S1", "S2").id);
     advance(300);
-    expect(log("S1", "ospfd -l 1")).toMatch(/AdjChg: Nbr 2\.2\.2\.2, NbrIP 10\.0\.12\.2 \(default\) on Ethernet0:10\.0\.12\.1: Full -> Down \(KillNbr\)$/);
+    expect(log("S1", "ospfd -l 1")).toMatch(/AdjChg: Nbr 2\.2\.2\.2, NbrIP 10\.0\.12\.2 \(default\) on Ethernet0:10\.0\.12\.1: Full -> Deleted \(KillNbr\)$/);
   });
 });
 

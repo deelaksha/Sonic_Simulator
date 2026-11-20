@@ -12,6 +12,7 @@ import { NetInterface, primaryIpv4 } from "../models/interface";
 import { Frame } from "../models/packet";
 import { BROADCAST_MAC } from "../models/mac";
 import { ipOutput } from "./ipv4";
+import { vrfOf } from "../models/vrf";
 import { dhcpFrame, DHCP_SERVER_PORT, DHCP_CLIENT_PORT, DHCP_UPPER_BYTES } from "./udpapp";
 
 export type DhcpRelayConfig = Record<string, string[]>; // ifname -> server IPs
@@ -42,6 +43,7 @@ export function handleDhcpRelay(ctx: SimContext, device: Device, ingress: NetInt
         srcIp: gi.address, dstIp: server, ttl: 64, protocol: "UDP", identification: 0,
         udp: { srcPort: DHCP_SERVER_PORT, dstPort: DHCP_SERVER_PORT, length: DHCP_UPPER_BYTES },
         dhcp: payload, upperBytes: DHCP_UPPER_BYTES, summary: `DHCP ${d.messageType.toUpperCase()} (relayed → ${server})`,
+        vrf: vrfOf(device, ingress), // dhcrelay runs in the client interface's VRF
       });
     }
     return true;

@@ -1,8 +1,8 @@
 /**
  * IPv6 modal behaviour (sonic-cli).
  *
- * Interface sub-views (configure-if-view / configure-vlan-view / configure-lag-view,
- * cli-xml/ipv6.xml):
+ * Interface sub-views (configure-if-view / configure-vlan-view / configure-lag-view /
+ * configure-lo-view, cli-xml/ipv6.xml):
  *   ipv6 address <X:X::X/M>      → config interface ipv6 add <ifname> <addr>
  *   no ipv6 address <X:X::X/M>   → config interface ipv6 del <ifname> <addr>
  *   ipv6 nd suppress-ra | ra-interval <1-1800> | managed-config-flag | other-config-flag
@@ -45,7 +45,7 @@ registerModal({
   },
 });
 
-const IF_VIEWS = ["configure-if-view", "configure-vlan-view", "configure-lag-view"];
+const IF_VIEWS = ["configure-if-view", "configure-vlan-view", "configure-lag-view", "configure-lo-view"];
 
 const ospf6 = (device: Parameters<typeof featureState>[0]) => featureState<Ospf6Config>(device, OSPF6_KEY, () => ({ ifParams: {} }));
 

@@ -31,6 +31,9 @@ describe("CONFIG_DB from Click config (VLAN, IP, static route, sFlow)", () => {
 
   it("VLAN / VLAN_MEMBER / INTERFACE / STATIC_ROUTE rows with sonic-yang field names", () => {
     const s = sw();
+    // Cable Ethernet3: zebra only has the connected route of an operationally up port.
+    const pc = S().addDevice("pc", { x: 0, y: 0 });
+    S().connect(pc, `${pc}-if0`, s.id, s.interfaces.find((i) => i.name === "Ethernet3")!.id, { autoDhcp: false });
     run(s, "config vlan add 100");
     run(s, "config vlan member add -u 100 Ethernet3");
     run(s, "config interface ip add Ethernet3 10.1.1.1/24");

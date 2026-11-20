@@ -27,6 +27,7 @@ import { Tables, put, Row } from "./schema";
 import { frontPorts } from "./config-db";
 import { fibRoutes } from "./appl-state-db";
 import { projectQosCounters } from "./qos-copp-db";
+import { portDiscards } from "../control/drops";
 
 const T = {
   PORT: 0x1,
@@ -236,20 +237,21 @@ export function projectCountersDb(d: Device): Tables {
     const inM = s.rxMulticast ?? 0;
     const outB = s.txBroadcast ?? 0;
     const outM = s.txMulticast ?? 0;
+    const disc = portDiscards(d, p.name); // the per-reason drop table portstat / dropstat read
     put(t, "COUNTERS", portOid(p.name), {
       SAI_PORT_STAT_IF_IN_OCTETS: String(s.rxBytes),
       SAI_PORT_STAT_IF_IN_UCAST_PKTS: String(Math.max(0, s.rxFrames - inB - inM)),
       SAI_PORT_STAT_IF_IN_NON_UCAST_PKTS: String(inB + inM),
       SAI_PORT_STAT_IF_IN_BROADCAST_PKTS: String(inB),
       SAI_PORT_STAT_IF_IN_MULTICAST_PKTS: String(inM),
-      SAI_PORT_STAT_IF_IN_DISCARDS: String(s.rxDropped),
+      SAI_PORT_STAT_IF_IN_DISCARDS: String(disc.rx),
       SAI_PORT_STAT_IF_IN_ERRORS: "0",
       SAI_PORT_STAT_IF_OUT_OCTETS: String(s.txBytes),
       SAI_PORT_STAT_IF_OUT_UCAST_PKTS: String(Math.max(0, s.txFrames - outB - outM)),
       SAI_PORT_STAT_IF_OUT_NON_UCAST_PKTS: String(outB + outM),
       SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS: String(outB),
       SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS: String(outM),
-      SAI_PORT_STAT_IF_OUT_DISCARDS: String(s.txDropped),
+      SAI_PORT_STAT_IF_OUT_DISCARDS: String(disc.tx),
       SAI_PORT_STAT_IF_OUT_ERRORS: "0",
     });
   }

@@ -20,10 +20,11 @@
 import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../types";
 import { SonicCmd, SonicFeatureModule, positional, clickGroup, clickGroupUsage, clickUsageError } from "./types";
 import { Device, interfaceByName, isSwitch, isHost } from "../../models/device";
-import { NetInterface, primaryIpv4 } from "../../models/interface";
+import { NetInterface, primaryIpv4, createInterface } from "../../models/interface";
 import { isValidIpv4, isValidPrefix } from "../../models/ip";
-import { isValidMac, isUnicast, normalizeMac } from "../../models/mac";
+import { isValidMac, isUnicast, normalizeMac, generateMac } from "../../models/mac";
 import { rebuildConnectedRoutes } from "../../models/factory";
+import { refreshLink } from "../../models/topology";
 import { listVlans, vlanMembers } from "../../models/vlan-ops";
 import { lagConfigs } from "../../protocols/lacp-daemon";
 import { cpGet, cpList } from "../sonic-cli/config-plane";
@@ -50,6 +51,17 @@ const config: SonicCmd[] = [
     summary: "Assign an IPv4 address to a port",
     run(args, ctx): CommandResult {
       const pos = positional(args);
+      // VLAN_INTERFACE: an existing VLAN's SVI is created on first use, as KLISH `interface Vlan <id>` does.
+      const vid = /^Vlan(\d+)$/.exec(pos[0] ?? "")?.[1];
+      if (vid && listVlans(ctx.device).some((v) => v.id === Number(vid)) && !findPort(ctx, pos[0])) {
+        // same id / MAC derivation as ensureInterface + logicalMac in ../sonic-cli.ts (not importable: cycle)
+        let seed = 0x0e0000;
+        for (const c of ctx.device.id) seed = (seed * 31 + c.charCodeAt(0)) & 0xffffff;
+        const svi = createInterface(`${ctx.device.id}-${pos[0].toLowerCase()}`, pos[0], generateMac(seed));
+        svi.logical = true;
+        svi.operState = "up";
+        ctx.device.interfaces.push(svi);
+      }
       const iface = findPort(ctx, pos[0]);
       if (!iface) return { output: [err(`config interface ip add: no such interface '${pos[0] ?? ""}'`)] };
       const cidr = parseCidr(pos[1]);
@@ -88,8 +100,8 @@ const config: SonicCmd[] = [
       const iface = findPort(ctx, port);
       if (!iface) return { output: [err(`config interface startup: no such interface '${port ?? ""}'`)] };
       iface.adminState = "up";
-      iface.operState = iface.connectedTo ? "up" : "down";
-      rebuildConnectedRoutes(ctx.device);
+      // Carrier needs both ends enabled: recompute this port and the cable's far end.
+      for (const id of refreshLink(ctx.network, ctx.device.id, iface.id)) rebuildConnectedRoutes(ctx.network.devices[id] ?? ctx.device);
       return { output: [muted(`${iface.name} admin up`)] };
     },
   },
@@ -102,7 +114,8 @@ const config: SonicCmd[] = [
       if (!iface) return { output: [err(`config interface shutdown: no such interface '${port ?? ""}'`)] };
       iface.adminState = "down";
       iface.operState = "down";
-      rebuildConnectedRoutes(ctx.device);
+      // Laser off: the far end of the cable loses carrier too.
+      for (const id of refreshLink(ctx.network, ctx.device.id, iface.id)) rebuildConnectedRoutes(ctx.network.devices[id] ?? ctx.device);
       return { output: [muted(`${iface.name} admin down`)] };
     },
   },

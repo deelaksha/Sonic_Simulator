@@ -59,7 +59,8 @@ export function handleIcmpLocal(
     return;
   }
 
-  if (icmp.type === "echo-reply") {
+  // Echo replies — and ICMP errors about our probes (ping reports "Time to live exceeded").
+  if (icmp.type === "echo-reply" || icmp.type === "time-exceeded" || icmp.type === "dest-unreachable") {
     ctx.recordEchoReply(device.id, frame);
   }
 }

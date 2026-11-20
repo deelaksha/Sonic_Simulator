@@ -18,6 +18,7 @@ import { CommandContext, CommandResult, OutputLine, line, err, muted } from "../
 import { SonicCmd, SonicFeatureModule, positional } from "./types";
 import { isValidIpv4, isValidPrefix, networkAddress } from "../../models/ip";
 import { Route } from "../../models/route";
+import { isValidIpv6, isValidPrefix6, isLinkLocal6, networkAddress6, normalizeIpv6, contains6 } from "../../models/ipv6";
 import { inactiveStatics, setInactiveStatics } from "../../models/static-routes";
 
 interface Cidr {
@@ -47,11 +48,55 @@ function prefixArg(args: string[]): { vrf: string; cidr: Cidr | null } {
   return { vrf: DEFAULT_VRF, cidr: parseCidr(args[i + 1]) };
 }
 
+/** The `prefix [vrf <name>] <cidr>` token is an IPv6 prefix. */
+function isV6Route(args: string[]): boolean {
+  const i = args.indexOf("prefix");
+  return (args[i + 1] === "vrf" ? args[i + 3] : args[i + 1])?.includes(":") ?? false;
+}
+
+/**
+ * IPv6 form of `config route add|del` (config/main.py cli_sroute_to_config takes either
+ * family; key "[vrf|]<prefix>" in STATIC_ROUTE). The route lands in routingTable6 with
+ * the interface whose IPv6 subnet (in that VRF) holds the next hop. Simulator limit: a
+ * next hop that is not on a connected IPv6 subnet (link-local next hops included) is
+ * rejected instead of being kept inactive as staticd would.
+ */
+function route6(args: string[], ctx: CommandContext, add: boolean): CommandResult {
+  const i = args.indexOf("prefix");
+  const vrf = args[i + 1] === "vrf" ? (args[i + 2] ?? "") : DEFAULT_VRF;
+  const tok = args[i + 1] === "vrf" ? args[i + 3] : args[i + 1];
+  const [addr, len] = (tok ?? "").split("/");
+  const prefix = Number(len);
+  const nh = valueAfter(args, "nexthop");
+  if (!tok?.includes("/") || !isValidIpv6(addr) || !isValidPrefix6(prefix) || !nh || !isValidIpv6(nh)) {
+    return { output: [err(`Usage: config route ${add ? "add" : "del"} prefix [vrf <name>] <ip/prefix> nexthop <ip>`)] };
+  }
+  if (!vrfNames(ctx.device).includes(vrf)) return { output: [err(`config route: VRF ${vrf} does not exist`)] };
+  const destination = networkAddress6(addr, prefix);
+  const gw = normalizeIpv6(nh);
+  const table = (ctx.device.routingTable6 ??= []);
+  const match = (r: Route) => r.type === "static" && (r.vrf ?? DEFAULT_VRF) === vrf && r.destination === destination && r.prefix === prefix && r.nextHop === gw;
+  if (!add) {
+    const removed = table.some(match);
+    ctx.device.routingTable6 = table.filter((r) => !match(r));
+    return { output: [muted(removed ? `route removed: ${destination}/${prefix} nexthop ${gw}` : "no matching static route")] };
+  }
+  const egress = ctx.device.interfaces.find(
+    (x) => vrfOf(ctx.device, x) === vrf && x.ipv6.some((a) => !isLinkLocal6(a.address) && contains6(networkAddress6(a.address, a.prefix), a.prefix, gw)),
+  );
+  if (!egress) return { output: [err(`config route: IPv6 next hop ${gw} is not on a connected subnet`)] };
+  if (!table.some(match)) {
+    table.push({ destination, prefix, nextHop: gw, interfaceId: egress.id, type: "static", metric: 0, installedAtMs: Date.now(), ...(vrf !== DEFAULT_VRF ? { vrf } : {}) });
+  }
+  return { output: [muted(`route added: ${destination}/${prefix} nexthop ${gw} dev ${egress.name}`)] };
+}
+
 const config: SonicCmd[] = [
   {
     path: ["route", "add"],
     summary: "Add a static route (config route add prefix <cidr> nexthop <ip>)",
     run(args, ctx): CommandResult {
+      if (isV6Route(args)) return route6(args, ctx, true);
       const { vrf, cidr } = prefixArg(args);
       const nh = valueAfter(args, "nexthop");
       if (!cidr || !nh || !isValidIpv4(nh)) {
@@ -97,6 +142,7 @@ const config: SonicCmd[] = [
     path: ["route", "del"],
     summary: "Remove a static route (config route del prefix <cidr> nexthop <ip>)",
     run(args, ctx): CommandResult {
+      if (isV6Route(args)) return route6(args, ctx, false);
       const { vrf, cidr } = prefixArg(args);
       const nh = valueAfter(args, "nexthop");
       if (!cidr || !nh || !isValidIpv4(nh)) {

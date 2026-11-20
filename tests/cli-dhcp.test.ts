@@ -45,7 +45,7 @@ function session(state: NetworkState, device: Device, start: CliStack, lines: st
 }
 
 function relays(device: Device): Record<string, string[]> {
-  return peekFeatureState<DhcpRelayState>(device, "dhcp")?.relays ?? {};
+  return peekFeatureState<Record<string, string[]>>(device, "dhcpRelay") ?? {};
 }
 
 describe("sonic-cli dhcp-relay modal CLI", () => {
