@@ -36,6 +36,52 @@ function usePanels() {
   return { open, toggle };
 }
 
+const BOTTOM_KEY = "lab-bottom-height";
+const BOTTOM_MIN = 120;
+
+/** Height of the terminal + packet area, set by dragging its top edge; remembered per browser. */
+function useBottomHeight() {
+  const [height, setHeight] = useState<number | null>(null); // null = default 32%
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(BOTTOM_KEY));
+      if (saved >= BOTTOM_MIN) setHeight(saved);
+    } catch {}
+  }, []);
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const area = e.currentTarget.parentElement!;
+    const startY = e.clientY;
+    const startH = area.getBoundingClientRect().height;
+    const max = window.innerHeight - 160; // keep the canvas usable
+    let last = startH;
+    const move = (ev: PointerEvent) => {
+      last = Math.min(max, Math.max(BOTTOM_MIN, startH + startY - ev.clientY));
+      setHeight(last);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try {
+        localStorage.setItem(BOTTOM_KEY, String(Math.round(last)));
+      } catch {}
+    };
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const reset = () => {
+    setHeight(null);
+    try {
+      localStorage.removeItem(BOTTOM_KEY);
+    } catch {}
+  };
+  return { height, startDrag, reset };
+}
+
 function PanelToggle({ on, onClick, label, title }: { on: boolean; onClick(): void; label: string; title: string }) {
   return (
     <button
@@ -47,6 +93,20 @@ function PanelToggle({ on, onClick, label, title }: { on: boolean; onClick(): vo
       }`}
     >
       {label}
+    </button>
+  );
+}
+
+/** Tab on the edge next to a side panel: hides it when open, brings it back when closed. */
+function EdgeTab({ open, onClick, label }: { open: boolean; onClick(): void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={`${open ? "Hide" : "Show"} ${label}`}
+      aria-label={`${open ? "Hide" : "Show"} ${label}`}
+      className="absolute right-0 top-1/2 z-30 flex h-14 w-4 -translate-y-1/2 items-center justify-center rounded-l border border-r-0 border-edge bg-panel-2/90 text-[11px] text-[#8b98a5] shadow hover:border-accent-2 hover:text-accent-2"
+    >
+      {open ? "›" : "‹"}
     </button>
   );
 }
@@ -84,6 +144,7 @@ export default function LabPage() {
 
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const panels = usePanels();
+  const bottom = useBottomHeight();
   const [firebaseActive, setFirebaseActive] = useState(false);
 
   useEffect(() => {
@@ -241,6 +302,7 @@ export default function LabPage() {
               >
                 {mainMaximized ? "⤡ Restore (Esc)" : "⤢ Full screen"}
               </button>
+              <EdgeTab open={panels.open.inspector} onClick={() => panels.toggle("inspector")} label="Inspector" />
             </section>
             <aside
               className={`shrink-0 overflow-hidden bg-panel transition-[max-width] duration-300 ease-out ${panels.open.inspector ? "max-w-[30rem] border-l border-edge" : "max-w-0"}`}
@@ -255,8 +317,18 @@ export default function LabPage() {
           </div>
 
           {/* bottom: terminal + packet timeline */}
-          <div className="flex h-[32%] min-h-[210px] border-t border-edge">
-            <section className="flex min-w-0 flex-1 flex-col bg-[#0a0d12]">
+          <div
+            className={`relative flex border-t border-edge ${bottom.height === null ? "h-[32%] min-h-[210px]" : ""}`}
+            style={bottom.height === null ? undefined : { height: bottom.height }}
+          >
+            <div
+              onPointerDown={bottom.startDrag}
+              onDoubleClick={bottom.reset}
+              title="Drag to resize · double-click to reset"
+              className="absolute inset-x-0 -top-1 z-40 h-2 cursor-row-resize hover:bg-accent-2/40"
+            />
+            <section className="relative flex min-w-0 flex-1 flex-col bg-[#0a0d12]">
+              <EdgeTab open={panels.open.packets} onClick={() => panels.toggle("packets")} label="Packet timeline" />
               <PanelHeader
                 title="Terminal"
                 hint={selectedDevice ? selectedDevice.config.hostname : "no device selected"}
